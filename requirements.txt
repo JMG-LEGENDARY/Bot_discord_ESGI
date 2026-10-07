@@ -1,4 +1,8 @@
 discord==2.3.2
+discord-py==2.7.1
 asyncio==4.0.0
 utils==1.0.2
-discord-py
+dotenv==0.9.9
+python-dotenv==1.2.4
+
+

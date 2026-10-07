@@ -4,28 +4,71 @@ import asyncio
 import sys
 from discord.ext import commands
 from config import config
+from dotenv import load_dotenv
 
 class Logger:
   def __init__(self):
     pass
   def critical(self, msg, exc_info=False):
-    pass
+    print(msg, file=sys.stderr)
   def info(self, msg, exc_info=False):
-    pass
-  pass
+    print(msg, file=sys.stderr)
+  def warning(self, msg, exc_info=False):
+    print(msg, file=sys.stderr)
+
 
 logger = Logger()
 
 
 class ESGIbot(commands.Bot):
   def __init__(self):
-    pass
+    """Initialise le bot avec les configurations appropriées"""
+    intents = discord.Intents.all()
+    super().__init__(
+      command_prefix=commands.when_mentioned,
+      intents=intents,
+      help_command=None
+    )
+    self.synced = False
+
 
   def sqlite(self):
     cursor = sqlite3.connect("base1.db")
     creer_table = ("""CREATE TABLE IF NOT EXISTS B1 (eleves_id INTEGER PRIMARY KEY NOT NULL, pseudo VARCHAR)""")
+    cursor.execute(creer_table)
 
 
+  async def setup_hook(self):
+    logger.info("🔄 Synchronisation des commandes slash...")
+    try:
+      synced = await self.tree.sync()
+      logger.info(f"✅ {len(synced)} commandes slash synchronisées !")
+      self.synced = True
+    except Exception as e:
+      logger.error(f"❌ Erreur lors de la synchronisation : {e}", exc_info=True)
+
+
+
+  async def on_ready(self):
+    if not self.synced:
+      return
+
+    logger.info("=" * 60)
+    logger.info(f"🚀 Bot connecté en tant que : {self.user}")
+    if self.user.id:  # type: ignore
+      logger.info(f"📊 ID Bot : {self.user.id}")  # type: ignore
+    else:
+      logger.warning("⚠️  Impossible de récupérer l'ID du bot !")
+    logger.info(f"📈 Serveurs : {len(self.guilds)}")
+    logger.info("⚡ Prêt à recevoir des commandes !")
+    logger.info("=" * 60)
+
+    # Définir le statut
+    activity = discord.Activity(
+      type=discord.ActivityType.watching,
+      name="ESGI_Coin 💎"
+    )
+    await self.change_presence(activity=activity)
 
 
 
