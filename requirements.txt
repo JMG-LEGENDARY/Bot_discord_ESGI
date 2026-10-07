@@ -1,0 +1,4 @@
+discord==2.3.2
+asyncio==4.0.0
+utils==1.0.2
+discord-py
