@@ -22,6 +22,10 @@ class CommandsCog(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
 
+
+
+
+
 async def setup(bot):
     """Fonction requise par discord.py pour charger le cog."""
     await bot.add_cog(CommandsCog(bot))
