@@ -3,8 +3,9 @@ class Config:
     BOT_TOKEN = CRYPTED_TOKEN[::-1]
 
 
-    def __init__(self):
-        self.guild_test_id = 1557482263820763156
+    guild_test_id = 1557482263820763156
+    test_categorie_b1 = 1557482704512090193
+    test_salon_b1_sans_prof = 1557482759633637456
 
 
 
