@@ -37,42 +37,6 @@ class ESGIbot(commands.Bot):
     ]
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     for cog in cogs_to_load:
       try:
         await self.load_extension(cog)

@@ -17,7 +17,7 @@ class EventsCog(commands.Cog):
     async def on_message(self, message: discord.Message):
         """Gère les messages reçus"""
         # Ignorer les bots et les commandes
-        logs_channel_id = config.CHANNELS.get("logs")
+        logs_channel_id = config.salon_logs
         mc_bot_id = config.MC_JOIN_ID
         print(
             f"Message reçu: {message.author} dans {message.channel}: {message.content}\n {message.author.id} - {mc_bot_id}")

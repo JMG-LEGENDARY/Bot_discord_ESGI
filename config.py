@@ -7,6 +7,8 @@ class Config:
     test_categorie_b1 = 1557482704512090193
     test_salon_b1_sans_prof = 1557482759633637456
 
+    salon_logs = 1557694982792683591
+
 
 
 
