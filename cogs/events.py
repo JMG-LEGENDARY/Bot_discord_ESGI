@@ -18,9 +18,8 @@ class EventsCog(commands.Cog):
         """Gère les messages reçus"""
         # Ignorer les bots et les commandes
         logs_channel_id = config.salon_logs
-        mc_bot_id = config.MC_JOIN_ID
-        print(
-            f"Message reçu: {message.author} dans {message.channel}: {message.content}\n {message.author.id} - {mc_bot_id}")
+        mc_bot_id = config.bot_id
+        logger.info(f"Message reçu: {message.author} dans {message.channel}: {message.content}\n {message.author.id} - {mc_bot_id}")
 
         if message.author.bot and message.author.id != mc_bot_id:
             return
