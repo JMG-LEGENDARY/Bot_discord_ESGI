@@ -9,7 +9,7 @@ class Config:
 
     salon_logs = 1557694982792683591
 
-    bot_id = 0
+    bot_id = 1557470246309199933
 
 
 
