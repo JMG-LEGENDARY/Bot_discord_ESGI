@@ -4,20 +4,8 @@ import asyncio
 import sys
 from discord.ext import commands
 from config import config
-from dotenv import load_dotenv
 
-class Logger:
-  def __init__(self):
-    pass
-  def critical(self, msg, exc_info=False):
-    print(msg, file=sys.stderr)
-  def info(self, msg, exc_info=False):
-    print(msg, file=sys.stderr)
-  def warning(self, msg, exc_info=False):
-    print(msg, file=sys.stderr)
-
-
-logger = Logger()
+from LOGS import logger
 
 
 class ESGIbot(commands.Bot):
@@ -31,13 +19,6 @@ class ESGIbot(commands.Bot):
     )
     self.synced = False
 
-  async def 
-
-
-
-
-
-
 
   def sqlite(self):
     cursor = sqlite3.connect("base1.db")
@@ -46,6 +27,59 @@ class ESGIbot(commands.Bot):
 
 
   async def setup_hook(self):
+
+    logger.info("🔧 Initialisation des extensions...")
+
+    # Liste des cogs à charger (ordre importe: decorators/utilities d'abord)
+    cogs_to_load = [
+      'cogs.commands',
+      'cogs.events'
+    ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    for cog in cogs_to_load:
+      try:
+        await self.load_extension(cog)
+        logger.info(f"✅ Cog chargé : {cog}")
+      except Exception as e:
+        logger.error(f"❌ Erreur en chargeant {cog} : {e}", exc_info=True)
+
     logger.info("🔄 Synchronisation des commandes slash...")
     try:
       synced = await self.tree.sync()
@@ -58,7 +92,7 @@ class ESGIbot(commands.Bot):
 
   async def on_ready(self):
     if not self.synced:
-      return logger.warning("⚠️  Les commandes slash ne sont pas synchronisées !")
+      return
 
     logger.info("=" * 60)
     logger.info(f"🚀 Bot connecté en tant que : {self.user}")
@@ -126,96 +160,6 @@ async def main():
   finally:
     logger.info("🔌 Fermeture des connexions...")
     logger.info("✅ Bot arrêté")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 if __name__ == "__main__":
