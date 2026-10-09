@@ -52,19 +52,15 @@ class ESGIbot(commands.Bot):
     except Exception as e:
       logger.error(f"❌ Erreur lors de la synchronisation : {e}", exc_info=True)
 
-
-
   async def on_ready(self):
-    if not self.synced:
-      return
-
     logger.info("=" * 60)
-    logger.info(f"🚀 Bot connecté en tant que : {self.user}")
-    if self.user.id:  # type: ignore
-      logger.info(f"📊 ID Bot : {self.user.id}")  # type: ignore
-    else:
-      logger.warning("⚠️  Impossible de récupérer l'ID du bot !")
+    logger.info(f"🚀 Bot connecté en tant que : {self.user}, ID = {self.user.id}")
+
     logger.info(f"📈 Serveurs : {len(self.guilds)}")
+
+    for guild in self.guilds:
+      logger.info(f"➕ Connecté au serveur : {guild.name} (ID: {guild.id})")
+
     logger.info("⚡ Prêt à recevoir des commandes !")
     logger.info("=" * 60)
 
@@ -73,7 +69,10 @@ class ESGIbot(commands.Bot):
       type=discord.ActivityType.watching,
       name="ESGI_Coin 💎"
     )
+
     await self.change_presence(activity=activity)
+
+
 
 
 

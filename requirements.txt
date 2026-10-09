@@ -4,5 +4,6 @@ asyncio==4.0.0
 utils==1.0.2
 dotenv==0.9.9
 python-dotenv==1.2.4
-
+bs4==0.0.2
+requests==2.32.5
 
