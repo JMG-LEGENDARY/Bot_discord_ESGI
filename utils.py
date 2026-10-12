@@ -11,7 +11,9 @@ cours = {
     "francais": "📖 Français",
     "anglais": "🇬🇧 Anglais",
     "algorithmique": "💻 Algorithmique",
-    "architecture réseau": "🏛️ Archi-des-réseaux",
+    "architecture réseau": " Archi-des-réseaux",
+    "architecture web": "🌐 Architecture web",
+    
 }
 categories = {
     "devoir": "📝 Devoir",
