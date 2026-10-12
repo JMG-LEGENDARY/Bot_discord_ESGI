@@ -32,30 +32,25 @@ class EventsCog(commands.Cog):
         async with aiohttp.ClientSession() as session:
             async with session.get(target_url, params=params) as response:
                 if response.status != 200:
-                    print(f"Erreur d'accès à l'API : Code {response.status}")
+                    logger.error("Erreur d'accès à l'API : Code {response.status}")
                     return []
 
                 data = await response.json()
 
                 # Selon la structure renvoyée (liste directe [...] ou objet {"images": [...]})
-                images = data.get("images", data) if isinstance(data, dict) else data
+                images = data.get("images", data) # if isinstance(data, dict) else data
 
                 image_urls = []
                 for img in images:
                     # Adapter les clés selon le format exact renvoyé par l'API v1
-                    filename = img.get("filename") or img.get("file")
+                    filename = img.get("filename")# or img.get("file")
                     if filename:
                         # Construction des URLs HD et miniature
                         full_url = urljoin(self.url, f"uploads/{filename}")
-                        thumb_url = urljoin(self.url, f"uploads/thumbs/{filename}")
 
-                        image_urls.append({
-                            "name": img.get("name") or img.get("title"),
-                            "url": full_url,
-                            "thumb": thumb_url,
-                        })
-
-                return image_urls[0]
+                        image_urls.append(full_url)
+                print(len(image_urls))
+                return image_urls[19]
 
 
     @commands.Cog.listener()
@@ -66,13 +61,14 @@ class EventsCog(commands.Cog):
         bot_id = config.bot_id
         logger.info(f"Message reçu: {message.author} dans {message.channel}: {message.content}\n {message.author.id} - {bot_id}")
 
-        if message.author.bot and message.author.id != bot_id:
+        if message.author.bot and message.author.id == bot_id:
             return
+
         if message.content.startswith('/'):
             return
 
-        if logs_channel_id and message.channel.id == logs_channel_id:
-            if message.author.id != bot_id:
+        if message.channel.id == logs_channel_id:
+            if message.author.id == bot_id:
                 return
 
         else :
