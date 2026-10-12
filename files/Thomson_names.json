@@ -1,0 +1,36 @@
+{
+    "entitesClassiques": [
+        "Le Grand Gourou",
+        "L'Administrateur Suprême",
+        "L'Œil de la Loge",
+        "Le Daemon Séculaire",
+        "Le Seigneur du Root",
+        "Le Master Node",
+        "L'Archiviste"
+    ],
+    "entitesThomson": [
+        "Le Grand Gourou Thomson",
+        "L'Entité T.H.O.M.S.O.N",
+        "Notre Guide Thomas PIERSON",
+        "Le Processus PIERSON"
+    ],
+    "actions": [
+        "sniffe tes paquets réseau",
+        "analyse ton historique de commits",
+        "juge la complexité algorithmique de ton code",
+        "déchiffre tes clés privées",
+        "surveille ta consommation de RAM",
+        "lit ton fichier .env en clair",
+        "trace tes requêtes SQL",
+        "observe ton trafic sortant"
+    ],
+    "secteurs": [
+        "depuis ta clé SSH",
+        "à travers le port 22",
+        "directement sur ton localhost",
+        "caché dans ton répertoire .git",
+        "depuis le kernel",
+        "depuis l'hyperviseur",
+        "sur le VLAN d'administration"
+    ]
+}
