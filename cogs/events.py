@@ -55,7 +55,7 @@ class EventsCog(commands.Cog):
                             "thumb": thumb_url,
                         })
 
-                return image_urls
+                return image_urls[0]
 
 
     @commands.Cog.listener()
@@ -78,7 +78,8 @@ class EventsCog(commands.Cog):
         else :
             f = 0#random.randrange(100)
             if f == 0:
-                print(await self.scraping())
+                lien = await self.scraping()
+                await message.channel.send(lien)
             return
 
 
