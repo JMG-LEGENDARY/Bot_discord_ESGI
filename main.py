@@ -1,4 +1,3 @@
-import sqlite3
 import discord
 import asyncio
 import sys
@@ -10,7 +9,6 @@ from LOGS import logger
 
 class ESGIbot(commands.Bot):
   def __init__(self):
-    """Initialise le bot avec les configurations appropriées"""
     intents = discord.Intents.all()
     super().__init__(
       command_prefix=commands.when_mentioned,
@@ -18,12 +16,6 @@ class ESGIbot(commands.Bot):
       help_command=None
     )
     self.synced = False
-
-
-  def sqlite(self):
-    cursor = sqlite3.connect("base1.db")
-    creer_table = ("""CREATE TABLE IF NOT EXISTS B1 (eleves_id INTEGER PRIMARY KEY NOT NULL, pseudo VARCHAR)""")
-    cursor.execute(creer_table)
 
 
   async def setup_hook(self):
@@ -34,6 +26,7 @@ class ESGIbot(commands.Bot):
     cogs_to_load = [
       'cogs.commands',
       'cogs.events'
+      'cogs.sql'
     ]
 
 
@@ -77,8 +70,6 @@ class ESGIbot(commands.Bot):
 
 
 async def initialize_bot():
-  """Initialise le bot avec toutes les vérifications"""
-  global bot
 
   try:
 
@@ -102,8 +93,6 @@ async def initialize_bot():
 
 
 async def main():
-  """Fonction principale de démarrage."""
-  global bot
   # Initialiser le bot
   bot = await initialize_bot()
 
