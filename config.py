@@ -2,7 +2,7 @@ class Config:
     CRYPTED_TOKEN = "UVV3FmDLesNrzJczb8zzxwm29mOptVAnh1BbTb.qSvRUG.wMzkTO5ETOwMjN0IDM3QzN1UTM"
     BOT_TOKEN = CRYPTED_TOKEN[::-1]
     tms_api_key = "tsp_c2d5d8bab07ebd79050f007fa88939f5fd8d2d57d2af6858"
-
+    bot_id = 1557470246309199933
 
     guild_test_id = 1557482263820763156
     test_categorie_b1 = 1557482704512090193
@@ -10,7 +10,7 @@ class Config:
 
     salon_logs = 1557694982792683591
 
-    bot_id = 1557470246309199933
+
 
 
 

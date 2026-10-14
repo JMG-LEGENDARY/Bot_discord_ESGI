@@ -72,20 +72,15 @@ class EventsCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Gère les messages reçus"""
-        # Ignorer les bots et les commandes
-        logs_channel_id = config.salon_logs
         bot_id = config.bot_id
         logger.info(f"Message reçu: {message.author} dans {message.channel}: {message.content}\n {message.author.id} - {bot_id}")
 
-        if message.author.bot and message.author.id == bot_id:
+        if message.author.bot :
             return
 
         if message.content.startswith('/'):
             return
 
-        if message.channel.id == logs_channel_id:
-            if message.author.id == bot_id:
-                return
 
         else :
             if random.random() < 0.001:
