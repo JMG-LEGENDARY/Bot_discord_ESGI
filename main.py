@@ -1,4 +1,3 @@
-import sqlite3
 import discord
 import asyncio
 import sys
@@ -10,7 +9,6 @@ from LOGS import logger
 
 class ESGIbot(commands.Bot):
   def __init__(self):
-    """Initialise le bot avec les configurations appropriées"""
     intents = discord.Intents.all()
     super().__init__(
       command_prefix=commands.when_mentioned,
@@ -20,20 +18,16 @@ class ESGIbot(commands.Bot):
     self.synced = False
 
 
-  def sqlite(self):
-    cursor = sqlite3.connect("base1.db")
-    creer_table = ("""CREATE TABLE IF NOT EXISTS B1 (eleves_id INTEGER PRIMARY KEY NOT NULL, pseudo VARCHAR)""")
-    cursor.execute(creer_table)
-
-
   async def setup_hook(self):
 
     logger.info("🔧 Initialisation des extensions...")
 
     # Liste des cogs à charger (ordre importe: decorators/utilities d'abord)
     cogs_to_load = [
+      'cogs.sql'
       'cogs.commands',
       'cogs.events'
+
     ]
 
 
@@ -52,19 +46,15 @@ class ESGIbot(commands.Bot):
     except Exception as e:
       logger.error(f"❌ Erreur lors de la synchronisation : {e}", exc_info=True)
 
-
-
   async def on_ready(self):
-    if not self.synced:
-      return
-
     logger.info("=" * 60)
-    logger.info(f"🚀 Bot connecté en tant que : {self.user}")
-    if self.user.id:  # type: ignore
-      logger.info(f"📊 ID Bot : {self.user.id}")  # type: ignore
-    else:
-      logger.warning("⚠️  Impossible de récupérer l'ID du bot !")
+    logger.info(f"🚀 Bot connecté en tant que : {self.user}, ID = {self.user.id}")
+
     logger.info(f"📈 Serveurs : {len(self.guilds)}")
+
+    for guild in self.guilds:
+      logger.info(f"➕ Connecté au serveur : {guild.name} (ID: {guild.id})")
+
     logger.info("⚡ Prêt à recevoir des commandes !")
     logger.info("=" * 60)
 
@@ -73,13 +63,14 @@ class ESGIbot(commands.Bot):
       type=discord.ActivityType.watching,
       name="ESGI_Coin 💎"
     )
+
     await self.change_presence(activity=activity)
 
 
 
+
+
 async def initialize_bot():
-  """Initialise le bot avec toutes les vérifications"""
-  global bot
 
   try:
 
@@ -103,8 +94,6 @@ async def initialize_bot():
 
 
 async def main():
-  """Fonction principale de démarrage."""
-  global bot
   # Initialiser le bot
   bot = await initialize_bot()
 
