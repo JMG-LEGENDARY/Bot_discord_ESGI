@@ -5,6 +5,46 @@ from discord import app_commands
 from LOGS import logger
 from cogs.events import EventsCog
 
+class EmbedButtonAccepterRefuser(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+
+    @discord.ui.button(label="Accepter", style=discord.ButtonStyle.green, custom_id="Bouton_Accepter")
+    async def bouton_accepter(self, interaction: discord.Interaction, button: discord.ui.Button):
+        logger.info(f"Bouton Accepter pressé par {interaction.user.name}")
+        return True
+
+    @discord.ui.button(label="Refuser", style=discord.ButtonStyle.red, custom_id="Bouton_Refuser")
+    async def bouton_refuser(self, interaction: discord.Interaction, button: discord.ui.Button):
+        logger.info(f"Bouton Refuser pressé par {interaction.user.name}")
+        return False
+
+class EmbedButtonIciPartout(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+
+    @discord.ui.button(label="Ici", style=discord.ButtonStyle.gray, custom_id="Bouton_Channel")
+    async def bouton_ici(self, interaction: discord.Interaction, button: discord.ui.Button):
+        logger.info(f"Bouton Channel pressé par {interaction.user.name}")
+        embed = discord.Embed(
+            title="Veuillez confirmer",
+            description="Tous vos messages dans ce salon seront supprimés",
+            color=discord.Color.red(),
+        )
+        view = EmbedButtonAccepterRefuser()
+        await interaction.response.send_message(embed=embed, view=view)
+
+    @discord.ui.button(label="Partout", style=discord.ButtonStyle.gray, custom_id="Bouton_Partout")
+    async def bouton_partout(self, interaction: discord.Interaction, button: discord.ui.Button):
+        logger.info(f"Bouton Partout pressé par {interaction.user.name}")
+        embed = discord.Embed(
+            title="Veuillez confirmer",
+            description="Tous vos messages seront supprimés",
+            color=discord.Color.red(),
+        )
+        view = EmbedButtonAccepterRefuser()
+        await interaction.response.send_message(embed=embed, view=view)
+
 
 class CommandsCog(commands.Cog):
     """Commandes générales du bot."""
@@ -28,13 +68,14 @@ class CommandsCog(commands.Cog):
     async def implorer_le_tout_puissant(self, interaction: discord.Interaction):
         await self.events_cog.scraping(message=None, interaction=interaction)
 
-    @app_commands.command(name="nouvelle_identité", description="Supprime tous les messages que tu as envoyé")
+    @app_commands.command(name="nouvelle_identité", description="Supprime tous les messages que tu as envoyés")
     async def nouvelle_identite(self, interaction: discord.Interaction):
-        logger.info(f"{interaction.user.name} a demandé à supprimé ses messages")
-        for channel in self.bot.get_all_channels():
-            for message in channel.history:
-                if message.author == self.bot.user:
-                    await message.delete()
+        embed = discord.Embed(
+            title="Porté de la suppresion",
+            color=discord.Color.red(),
+        )
+        View = EmbedButtonIciPartout()
+        await interaction.response.send_message(embed=embed, view=View)
 
 async def setup(bot):
     """Fonction requise par discord.py pour charger le cog."""
