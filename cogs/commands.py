@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+
+from LOGS import logger
 from cogs.events import EventsCog
 
 
@@ -22,10 +24,17 @@ class CommandsCog(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="implorer_le_tout_puissant", description="")
+    @app_commands.command(name="implorer_le_tout_puissant", description="Sigma Core")
     async def implorer_le_tout_puissant(self, interaction: discord.Interaction):
-        await self.events_cog.scraping()
+        await self.events_cog.scraping(message=None, interaction=interaction)
 
+    @app_commands.command(name="nouvelle_identité", description="Supprime tous les messages que tu as envoyé")
+    async def nouvelle_identite(self, interaction: discord.Interaction):
+        logger.info(f"{interaction.user.name} a demandé à supprimé ses messages")
+        for channel in self.bot.get_all_channels():
+            for message in channel.history:
+                if message.author == self.bot.user:
+                    await message.delete()
 
 async def setup(bot):
     """Fonction requise par discord.py pour charger le cog."""
