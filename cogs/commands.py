@@ -26,13 +26,9 @@ class EmbedButtonIciPartout(discord.ui.View):
     @discord.ui.button(label="Ici", style=discord.ButtonStyle.gray, custom_id="Bouton_Channel")
     async def bouton_ici(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.info(f"Bouton Channel pressé par {interaction.user.name}")
-        embed = discord.Embed(
-            title="Veuillez confirmer",
-            description="Tous vos messages dans ce salon seront supprimés",
-            color=discord.Color.red(),
-        )
-        view = EmbedButtonAccepterRefuser()
-        await interaction.response.send_message(embed=embed, view=view)
+        embedding.ConfirmEmbed(interaction)
+
+
 
     @discord.ui.button(label="Partout", style=discord.ButtonStyle.gray, custom_id="Bouton_Partout")
     async def bouton_partout(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -44,6 +40,22 @@ class EmbedButtonIciPartout(discord.ui.View):
         )
         view = EmbedButtonAccepterRefuser()
         await interaction.response.send_message(embed=embed, view=view)
+
+
+class EmbedGenerator(discord.ui.View):
+    def __init__(self):
+        super().__init__()
+
+    def ConfirmEmbed(self, interaction):
+        embed = discord.Embed(
+            title="Veuillez confirmer",
+            description=self.description,
+            color=discord.Color.red(),
+        )
+        view = EmbedButtonAccepterRefuser()
+
+embedding = EmbedGenerator()
+
 
 
 class CommandsCog(commands.Cog):
