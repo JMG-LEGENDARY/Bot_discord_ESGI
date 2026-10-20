@@ -8,55 +8,42 @@ from cogs.events import EventsCog
 class EmbedButtonAccepterRefuser(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=180)
+        self.confirmed = False
 
     @discord.ui.button(label="Accepter", style=discord.ButtonStyle.green, custom_id="Bouton_Accepter")
     async def bouton_accepter(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.info(f"Bouton Accepter pressé par {interaction.user.name}")
-        return True
+        self.confirmed = True
+        await interaction.response.defer()  # Indique à Discord que le clic est pris en compte
+        self.stop()
 
     @discord.ui.button(label="Refuser", style=discord.ButtonStyle.red, custom_id="Bouton_Refuser")
     async def bouton_refuser(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.info(f"Bouton Refuser pressé par {interaction.user.name}")
-        return False
+        self.confirmed = True
+        await interaction.response.defer()  # Indique à Discord que le clic est pris en compte
+        self.stop()
 
 class EmbedButtonIciPartout(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=180)
+        self.choice = None
 
     @discord.ui.button(label="Ici", style=discord.ButtonStyle.gray, custom_id="Bouton_Channel")
     async def bouton_ici(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.info(f"Bouton Channel pressé par {interaction.user.name}")
-        embedding.ConfirmEmbed(interaction)
+        self.choice = "channel"
+        await interaction.response.defer()  # Indique à Discord que le clic est pris en compte
+        self.stop()
 
 
 
     @discord.ui.button(label="Partout", style=discord.ButtonStyle.gray, custom_id="Bouton_Partout")
     async def bouton_partout(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.info(f"Bouton Partout pressé par {interaction.user.name}")
-        embed = discord.Embed(
-            title="Veuillez confirmer",
-            description="Tous vos messages seront supprimés",
-            color=discord.Color.red(),
-        )
-        view = EmbedButtonAccepterRefuser()
-        await interaction.response.send_message(embed=embed, view=view)
-
-
-class EmbedGenerator(discord.ui.View):
-    def __init__(self):
-        super().__init__()
-
-    def ConfirmEmbed(self, interaction):
-        embed = discord.Embed(
-            title="Veuillez confirmer",
-            description=self.description,
-            color=discord.Color.red(),
-        )
-        view = EmbedButtonAccepterRefuser()
-
-embedding = EmbedGenerator()
-
-
+        self.choice = "partout"
+        await interaction.response.defer()  # Indique à Discord que le clic est pris en compte
+        self.stop()
 
 class CommandsCog(commands.Cog):
     """Commandes générales du bot."""
@@ -88,6 +75,15 @@ class CommandsCog(commands.Cog):
         )
         View = EmbedButtonIciPartout()
         await interaction.response.send_message(embed=embed, view=View)
+        await View.wait()
+
+        if EmbedButtonAccepterRefuser().confirmed is not True:
+            embed = discord.Embed(
+                title="Suppression annulée",
+                color=discord.Color.green(),
+            )
+            await interaction.response.send_message(embed=embed, view=View)
+
 
 async def setup(bot):
     """Fonction requise par discord.py pour charger le cog."""
