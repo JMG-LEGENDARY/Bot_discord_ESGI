@@ -5,57 +5,60 @@ from discord import app_commands
 from LOGS import logger
 from cogs.events import EventsCog
 
-class EmbedButtonAccepterRefuser(discord.ui.View):
-    def __init__(self):
+
+class ScopeViewButton():
+    def __init__(self, author_id):
         super().__init__(timeout=180)
+        self.author_id = author_id
+        self.choix = None
+
+    def user_verification(self, interaction:discord.Interaction):
+        if self.author_id != interaction.user.id :
+            await interaction.response.send_message("Ce n'est pas à vous de choisir")
+            return False
+        return True
+
+
+    @discord.ui.button(label="Ce Salon", style=discord.ButtonStyle.blurple, custom_id="Bouton_salon")
+    async def bouton_accepter(self, interaction: discord.Interaction, button: discord.ui.Button):
+        logger.info(f"Bouton Salon pressé par {interaction.user.name}")
+        self.choix = "channel"
+        await interaction.response.defer()
+        self.stop()
+
+    @discord.ui.button(label="Tout le serveur", style=discord.ButtonStyle.secondary, custom_id="Bouton_salon")
+    async def bouton_accepter(self, interaction: discord.Interaction, button: discord.ui.Button):
+        logger.info(f"Bouton Salon pressé par {interaction.user.name}")
+        self.choix = "all"
+        await interaction.response.defer()
+        self.stop()
+
+    
+class EmbedButtonConfirm(discord.ui.View):
+    def __init__(self, author_id):
+        super().__init__(timeout=180)
+        self.author_id = author_id
+        self.choix = None
+
+    def user_verification(self, interaction:discord.Interaction):
+        if self.author_id != interaction.user.id :
+            await interaction.response.send_message("Ce n'est pas à vous de choisir")
+            return False
+        return True
 
     @discord.ui.button(label="Accepter", style=discord.ButtonStyle.green, custom_id="Bouton_Accepter")
     async def bouton_accepter(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.info(f"Bouton Accepter pressé par {interaction.user.name}")
-        return True
+        self.choix = "Accepter"
+        await interaction.response.defer()
+        self.stop()
 
-    @discord.ui.button(label="Refuser", style=discord.ButtonStyle.red, custom_id="Bouton_Refuser")
+    @discord.ui.button(label="Refuser", style=discord.ButtonStyle.danger, custom_id="Bouton_Refuser")
     async def bouton_refuser(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.info(f"Bouton Refuser pressé par {interaction.user.name}")
-        return False
-
-class EmbedButtonIciPartout(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=180)
-
-    @discord.ui.button(label="Ici", style=discord.ButtonStyle.gray, custom_id="Bouton_Channel")
-    async def bouton_ici(self, interaction: discord.Interaction, button: discord.ui.Button):
-        logger.info(f"Bouton Channel pressé par {interaction.user.name}")
-        embedding.ConfirmEmbed(interaction)
-
-
-
-    @discord.ui.button(label="Partout", style=discord.ButtonStyle.gray, custom_id="Bouton_Partout")
-    async def bouton_partout(self, interaction: discord.Interaction, button: discord.ui.Button):
-        logger.info(f"Bouton Partout pressé par {interaction.user.name}")
-        embed = discord.Embed(
-            title="Veuillez confirmer",
-            description="Tous vos messages seront supprimés",
-            color=discord.Color.red(),
-        )
-        view = EmbedButtonAccepterRefuser()
-        await interaction.response.send_message(embed=embed, view=view)
-
-
-class EmbedGenerator(discord.ui.View):
-    def __init__(self):
-        super().__init__()
-
-    def ConfirmEmbed(self, interaction):
-        embed = discord.Embed(
-            title="Veuillez confirmer",
-            description=self.description,
-            color=discord.Color.red(),
-        )
-        view = EmbedButtonAccepterRefuser()
-
-embedding = EmbedGenerator()
-
+        self.choix = "Refuser"
+        await interaction.response.defer()
+        self.stop()
 
 
 class CommandsCog(commands.Cog):
@@ -86,8 +89,23 @@ class CommandsCog(commands.Cog):
             title="Porté de la suppresion",
             color=discord.Color.red(),
         )
-        View = EmbedButtonIciPartout()
+        View = ScopeViewButton(author_id=interaction.user.id)
         await interaction.response.send_message(embed=embed, view=View)
+
+        await View.wait()
+
+        if View.choix == None:
+            
+
+
+
+
+
+
+
+
+
+
 
 async def setup(bot):
     """Fonction requise par discord.py pour charger le cog."""
