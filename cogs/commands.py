@@ -12,7 +12,7 @@ class ScopeViewButton():
         self.author_id = author_id
         self.choix = None
 
-    def user_verification(self, interaction:discord.Interaction):
+    async def user_verification(self, interaction:discord.Interaction):
         if self.author_id != interaction.user.id :
             await interaction.response.send_message("Ce n'est pas à vous de choisir")
             return False
@@ -40,7 +40,7 @@ class EmbedButtonConfirm(discord.ui.View):
         self.author_id = author_id
         self.choix = None
 
-    def user_verification(self, interaction:discord.Interaction):
+    async def user_verification(self, interaction:discord.Interaction):
         if self.author_id != interaction.user.id :
             await interaction.response.send_message("Ce n'est pas à vous de choisir")
             return False
@@ -95,6 +95,7 @@ class CommandsCog(commands.Cog):
         await View.wait()
 
         if View.choix == None:
+            pass
             
 
 
