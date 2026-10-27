@@ -5,7 +5,33 @@ import asyncio
 
 from LOGS import logger
 from cogs.events import EventsCog
-from utils import cours_CHOICES
+from utils import cours
+
+
+class DateModal(discord.ui.Modal, title="Entrez la date du devoir"):
+    date_input = discord.ui.TextInput(
+        label="Date du devoir",
+        placeholder="JJ/MM/AAAA",
+        min_length=10,
+        max_length=10,
+        required=True,
+    )
+
+    def __init__(self, matiere_choisie: str):
+        super().__init__()
+        self.matiere_choisie = matiere_choisie
+
+    async def on_submit(self, interaction: discord.Interaction):
+        saisie = self.date_input.value
+
+        # Traitement/Sauvegarde du devoir ici
+        await interaction.response.send_message(
+            f"Devoir ajouté avec succès !\n"
+            f"• **Matière :** {self.matiere_choisie}\n"
+            f"• **Date :** {saisie}",
+            ephemeral=True,
+        )
+
 
 class EmbedButtonAccepterRefuser(discord.ui.View):
     def __init__(self):
@@ -26,19 +52,31 @@ class EmbedButtonAccepterRefuser(discord.ui.View):
         await interaction.response.defer()  # Indique à Discord que le clic est pris en compte
         self.stop()
 
-class SelectMatière(discord.ui.Select):
-    def __init__(self):
+class SelectMatiere(discord.ui.Select):
+
+    def __init__(self, cours: dict):
         options = [
-            discord.SelectOption(label="Élément 1", value="1"),
-            discord.SelectOption(label="Élément 2", value="2"),
-            discord.SelectOption(label="Élément 3", value="3"),
+            discord.SelectOption(label=str(value), value=str(key)) for key, value in cours.items()
         ]
-        super().__init__(placeholder="Choisissez un élément", options=options)
+        super().__init__(placeholder="Choisissez une matière", options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        selected_value = self.values[0]
-        logger.info(f"Élément {selected_value} choisi par {interaction.user.name}")
-        await interaction.response.send_message(f"Vous avez choisi l'élément {selected_value}", ephemeral=True)
+        matiere_selectionnee = self.values[0]
+
+        # On ouvre directement le Modal au lieu de defer()
+        modal = DateModal(matiere_choisie=matiere_selectionnee)
+        await interaction.response.send_modal(modal)
+
+async def traiter_ajout_devoir(interaction: discord.Interaction, view: discord.ui.View, select_menu: SelectMatiere):
+    await view.wait()
+
+    if select_menu.selected_value:
+        embed2 = discord.Embed(
+            title="Entrez la date",
+            description=f"Matière sélectionnée : **{select_menu.selected_value}**\nEntrez la date sous le format JJ/MM/AAAA",
+            color=discord.Color.green(),
+        )
+        await interaction.followup.send(embed=embed2, ephemeral=True)
 
 class CommandsCog(commands.Cog):
     """Commandes générales du bot."""
@@ -62,16 +100,24 @@ class CommandsCog(commands.Cog):
     async def implorer_le_tout_puissant(self, interaction: discord.Interaction):
         await self.events_cog.scraping(message=None, interaction=interaction)
 
-    @app_commands.command(name="ajouter_un_devoir", description="Vous permet de recevoir une notification pour un devoir à faire pour un cours")
+    @app_commands.command(
+        name="ajouter_un_devoir", description="Ajoute un devoir avec date"
+    )
     async def ajouter_devoir(self, interaction: discord.Interaction):
+
         embed = discord.Embed(
-            title="Quelle matière",
+            title="Ajoutez le devoir",
+            description="Choisissez la matière dans le menu ci-dessous.",
             color=discord.Color.green(),
         )
+
         view = discord.ui.View()
-        select_menu = SelectMenuExample()
-        view.add_item(select_menu)
-        await interaction.response.send_message(embed=embed, view=view)
+        view.add_item(SelectMatiere(cours))
+
+        await interaction.response.send_message(
+            embed=embed, view=view, ephemeral=True
+        )
+
 
     @app_commands.command(name="ajouter_une_évaluation", description="Vous permet de recevoir une notification ainsi que des fiches de révisions pour l'évaluation")
     async def ajouter_eval(self, interaction: discord.Interaction):
@@ -80,7 +126,7 @@ class CommandsCog(commands.Cog):
             color=discord.Color.green(),
         )
         view = discord.ui.View()
-        select_menu = SelectMenuExample()
+        select_menu = SelectMatiere()
         view.add_item(select_menu)
         await interaction.response.send_message(embed=embed, view=view)
 
