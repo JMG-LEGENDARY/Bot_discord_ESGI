@@ -163,10 +163,16 @@ class SqlCog(commands.Cog):
                          )
                      """)
 
+        # Table evenements
         conn.execute("""
                      CREATE TABLE IF NOT EXISTS evenements
                      (
-                         guild_id
+                         id
+                         INTEGER
+                         PRIMARY
+                         KEY
+                         AUTOINCREMENT,
+                         classe_id
                          INTEGER
                          NOT
                          NULL,
@@ -174,17 +180,19 @@ class SqlCog(commands.Cog):
                          INTEGER
                          NOT
                          NULL,
-                         evenements
+                         devoir
                          TEXT
                          NOT
                          NULL,
-                         PRIMARY
-                         KEY
-                     (
-                         guild_id,
-                         user_id
+                         date_devoir
+                         TEXT
+                         NOT
+                         NULL,
+                         matiere
+                         TEXT
+                         NOT
+                         NULL
                      )
-                         )
                      """)
 
         conn.commit()
@@ -495,12 +503,12 @@ class SqlCog(commands.Cog):
     def ajouter_devoir(self, classe_id, user_id, devoir):
         conn = self.connexion()
         curseur = conn.execute(
-            "INSERT OR IGNORE INTO evenements (classe_id, user_id, devoir, date_devoir, matiere) VALUES (?, ?, ?)",
-            (classe_id, user_id, devoir.subject, devoir.date_devoir, devoir.matiere)
+            "INSERT OR IGNORE INTO evenements (classe_id, user_id, devoir, date_devoir, matiere) VALUES (?, ?, ?, ?, ?)",
+            (classe_id, user_id, devoir["sujet"], devoir["date"], devoir["matiere"])
         )
         conn.commit()
         conn.close()
-        logger.info(f"SQL : devoir ajouté : {devoir.date_devoir}, {devoir.matiere}, {devoir.subject} dans {classe_id}")
+        logger.info(f"SQL : devoir ajouté : {devoir['sujet']}, {devoir['matiere']} dans {classe_id}")
         return curseur.rowcount == 1
 
 
