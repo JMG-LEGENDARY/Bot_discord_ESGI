@@ -163,6 +163,30 @@ class SqlCog(commands.Cog):
                          )
                      """)
 
+        conn.execute("""
+                     CREATE TABLE IF NOT EXISTS evenements
+                     (
+                         guild_id
+                         INTEGER
+                         NOT
+                         NULL,
+                         user_id
+                         INTEGER
+                         NOT
+                         NULL,
+                         evenements
+                         TEXT
+                         NOT
+                         NULL,
+                         PRIMARY
+                         KEY
+                     (
+                         guild_id,
+                         user_id
+                     )
+                         )
+                     """)
+
         conn.commit()
         conn.close()
         logger.info("🗄️ Base de données prête")
@@ -466,6 +490,21 @@ class SqlCog(commands.Cog):
             conn.execute(f"DELETE FROM {table} WHERE classe_id = ?", (classe_id,))
         conn.commit()
         conn.close()
+
+
+    def ajouter_devoir(self, classe_id, user_id, devoir):
+        conn = self.connexion()
+        curseur = conn.execute(
+            "INSERT OR IGNORE INTO evenements (classe_id, user_id, devoir, date_devoir, matiere) VALUES (?, ?, ?)",
+            (classe_id, user_id, devoir.subject, devoir.date_devoir, devoir.matiere)
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"SQL : devoir ajouté : {devoir.date_devoir}, {devoir.matiere}, {devoir.subject} dans {classe_id}")
+        return curseur.rowcount == 1
+
+
+
 
 
 async def setup(bot):
