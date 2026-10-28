@@ -26,36 +26,35 @@ class SqlCog(commands.Cog):
 
         conn = self.connexion()
 
-        conn.execute("""
-                     CREATE TABLE IF NOT EXISTS salons
-                     (
-                         classe_id
-                         INTEGER
-                         NOT
-                         NULL,
-                         utilisateur
-                         TEXT
-                         NOT
-                         NULL,
-                         channel_id
-                         INTEGER
-                         NOT
-                         NULL,
-                         role_id
-                         INTEGER
-                         NOT
-                         NULL
-                         DEFAULT
-                         "eleve",
-                         PRIMARY
-                         KEY
-                     (
-                         classe_id,
-                         utilisateur,
-                         channel_id,
-                         role_id
-                     )
-                         )
+        conn.execute("""CREATE TABLE IF NOT EXISTS salons
+        (
+            classe_id
+            INTEGER
+            NOT
+            NULL,
+            utilisateur
+            TEXT
+            NOT
+            NULL,
+            channel_id
+            INTEGER
+            NOT
+            NULL,
+            role_id
+            INTEGER
+            NOT
+            NULL
+            DEFAULT
+            "eleve",
+            PRIMARY
+            KEY
+                        (
+            classe_id,
+            utilisateur,
+            channel_id,
+            role_id
+                        )
+            )
                      """)
 
         # Table 4 : les projets (créés au fur et à mesure, avec un nom libre)
@@ -510,6 +509,15 @@ class SqlCog(commands.Cog):
         conn.close()
         logger.info(f"SQL : devoir ajouté : {devoir['sujet']}, {devoir['matiere']} dans {classe_id}")
         return curseur.rowcount == 1
+
+    def recup_tous_devoirs(self, classe_id):
+        conn = self.connexion()
+        devoirs = conn.execute(
+            "SELECT devoir, date_devoir, matiere FROM evenements WHERE classe_id = ?", (classe_id,)
+        ).fetchall()
+        conn.commit()
+        conn.close()
+        logger.info(f"SQL : devoir trouvé : {devoirs}")
 
 
 
