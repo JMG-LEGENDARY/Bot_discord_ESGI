@@ -511,14 +511,26 @@ class SqlCog(commands.Cog):
         return curseur.rowcount == 1
 
     def recup_tous_devoirs(self, classe_id):
-        conn = self.connexion()
-        devoirs = conn.execute(
-            "SELECT devoir, date_devoir, matiere FROM evenements WHERE classe_id = ?", (classe_id,)
-        ).fetchall()
-        conn.commit()
-        conn.close()
-        logger.info(f"SQL : devoir trouvé : {devoirs}")
+        with self.connexion() as conn:
+            devoirs = conn.execute(
+                "SELECT devoir, date_devoir, matiere FROM evenements WHERE classe_id = ?",
+                (classe_id,),
+            ).fetchall()
 
+        logger.info(f"SQL : devoir trouvé : {devoirs}")
+        return devoirs
+
+    def supprimer_devoir(self, classe_id, devoir):
+        with self.connexion() as conn:
+            curseur = conn.execute(
+                "DELETE FROM evenements WHERE classe_id = ? AND devoir = ? AND date_devoir = ? AND matiere = ?",
+                (classe_id, devoir["sujet"], devoir["date"], devoir["matiere"]),
+            )
+            conn.commit()
+            logger.info(f"Devoir supprimé : {devoir['sujet'], devoir['matiere'], devoir['date']}")
+
+        # Renvoie True si au moins une ligne a été supprimée
+        return curseur.rowcount > 0
 
 
 

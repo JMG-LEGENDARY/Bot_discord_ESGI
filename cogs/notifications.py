@@ -4,6 +4,7 @@ import datetime
 from datetime import timedelta
 
 from discord.ext import commands, tasks
+from LOGS import Logger
 
 
 class NotificationsCog(commands.Cog):
@@ -13,8 +14,15 @@ class NotificationsCog(commands.Cog):
 
     @tasks.loop(time=datetime.now() + timedelta(hours=7, minutes=30))
     async def check_database_task(self):
-        # Votre code pour lire la base de données ici
-        pass
+        try :
+            sql_cog = self.bot.client.get_cog("SqlCog")
+            devoirs = sql_cog.recup_tous_devoirs(self.bot.channel_id)
+        except Exception as e:
+            Logger.error(f"impossible de syncroniser la base de donnée : {e}")
+        try :
+            for devoir in devoirs:
+                if devoir["date"].
+
 
 
 async def setup(bot):

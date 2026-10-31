@@ -127,11 +127,6 @@ class CommandsCog(commands.Cog):
             description=f"Latence : **{latency}ms**",
             color=discord.Color.blue()
         )
-        try  :
-            sql_cog = interaction.client.get_cog("SqlCog")
-            sql_cog.recup_tous_devoirs(interaction.channel_id)
-        except Exception as e:
-            logger.error(e)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="implorer_le_tout_puissant", description="Sigma Core")
