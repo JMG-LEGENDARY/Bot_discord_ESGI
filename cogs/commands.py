@@ -126,8 +126,7 @@ class CommandsCog(commands.Cog):
             title="🏓 Pong!",
             description=f"Latence : **{latency}ms**",
             color=discord.Color.blue()
-
-
+        )
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="implorer_le_tout_puissant", description="Sigma Core")

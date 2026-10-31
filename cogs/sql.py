@@ -520,14 +520,14 @@ class SqlCog(commands.Cog):
         logger.info(f"SQL : devoir trouvé : {devoirs}")
         return devoirs
 
-    def supprimer_devoir(self, devoir):
+    def supprimer_devoir(self, classe_id, devoir):
         with self.connexion() as conn:
             curseur = conn.execute(
-                "DELETE FROM evenements WHERE devoir = ? AND date_devoir = ? AND matiere = ?",
-                (devoir["sujet"], devoir["date"], devoir["matiere"]),
+                "DELETE FROM evenements WHERE classe_id = ? AND devoir = ? AND date_devoir = ? AND matiere = ?",
+                (classe_id, devoir["sujet"], devoir["date"], devoir["matiere"]),
             )
             conn.commit()
-            logger.info(f"Devoir supprimé : {devoir['sujet'], devoir['matiere'], devoir['date']}")
+            logger.info(f"Devoir supprimé : {devoir['sujet'], devoir['matiere'], devoir['date']} pour la classe {classe_id}")
 
         # Renvoie True si au moins une ligne a été supprimée
         return curseur.rowcount > 0

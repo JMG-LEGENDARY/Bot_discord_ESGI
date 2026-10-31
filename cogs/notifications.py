@@ -14,16 +14,29 @@ class NotificationsCog(commands.Cog):
 
     @tasks.loop(time=datetime.now() + timedelta(hours=7, minutes=30))
     async def check_database_task(self):
-        global sql_cog, devoirs
-        try :
-            sql_cog = self.bot.client.get_cog("SqlCog")
-            devoirs = sql_cog.recup_tous_devoirs(self.bot.channel_id)
-        except Exception as e:
-            Logger.error(f"impossible de syncroniser la base de donnée : {e}")
-        try :
+        try:
+            sql_cog = self.bot.get_cog("SqlCog")
+            if not sql_cog:
+                Logger.error("SqlCog introuvable.")
+                return
+
+            channel_id = self.bot.channel_id
+            devoirs = sql_cog.recup_tous_devoirs(channel_id)
+
             for devoir in devoirs:
-                if devoir["date"].date()<=datetime.now():
-                    sql_cog.supprimer_devoir(devoir)
+                # Convertit la date texte de SQLite (format ex: "2026-10-31") en objet date
+                date_devoir = datetime.strptime(
+                    devoir["date_devoir"], "%Y-%m-%d"
+                ).date()
+
+                # Compare avec la date du jour
+                if date_devoir <= datetime.now().date():
+                    sql_cog.supprimer_devoir(channel_id, devoir)
+
+        except Exception as e:
+            Logger.error(
+                f"Erreur lors de la vérification de la base de données : {e}"
+            )
 
 
 
