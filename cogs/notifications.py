@@ -14,6 +14,7 @@ class NotificationsCog(commands.Cog):
 
     @tasks.loop(time=datetime.now() + timedelta(hours=7, minutes=30))
     async def check_database_task(self):
+        global sql_cog, devoirs
         try :
             sql_cog = self.bot.client.get_cog("SqlCog")
             devoirs = sql_cog.recup_tous_devoirs(self.bot.channel_id)
@@ -21,7 +22,8 @@ class NotificationsCog(commands.Cog):
             Logger.error(f"impossible de syncroniser la base de donnée : {e}")
         try :
             for devoir in devoirs:
-                if devoir["date"].
+                if devoir["date"].date()<=datetime.now():
+                    sql_cog.supprimer_devoir(devoir)
 
 
 
