@@ -50,7 +50,11 @@ class DateModal(discord.ui.Modal, title="Entrez la date du devoir ainsi que son 
             sql_cog = interaction.client.get_cog("SqlCog")
 
             if sql_cog:
-                sql_cog.ajouter_devoir(interaction.channel_id, interaction.user.id, self.devoir)
+                sql_cog.ajouter_devoir(
+                    guild_id=interaction.guild_id,
+                    user_id=interaction.user.id,
+                    devoir=self.devoir
+                )
                 embed = discord.Embed(
                     title="Devoir enregistré",
                     color=discord.Color.blue(),

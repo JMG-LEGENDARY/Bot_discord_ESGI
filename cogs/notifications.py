@@ -23,18 +23,19 @@ class NotificationsCog(commands.Cog):
 
             for guild in self.bot.guilds.id:
                 for role in guild.roles:
-                    channel_id = self.bot.channel_id
-                    devoirs = sql_cog.recup_tous_devoirs(channel_id)
+                    if role.name == "B1":
+                        channel_id = self.bot.channel_id
+                        devoirs = sql_cog.recup_tous_devoirs(channel_id)
 
-                    for devoir in devoirs:
-                        # Convertit la date texte de SQLite (format ex: "2026-10-31") en objet date
-                        date_devoir = datetime.strptime(
-                            devoir["date_devoir"], "%Y-%m-%d"
-                        ).date()
+                        for devoir in devoirs:
+                            # Convertit la date texte de SQLite (format ex: "2026-10-31") en objet date
+                            date_devoir = datetime.strptime(
+                                devoir["date_devoir"], "%Y-%m-%d"
+                            ).date()
 
-                        # Compare avec la date du jour
-                        if date_devoir <= datetime.now().date():
-                            sql_cog.supprimer_devoir(channel_id, devoir)
+                            # Compare avec la date du jour
+                            if date_devoir <= datetime.now().date():
+                                sql_cog.supprimer_devoir(channel_id, devoir)
 
         except Exception as e:
             Logger.error(f"Erreur lors de la vérification de la base de données : {e}")

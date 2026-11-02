@@ -533,15 +533,25 @@ class SqlCog(commands.Cog):
         conn.commit()
         conn.close()
 
-    def ajouter_devoir(self, classe_id, user_id, devoir):
+    def ajouter_devoir(self, guild_id, user_id, devoir):
         conn = self.connexion()
         curseur = conn.execute(
-            "INSERT OR IGNORE INTO evenements (classe_id, user_id, devoir, date_devoir, matiere) VALUES (?, ?, ?, ?, ?)",
-            (classe_id, user_id, devoir["sujet"], devoir["date"], devoir["matiere"])
+            """INSERT INTO evenements 
+               (guild_id, classe_id, user_id, devoir, date_devoir, matiere) 
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                guild_id,
+                guild_id,  # classe_id utilise aussi le guild_id
+                user_id,
+                devoir["sujet"],
+                devoir["date"],
+                devoir["matiere"]
+            )
         )
         conn.commit()
         conn.close()
-        logger.info(f"SQL : devoir ajouté : {devoir['sujet']}, {devoir['matiere']} dans {classe_id}")
+        logger.info(f"SQL : devoir ajouté : {devoir['sujet']}, {devoir['matiere']} dans {guild_id}")
+        return curseur.rowcount == 1
         return curseur.rowcount == 1
 
     def recup_tous_devoirs(self, classe_id):
