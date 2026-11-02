@@ -25,8 +25,10 @@ class ESGIbot(commands.Bot):
     # Liste des cogs à charger (ordre importe: decorators/utilities d'abord)
     cogs_to_load = [
       'cogs.sql',
+      'cogs.configSQL',
       'cogs.commands',
       'cogs.events',
+      'cogs.notifications',
     ]
 
 
