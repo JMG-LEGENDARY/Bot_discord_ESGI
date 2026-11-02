@@ -1,3 +1,4 @@
 /.ollamassist
 /.venv
 config.py
+bot.db
