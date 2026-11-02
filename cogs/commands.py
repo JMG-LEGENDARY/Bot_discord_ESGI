@@ -1,11 +1,77 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import asyncio
+from datetime import datetime, timedelta
 
 from LOGS import logger
 from cogs.events import EventsCog
-from utils import cours_CHOICES
+from utils import cours
+
+
+
+
+
+class DateModal(discord.ui.Modal, title="Entrez la date du devoir ainsi que son sujet"):
+    date_input = discord.ui.TextInput(
+        label="Date du devoir",
+        placeholder="JJ/MM/AAAA",
+        min_length=10,
+        max_length=10,
+        required=True,
+    )
+
+    subject_input = discord.ui.TextInput(
+        label="Sujet du devoir",
+        min_length=20,
+        max_length=500,
+        required=True,
+    )
+
+    def __init__(self, devoir):
+        super().__init__()
+        self.devoir = devoir
+
+    async def on_submit(self, interaction: discord.Interaction):
+        saisie = self.date_input.value
+
+        try:
+            date = datetime.strptime(saisie, "%d/%m/%Y").date()
+        except ValueError:
+            logger.error(f"Date du devoir : {saisie} par {interaction.user.name}")
+            await interaction.response.send_message("Format invalide. Utilisez JJ/MM/AAAA avec une date existante, commande annulez veuillez recommencer.")
+            return None
+        self.devoir["date"] = date
+
+        saisie2 = self.subject_input.value
+        self.devoir["sujet"] = saisie2
+        try:
+            # 1. Utilise interaction.client pour cibler le bot
+            # 2. Utilise le NOM DE LA CLASSE de ton cog (ex: SQLCog), pas le chemin du fichier
+            sql_cog = interaction.client.get_cog("SqlCog")
+
+            if sql_cog:
+                sql_cog.ajouter_devoir(interaction.channel_id, interaction.user.id, self.devoir)
+                embed = discord.Embed(
+                    title="Devoir enregistré",
+                    color=discord.Color.blue(),
+                    description=f"Devoir enregistré : \n**Le {self.devoir["date"]}**\n**en {self.devoir["matiere"]}**\n**{self.devoir["sujet"]}** !"
+                )
+            else:
+                logger.error("Le Cog SQL n'a pas été trouvé.")
+                embed = discord.Embed(
+                    title="Problème, veuillez contacter l'assistance",
+                    color=discord.Color.red(),
+                )
+        except Exception as e:
+            logger.error(f"Erreur lors de l'ajout en BDD : {e}")
+            embed = discord.Embed(
+                title="Problème, veuillez contacter l'assistance",
+                color=discord.Color.red(),
+            )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return None
+
 
 class EmbedButtonAccepterRefuser(discord.ui.View):
     def __init__(self):
@@ -26,19 +92,24 @@ class EmbedButtonAccepterRefuser(discord.ui.View):
         await interaction.response.defer()  # Indique à Discord que le clic est pris en compte
         self.stop()
 
-class SelectMatière(discord.ui.Select):
-    def __init__(self):
+class SelectMatiere(discord.ui.Select):
+
+    def __init__(self, cours: dict):
+        self.selected_value = None
         options = [
-            discord.SelectOption(label="Élément 1", value="1"),
-            discord.SelectOption(label="Élément 2", value="2"),
-            discord.SelectOption(label="Élément 3", value="3"),
+            discord.SelectOption(label=str(value), value=str(key)) for key, value in cours.items()
         ]
-        super().__init__(placeholder="Choisissez un élément", options=options)
+        super().__init__(placeholder="Choisissez une matière", options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        selected_value = self.values[0]
-        logger.info(f"Élément {selected_value} choisi par {interaction.user.name}")
-        await interaction.response.send_message(f"Vous avez choisi l'élément {selected_value}", ephemeral=True)
+        self.selected_value = self.options[0]
+        devoir = {"date": "", "matiere": self.values[0], "sujet": ""}
+
+        # On ouvre directement le Modal au lieu de defer()
+        modal = DateModal(devoir)
+        await interaction.response.send_modal(modal)
+
+
 
 class CommandsCog(commands.Cog):
     """Commandes générales du bot."""
@@ -62,16 +133,29 @@ class CommandsCog(commands.Cog):
     async def implorer_le_tout_puissant(self, interaction: discord.Interaction):
         await self.events_cog.scraping(message=None, interaction=interaction)
 
-    @app_commands.command(name="ajouter_un_devoir", description="Vous permet de recevoir une notification pour un devoir à faire pour un cours")
+    @app_commands.command(name="ajouter_un_devoir", description="Ajoute un devoir")
     async def ajouter_devoir(self, interaction: discord.Interaction):
+
+
         embed = discord.Embed(
-            title="Quelle matière",
+            title="Ajoutez le devoir",
+            description="Choisissez la matière dans le menu ci-dessous.",
             color=discord.Color.green(),
         )
+
         view = discord.ui.View()
-        select_menu = SelectMenuExample()
-        view.add_item(select_menu)
-        await interaction.response.send_message(embed=embed, view=view)
+        view.add_item(SelectMatiere(cours))
+
+        await interaction.response.send_message(
+            embed=embed, view=view, ephemeral=True
+        )
+
+
+
+
+
+
+
 
     @app_commands.command(name="ajouter_une_évaluation", description="Vous permet de recevoir une notification ainsi que des fiches de révisions pour l'évaluation")
     async def ajouter_eval(self, interaction: discord.Interaction):
@@ -80,7 +164,7 @@ class CommandsCog(commands.Cog):
             color=discord.Color.green(),
         )
         view = discord.ui.View()
-        select_menu = SelectMenuExample()
+        select_menu = SelectMatiere()
         view.add_item(select_menu)
         await interaction.response.send_message(embed=embed, view=view)
 
