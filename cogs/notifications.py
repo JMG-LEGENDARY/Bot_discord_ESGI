@@ -14,6 +14,7 @@ class NotificationsCog(commands.Cog):
 
     @tasks.loop(time=datetime.now() + timedelta(hours=7, minutes=30))
     async def check_database_task(self):
+
         try:
             sql_cog = self.bot.get_cog("SqlCog")
             if not sql_cog:

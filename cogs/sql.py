@@ -163,36 +163,9 @@ class SqlCog(commands.Cog):
                      """)
 
         # Table evenements
-        conn.execute("""
-                     CREATE TABLE IF NOT EXISTS evenements
-                     (
-                         id
-                         INTEGER
-                         PRIMARY
-                         KEY
-                         AUTOINCREMENT,
-                         classe_id
-                         INTEGER
-                         NOT
-                         NULL,
-                         user_id
-                         INTEGER
-                         NOT
-                         NULL,
-                         devoir
-                         TEXT
-                         NOT
-                         NULL,
-                         date_devoir
-                         TEXT
-                         NOT
-                         NULL,
-                         matiere
-                         TEXT
-                         NOT
-                         NULL
-                     )
-                     """)
+        conn.execute("""CREATE TABLE IF NOT EXISTS evenements ( id INTEGER PRIMARY KEY AUTOINCREMENT, classe_id INTEGER NOT NULL, user_id INTEGER NOT NULL, devoir TEXT NOT NULL, date_devoir TEXT NOT NULL, matiere TEXT NOT NULL)""")
+
+        conn.execute("""CREATE TABLE IF NOT EXISTS constantes_et_variables (id INTEGER PRIMARY KEY AUTOINCREMENT""")
 
         conn.commit()
         conn.close()
