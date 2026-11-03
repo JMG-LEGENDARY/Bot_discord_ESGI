@@ -12,7 +12,7 @@ class NotificationsCog(commands.Cog):
         self.bot = bot
         self.check_database_task.start()
 
-    @tasks.loop(time=datetime.now() + timedelta(hours=7, minutes=30))
+    @tasks.loop(time=datetime.time(hour=7, minute=30))
     async def check_database_task(self):
 
         try:

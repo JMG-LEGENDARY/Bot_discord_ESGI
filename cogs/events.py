@@ -115,6 +115,8 @@ class EventsCog(commands.Cog):
             return
 
 
+
+
         else :
             if random.random() < 0.001:
                 await self.scraping(message)
