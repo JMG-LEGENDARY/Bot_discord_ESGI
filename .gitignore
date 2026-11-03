@@ -2,3 +2,5 @@
 /.venv
 config.py
 bot.db
+__pycache__/
+*.pyc
