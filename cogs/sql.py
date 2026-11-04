@@ -370,17 +370,18 @@ class SqlCog(commands.Cog):
             return None
         return ligne["rang"]
 
-    def set_rang(self, classe_id, user_id, rang):
+    def set_rang(self, user_id, rang):
         if rang not in RANGS:
             raise ValueError(f"Rang inconnu : {rang} (autorisés : {RANGS})")
         conn = self.connexion()
         curseur = conn.execute(
-            "UPDATE membres SET rang = ? WHERE classe_id = ? AND user_id = ?",
-            (rang, classe_id, user_id)
+            "UPDATE membres SET rang = ? AND user_id = ?",
+            (rang, user_id)
         )
         conn.commit()
         conn.close()
         return curseur.rowcount == 1
+
 
     def set_classe(self, classe_id, user_id, classe):
         if classe not in CLASSES:
