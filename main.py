@@ -29,7 +29,6 @@ class ESGIbot(commands.Bot):
       'cogs.commands',
       'cogs.events',
       'cogs.notifications',
-      'cogs.formulaire'
     ]
 
 

@@ -21,7 +21,7 @@ class NotificationsCog(commands.Cog):
                 return
 
             for guild in self.bot.guilds.id:
-                sql_cog.
+                pass
 
 """
                         for devoir in devoirs:
