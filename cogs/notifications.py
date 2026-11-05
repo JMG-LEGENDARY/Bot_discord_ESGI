@@ -14,14 +14,12 @@ class NotificationsCog(commands.Cog):
     @tasks.loop(time=datetime.time(hour=7, minute=30))
     async def check_database_task(self):
 
-        try:
+
             sql_cog = self.bot.get_cog("SqlCog")
             if not sql_cog:
                 Logger.error("SqlCog introuvable.")
                 return
 
-            for guild in self.bot.guilds.id:
-                pass
 
 """
                         for devoir in devoirs:
@@ -33,9 +31,6 @@ class NotificationsCog(commands.Cog):
                             # Compare avec la date du jour
                             if date_devoir <= datetime.now().date():
                                 sql_cog.supprimer_devoir(channel_id, devoir)"""
-
-        except Exception as e:
-            Logger.error(f"Erreur lors de la vérification de la base de données : {e}")
 
 
 

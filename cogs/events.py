@@ -112,7 +112,7 @@ class EventsCog(commands.Cog):
         bot_id = config.bot_id
         logger.info(f"Message reçu: {message.author} dans {message.channel}: {message.content}\n {message.author.id} - {bot_id}")
 
-        if message.author.bot :
+        if message.author.bot or message.author.id == bot_id:
             return
 
         if message.content.startswith('/'):
