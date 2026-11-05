@@ -12,6 +12,7 @@ from LOGS import logger
 class EventsCog(commands.Cog):
     """Gestion des événements Discord"""
 
+
     def __init__(self, bot):
         self.bot = bot
         self.user_message_history = {}  # Suivi des messages pour copier-coller
@@ -20,6 +21,9 @@ class EventsCog(commands.Cog):
         self.tms_api_key = config.tms_api_key
         self.file_path = "./files"
         self.phrases_data = self.charger_phrases()
+
+
+
 
     def charger_phrases(self) -> dict:
         """Charge le fichier JSON au démarrage pour éviter de lire le disque à chaque message."""
@@ -120,6 +124,21 @@ class EventsCog(commands.Cog):
         else :
             if random.random() < 0.001:
                 await self.scraping(message)
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild: discord.Guild):
+        logger.info(f"🎉 Le bot a rejoint le serveur : {guild.name} (ID: {guild.id})")
+        try:
+            sql_cog = self.bot.get_cog("SqlCog")
+            if not sql_cog:
+                logger.error("SqlCog introuvable.")
+                return
+        except Exception as e:
+            logger.error(e)
+
+
+
+
 
 
 

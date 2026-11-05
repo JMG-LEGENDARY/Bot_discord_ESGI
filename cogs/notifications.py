@@ -1,7 +1,6 @@
 import discord
 
 import datetime
-from datetime import timedelta
 
 from discord.ext import commands, tasks
 from LOGS import Logger
@@ -22,11 +21,9 @@ class NotificationsCog(commands.Cog):
                 return
 
             for guild in self.bot.guilds.id:
-                for role in guild.roles:
-                    if role.name == "B1":
-                        channel_id = self.bot.channel_id
-                        devoirs = sql_cog.recup_tous_devoirs(channel_id)
+                sql_cog.
 
+"""
                         for devoir in devoirs:
                             # Convertit la date texte de SQLite (format ex: "2026-10-31") en objet date
                             date_devoir = datetime.strptime(
@@ -35,7 +32,7 @@ class NotificationsCog(commands.Cog):
 
                             # Compare avec la date du jour
                             if date_devoir <= datetime.now().date():
-                                sql_cog.supprimer_devoir(channel_id, devoir)
+                                sql_cog.supprimer_devoir(channel_id, devoir)"""
 
         except Exception as e:
             Logger.error(f"Erreur lors de la vérification de la base de données : {e}")

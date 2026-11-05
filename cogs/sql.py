@@ -50,7 +50,7 @@ class SqlCog(commands.Cog):
         conn.execute("""
         CREATE TABLE IF NOT EXISTS membres
         (
-            classe_id INTEGER NOT NULL,
+            classe_name INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             projet_id INTEGER REFERENCES projets(id) ON DELETE SET NULL,
             date_arrivee TEXT NOT NULL DEFAULT (date('now', 'localtime')),
@@ -69,7 +69,7 @@ class SqlCog(commands.Cog):
         conn.execute("""CREATE TABLE IF NOT EXISTS evenements (
             id INTEGER PRIMARY KEY AUTOINCREMENT, 
             guild_id INTEGER NOT NULL,
-            classe_id INTEGER NOT NULL, 
+            classe_name INTEGER NOT NULL, 
             user_id INTEGER NOT NULL, 
             devoir TEXT NOT NULL, 
             date_devoir TEXT NOT NULL, 
@@ -359,11 +359,11 @@ class SqlCog(commands.Cog):
         conn.close()
         return ligne
 
-    def get_rang(self, classe_id, user_id):
+    def get_rang(self, user_id):
         conn = self.connexion()
         ligne = conn.execute(
-            "SELECT rang FROM membres WHERE classe_id = ? AND user_id = ?",
-            (classe_id, user_id)
+            "SELECT rang FROM membres WHERE user_id = ?",
+            (user_id)
         ).fetchone()
         conn.close()
         if ligne is None:
@@ -534,15 +534,15 @@ class SqlCog(commands.Cog):
         conn.commit()
         conn.close()
 
-    def ajouter_devoir(self, guild_id, user_id, devoir):
+    def ajouter_devoir(self, guild_id, user_id, devoir, classe_name):
         conn = self.connexion()
         curseur = conn.execute(
             """INSERT INTO evenements 
-               (guild_id, classe_id, user_id, devoir, date_devoir, matiere) 
+               (guild_id, classe_name, user_id, devoir, date_devoir, matiere) 
                VALUES (?, ?, ?, ?, ?, ?)""",
             (
                 guild_id,
-                guild_id,  # classe_id utilise aussi le guild_id
+                classe_name,
                 user_id,
                 devoir["sujet"],
                 devoir["date"],
@@ -553,13 +553,12 @@ class SqlCog(commands.Cog):
         conn.close()
         logger.info(f"SQL : devoir ajouté : {devoir['sujet']}, {devoir['matiere']} dans {guild_id}")
         return curseur.rowcount == 1
-        return curseur.rowcount == 1
 
-    def recup_tous_devoirs(self, classe_id):
+    def recup_tous_devoirs(self, classe_name):
         with self.connexion() as conn:
             devoirs = conn.execute(
-                "SELECT devoir, date_devoir, matiere FROM evenements WHERE classe_id = ?",
-                (classe_id,),
+                "SELECT devoir, date_devoir, matiere FROM evenements WHERE classe_name = ?",
+                (classe_name,),
             ).fetchall()
 
         logger.info(f"SQL : devoir trouvé : {devoirs}")
