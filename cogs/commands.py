@@ -124,6 +124,8 @@ class CommandsCog(commands.Cog):
 
     @app_commands.command(name="ping", description="Vérifie la latence du bot")
     async def ping(self, interaction: discord.Interaction):
+        logger.info(
+            f"Commande 'ping' reçue dans le salon {interaction.channel.name} de la guild {interaction.guild.name} par {interaction.user.name}")
         """Commande ping pour tester la latence."""
         latency = round(self.bot.latency * 1000)
         embed = discord.Embed(

@@ -117,6 +117,7 @@ class EventsCog(commands.Cog):
         logger.info(f"Message reçu: {message.author} dans {message.channel}: {message.content}\n {message.author.id} - {message.channel.id}")
 
         if message.content.startswith('/'):
+            logger.info(f"Commande reçue: {message.author} dans {message.channel}: {message.content}\n {message.author.id} - {message.channel.id}")
             return
 
 

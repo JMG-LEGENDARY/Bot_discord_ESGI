@@ -113,10 +113,17 @@ class ConfigSQL(commands.Cog):
             Logger.error(e)
 
     @app_commands.command(name="configurer_les_classes", description="Permet une gestions des classes par le bot")
-    async def configurer_les_roles(self, interaction: discord.Interaction):
-        if interaction.user.guild_permissions.administrator or self.sql_cog.get_rang(interaction.user.id, "admin"):
-            View = Roles_Pagination(interaction)
-            await interaction.response.send_message("Veuillez choisir les classes", view=View, ephemeral=True)
+    async def configurer_les_classes(self, interaction: discord.Interaction):
+        Logger.info(f"Commande 'configurer les classes' reçue dans le salon {interaction.channel.name} de la guild {interaction.guild.name} par {interaction.user.name}")
+        try :
+            if interaction.user.guild_permissions.administrator or self.sql_cog.get_rang(interaction.user.id, "admin"):
+                View = Roles_Pagination(interaction)
+                await interaction.response.send_message("Veuillez choisir les classes", view=View, ephemeral=True)
+            else :
+                Logger.warning(f"{interaction.user.name} n'est pas admin")
+        except Exception as e:
+            Logger.error(e)
+
 
 
 
