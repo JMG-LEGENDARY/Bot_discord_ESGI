@@ -4,11 +4,14 @@ from discord.ext import commands
 from LOGS import logger
 
 
+
 class Roles_Pagination(discord.ui.View):
     def __init__(self, interaction: discord.Interaction):
         super().__init__(timeout=300)
         self.page = 0
         self.selection = set()
+
+
 
         roles = [
             role for role in interaction.guild.roles if not role.is_default() and not role.is_bot_managed()
@@ -83,6 +86,15 @@ class Roles_Pagination(discord.ui.View):
 
         self.selection -= ids_page_actuelle
         self.selection.update(valeurs_selectionnees)
+        try :
+            sql_cog = interaction.client.get_cog("SqlCog")
+            if sql_cog:
+                sql_cog.ajouter_classes_roles(interaction.guild_id, self.selection)
+            else :
+                logger.error("SqlCog introuvable.")
+        except Exception as e:
+            logger.error(e)
+
         await interaction.response.defer()
 
 
@@ -100,7 +112,17 @@ class ConfigSQL(commands.Cog):
         except Exception as e:
             logger.error(e)
 
-
+    @app_commands.command(name="admin_permission", description='Donne des permissions admins à une personne')
+    @app_commands.default_permissions(administrator=True)
+    async def admin_permission(self, interaction: discord.Interaction, membre: discord.Member):
+        logger.info(
+            f"Commande 'admin_permission' reçue dans le salon {interaction.channel.name} de la guild {interaction.guild.name} par {interaction.user.name}")
+        try:
+            self.sql_cog.set_rang(membre.id, "admin")
+            await interaction.response.send_message(
+                f"{membre.name} a maintenant les privilèges admins pour la gestion du bot !", ephemeral=True)
+        except Exception as e:
+            logger.error(e)
 
     @app_commands.command(name="configurer_les_classes", description="Permet une gestions des classes par le bot")
     async def configurer_les_classes(self, interaction: discord.Interaction):

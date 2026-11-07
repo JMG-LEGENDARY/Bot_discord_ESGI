@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from LOGS import logger
 from cogs.events import EventsCog
@@ -48,12 +48,17 @@ class DateModal(discord.ui.Modal, title="Entrez la date du devoir ainsi que son 
             # 1. Utilise interaction.client pour cibler le bot
             # 2. Utilise le NOM DE LA CLASSE de ton cog (ex: SQLCog), pas le chemin du fichier
             sql_cog = interaction.client.get_cog("SqlCog")
+            commands_cog = interaction.client.get_cog("CommandsCog")
+
+            if commands_cog:
+                class_id = await commands_cog.get_classe_role(interaction=interaction)
 
             if sql_cog:
                 sql_cog.ajouter_devoir(
                     guild_id=interaction.guild_id,
                     user_id=interaction.user.id,
-                    devoir=self.devoir
+                    devoir=self.devoir,
+                    classe_name = class_id # c'est toujours pas des names c'est des ID
                 )
                 embed = discord.Embed(
                     title="Devoir enregistré",
@@ -130,23 +135,68 @@ class CommandsCog(commands.Cog):
         except Exception as e:
             logger.error(e)
 
-    @app_commands.command(name="admin_permission", description='Donne des permissions admins à une personne')
-    @app_commands.default_permissions(administrator=True)
-    async def admin_permission(self, interaction: discord.Interaction, membre: discord.Member):
-        logger.info(
-            f"Commande 'admin_permission' reçue dans le salon {interaction.channel.name} de la guild {interaction.guild.name} par {interaction.user.name}")
+    async def get_classe_role(self, interaction: discord.Interaction):
         try:
-            self.sql_cog.set_rang(membre.id, "admin")
-            await interaction.response.send_message(
-                f"{membre.name} a maintenant les privilèges admins pour la gestion du bot !", ephemeral=True)
+            sql_cog = interaction.client.get_cog("SqlCog")
+            if not sql_cog:
+                await interaction.response.send_message("Erreur, veuillez contacter un admin",
+                    ephemeral=True)
+                logger.error("SqlCog introuvable.")
+                return None
+
+            guild_class_roles = sql_cog.recup_tous_classes_roles(interaction.guild_id)
+
+            # 1. Vérifie si la BDD ou la fonction a échoué
+            if guild_class_roles is None:
+                await interaction.response.send_message("Erreur, veuillez contacter un admin",
+                    ephemeral=True)
+                logger.error(f"Impossible d'accéder à guild_class_roles pour la guilde {interaction.guild_id}")
+                return None
+
+            # 2. Vérifie si le serveur a configuré au moins une classe
+            if not guild_class_roles:
+                await interaction.response.send_message("Erreur, veuillez contacter un admin",
+                    ephemeral=True)
+                logger.warning(
+                    f"Le serveur {interaction.guild.name} ({interaction.guild_id}) n'a aucune classe configurée.")
+                return None
+
+            # 3. Récupère les rôles de l'utilisateur qui correspondent aux classes du serveur
+            classe_name_list = []
+            user_role_ids = {str(role.id) for role in interaction.user.roles if role != interaction.guild.default_role}
+
+            for class_role in guild_class_roles:
+                if str(class_role) in user_role_ids:
+                    classe_name_list.append(class_role)
+
+            # 4. Vérifie si l'utilisateur possède au moins un rôle de classe
+            if not classe_name_list:
+                await interaction.response.send_message(
+                    "Vous n'êtes dans aucune classe, veuillez contacter l'administrateur (commande : /configurer_les_classes).",
+                    ephemeral=True)
+                logger.warning(
+                    f"L'utilisateur {interaction.user.name} ({interaction.user.id}) n'a aucun rôle de classe.")
+                return None
+
+            # 5. Si l'utilisateur est dans plusieurs classes
+            if len(classe_name_list) > 1:
+                logger.warning(
+                    f"L'utilisateur {interaction.user.name} est dans {len(classe_name_list)} classes : {classe_name_list}. "
+                    f"Classe retenue : {classe_name_list[0]}"
+                )
+
+            logger.info(f"Classe trouvée pour {interaction.user.name} : {classe_name_list[0]}")
+            return classe_name_list[0]
+
         except Exception as e:
-            logger.error(e)
+            logger.error(f"Erreur dans get_classe_role : {e}")
+            return None
+
 
     @app_commands.command(name="ping", description="Vérifie la latence du bot")
     async def ping(self, interaction: discord.Interaction):
         logger.info(
             f"Commande 'ping' reçue dans le salon {interaction.channel.name} de la guild {interaction.guild.name} par {interaction.user.name}")
-        """Commande ping pour tester la latence."""
         latency = round(self.bot.latency * 1000)
         embed = discord.Embed(
             title="🏓 Pong!",
@@ -161,20 +211,23 @@ class CommandsCog(commands.Cog):
 
     @app_commands.command(name="ajouter_un_devoir", description="Ajoute un devoir")
     async def ajouter_devoir(self, interaction: discord.Interaction):
+        await self.get_classe_role(interaction)
+        if self.classe_name:
 
+            embed = discord.Embed(
+                title="Ajoutez le devoir",
+                description="Choisissez la matière dans le menu ci-dessous.",
+                color=discord.Color.green(),
+            )
 
-        embed = discord.Embed(
-            title="Ajoutez le devoir",
-            description="Choisissez la matière dans le menu ci-dessous.",
-            color=discord.Color.green(),
-        )
+            view = discord.ui.View()
+            view.add_item(SelectMatiere(cours))
 
-        view = discord.ui.View()
-        view.add_item(SelectMatiere(cours))
-
-        await interaction.response.send_message(
-            embed=embed, view=view, ephemeral=True
-        )
+            await interaction.response.send_message(
+                embed=embed, view=view, ephemeral=True
+            )
+        else :
+            return
 
 
 

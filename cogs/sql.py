@@ -1,6 +1,7 @@
 import sqlite3
 from discord.ext import commands
 from LOGS import logger
+import json
 
 DB_PATH = "bot.db"
 
@@ -50,11 +51,11 @@ class SqlCog(commands.Cog):
         conn.execute("""
         CREATE TABLE IF NOT EXISTS membres
         (
-            classe_name INTEGER NOT NULL,
+            classe_name TEXT NOT NULL,
             user_id INTEGER NOT NULL PRIMARY KEY,
-            rang TEXT NOT NULL DEFAULT ('eleve'),
+            rang TEXT NOT NULL DEFAULT 'eleve',
             projet_id INTEGER REFERENCES projets(id) ON DELETE SET NULL,
-            date_arrivee TEXT NOT NULL DEFAULT (date('now', 'localtime')),
+            date_arrivee TEXT NOT NULL DEFAULT (date('now', 'localtime'))
         )""")
                 #PRIMARY KEY (classe_id, user_id)
         conn.execute("""
@@ -71,7 +72,7 @@ class SqlCog(commands.Cog):
             guild_id INTEGER NOT NULL,
             classe_name INTEGER NOT NULL, 
             user_id INTEGER NOT NULL, 
-            devoir TEXT NOT NULL, 
+            devoir TEXT NOT NULL,
             date_devoir TEXT NOT NULL, 
             matiere TEXT NOT NULL
         )""")
@@ -96,16 +97,11 @@ class SqlCog(commands.Cog):
 
         # 2. Config Rôles par Guild
         conn.execute("""
-        CREATE TABLE IF NOT EXISTS config_roles (
-            guild_id INTEGER PRIMARY KEY,
-            role_dev_id INTEGER,
-            role_b1_id INTEGER,
-            role_b2_id INTEGER,
-            role_b3_id INTEGER,
-            role_m1_id INTEGER,
-            role_m2_id INTEGER,
-            role_profs_id INTEGER
-        )""")
+         CREATE TABLE IF NOT EXISTS config_roles
+         (guild_id INTEGER PRIMARY KEY, 
+          role_dev_id INTEGER, 
+          roles_classe_id TEXT NOT NULL DEFAULT '[]', 
+          role_profs_id INTEGER)""")
 
         # 3. Notifications par membre
         conn.execute("""
@@ -542,7 +538,7 @@ class SqlCog(commands.Cog):
                VALUES (?, ?, ?, ?, ?, ?)""",
             (
                 guild_id,
-                classe_name,
+                classe_name, #c'est toujours pas des names c'est des ID
                 user_id,
                 devoir["sujet"],
                 devoir["date"],
@@ -554,26 +550,54 @@ class SqlCog(commands.Cog):
         logger.info(f"SQL : devoir ajouté : {devoir['sujet']}, {devoir['matiere']} dans {guild_id}")
         return curseur.rowcount == 1
 
-    def recup_tous_devoirs(self, classe_name):
+    def recup_tous_devoirs(self, guild_id, classe_name):
         with self.connexion() as conn:
             devoirs = conn.execute(
-                "SELECT devoir, date_devoir, matiere FROM evenements WHERE classe_name = ?",
-                (classe_name,),
+                "SELECT devoir AS sujet, date_devoir, matiere FROM evenements WHERE guild_id = ? AND classe_name = ?",
+                (guild_id, classe_name)
             ).fetchall()
 
-        logger.info(f"SQL : devoir trouvé : {devoirs}")
+        logger.info(f"SQL : {len(devoirs)} devoir(s) trouvé(s)")
         return devoirs
 
-    def supprimer_devoir(self, classe_id, devoir):
+    def supprimer_devoir(self, guild_id, classe_name, devoir):
         with self.connexion() as conn:
             curseur = conn.execute(
-                "DELETE FROM evenements WHERE classe_id = ? AND devoir = ? AND date_devoir = ? AND matiere = ?",
-                (classe_id, devoir["sujet"], devoir["date"], devoir["matiere"]),
+                "DELETE FROM evenements WHERE guild_id = ? AND classe_name = ? AND devoir = ? AND date_devoir = ? AND matiere = ?",
+                (guild_id,classe_name, devoir["sujet"], devoir["date"], devoir["matiere"]),
             )
             conn.commit()
-            logger.info(f"Devoir supprimé : {devoir['sujet'], devoir['matiere'], devoir['date']} pour la classe {classe_id}")
+            logger.info(f"Devoir supprimé : {devoir['sujet'], devoir['matiere'], devoir['date']} pour la classe {classe_name} du serveur {guild_id}")
 
         return curseur.rowcount > 0
+
+    def ajouter_classes_roles(self, guild_id, roles_id):
+        with self.connexion() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO config_roles (guild_id, roles_classe_id) VALUES (?, ?)",
+                (guild_id, json.dumps(list(roles_id))),
+            )
+            conn.commit()
+            logger.info(f"SQL : ajouter_classes_roles : {guild_id}, {roles_id}")
+
+
+
+
+
+    def recup_tous_classes_roles(self, guild):
+        with self.connexion() as conn:
+            # fetchone() suffit car guild_id est unique par serveur
+            resultat = conn.execute(
+                "SELECT roles_classe_id FROM config_roles WHERE guild_id = ?",
+                (guild.id,),  # Tuple obligatoire ici
+            ).fetchone()
+
+            if resultat and resultat[0]:
+                roles = json.loads(resultat[0])
+                logger.info(f"roles classes trouvés : {roles}")
+                return roles
+            logger.warning(f"[SQL] Aucun enregistrement trouvé dans 'config_roles' pour guild: {guild.name}")
+            return []
 
 
 async def setup(bot):
