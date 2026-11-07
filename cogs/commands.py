@@ -121,6 +121,26 @@ class CommandsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.events_cog = EventsCog(bot)
+        try:
+            self.sql_cog = self.bot.get_cog("SqlCog")
+            if not self.sql_cog:
+                logger.error("SqlCog introuvable.")
+                return
+
+        except Exception as e:
+            logger.error(e)
+
+    @app_commands.command(name="admin_permission", description='Donne des permissions admins à une personne')
+    @app_commands.default_permissions(administrator=True)
+    async def admin_permission(self, interaction: discord.Interaction, membre: discord.Member):
+        logger.info(
+            f"Commande 'admin_permission' reçue dans le salon {interaction.channel.name} de la guild {interaction.guild.name} par {interaction.user.name}")
+        try:
+            self.sql_cog.set_rang(membre.id, "admin")
+            await interaction.response.send_message(
+                f"{membre.name} a maintenant les privilèges admins pour la gestion du bot !", ephemeral=True)
+        except Exception as e:
+            logger.error(e)
 
     @app_commands.command(name="ping", description="Vérifie la latence du bot")
     async def ping(self, interaction: discord.Interaction):

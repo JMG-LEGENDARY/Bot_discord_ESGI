@@ -51,12 +51,12 @@ class SqlCog(commands.Cog):
         CREATE TABLE IF NOT EXISTS membres
         (
             classe_name INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL PRIMARY KEY,
+            rang TEXT NOT NULL DEFAULT ('eleve'),
             projet_id INTEGER REFERENCES projets(id) ON DELETE SET NULL,
             date_arrivee TEXT NOT NULL DEFAULT (date('now', 'localtime')),
-            PRIMARY KEY (classe_id, user_id)
         )""")
-
+                #PRIMARY KEY (classe_id, user_id)
         conn.execute("""
         CREATE TABLE IF NOT EXISTS competences
         (
