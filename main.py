@@ -62,7 +62,7 @@ class ESGIbot(commands.Bot):
     # Définir le statut
     activity = discord.Activity(
       type=discord.ActivityType.watching,
-      name="ESGI_Coin 💎"
+      name="v0.100"
     )
 
     await self.change_presence(activity=activity)
