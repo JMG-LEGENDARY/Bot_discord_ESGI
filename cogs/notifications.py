@@ -17,7 +17,7 @@ class NotificationsCog(commands.Cog):
     @tasks.loop(time=time(hour=7, minute=30, tzinfo=tz_paris))
     async def check_database_task(self):
         logger.info("Scan des devoirs en cours...")
-        channel_id = 1557482265338970125 #à faire en vitesse pour débug c'est général de dev_esgi_bot
+        channel_id = 1546638618267750430 #à faire en vitesse pour débug c'est général de b1
         channel = self.bot.get_channel(channel_id)
         sql_cog = self.bot.get_cog("SqlCog")
         if not sql_cog:
