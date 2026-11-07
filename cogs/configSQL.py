@@ -1,3 +1,5 @@
+from code import interact
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -30,7 +32,7 @@ class Roles_Pagination(discord.ui.View):
                 default=est_deja_coche, #permet de déjà cocher la case si on revient en arrière
             ))
 
-        select = discord.ui.Select(placeholder=f"Cochez les rôles correspondants à des classes (page {self.page + 1}/{len(self.pages) + 1}", options=options, min_values=0, max_values=len(options))
+        select = discord.ui.Select(placeholder=f"Cochez les rôles correspondants à des classes (page {self.page + 1}/{len(self.pages)})", options=options, min_values=0, max_values=len(options))
         select.callback = self.select_callback
         self.add_item(select)
         if total_pages > 1:
@@ -104,9 +106,11 @@ class ConfigSQL(commands.Cog):
 
     @app_commands.command(name="admin_permission", description='Donne des permissions admins à une personne')
     @app_commands.default_permissions(administrator=True)
-    async def admin_permission(self, membre: discord.Member):
+    async def admin_permission(self, membre: discord.Member, interaction: discord.Interaction):
+        Logger.info(f"Commande 'admin_permission' reçue dans le salon {interaction.channel.name} de la guild {interaction.guild.name} par {interaction.user.name}")
         try :
             self.sql_cog.set_rang(membre.id, "admin")
+            await interaction.response.send_message(f"{membre.name} a maintenant les privilèges admins pour la gestion du bot !", ephemeral=True)
         except Exception as e:
             Logger.error(e)
 
