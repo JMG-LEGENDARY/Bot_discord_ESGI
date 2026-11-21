@@ -584,12 +584,12 @@ class SqlCog(commands.Cog):
 
 
 
-    def recup_tous_classes_roles(self, guild):
+    def recup_tous_classes_roles(self, guild:int ):
         with self.connexion() as conn:
             # fetchone() suffit car guild_id est unique par serveur
             resultat = conn.execute(
                 "SELECT roles_classe_id FROM config_roles WHERE guild_id = ?",
-                (guild.id,),  # Tuple obligatoire ici
+                (guild,),  # Tuple obligatoire ici
             ).fetchone()
 
             if resultat and resultat[0]:

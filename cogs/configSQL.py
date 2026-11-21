@@ -135,7 +135,7 @@ class ConfigSQL(commands.Cog):
                 logger.warning(f"{interaction.user.name} n'est pas admin")
                 await interaction.response.send_message("Vous n'êtes pas admin", ephemeral=True)
         except Exception as e:
-            logger.error(e)
+            logger.error(f"[configSQL - configurer_les_classes] {e}")
 
 
 

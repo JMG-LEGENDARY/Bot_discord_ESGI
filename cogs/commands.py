@@ -53,26 +53,26 @@ class DateModal(discord.ui.Modal, title="Entrez la date du devoir ainsi que son 
             if commands_cog:
                 class_id = await commands_cog.get_classe_role(interaction=interaction)
 
-            if sql_cog:
-                sql_cog.ajouter_devoir(
-                    guild_id=interaction.guild_id,
-                    user_id=interaction.user.id,
-                    devoir=self.devoir,
-                    classe_name = class_id # c'est toujours pas des names c'est des ID
-                )
-                embed = discord.Embed(
-                    title="Devoir enregistré",
-                    color=discord.Color.blue(),
-                    description=f"Devoir enregistré : \n**Le {self.devoir["date"]}**\n**en {self.devoir["matiere"]}**\n**{self.devoir["sujet"]}** !"
-                )
-            else:
-                logger.error("Le Cog SQL n'a pas été trouvé.")
-                embed = discord.Embed(
-                    title="Problème, veuillez contacter l'assistance",
-                    color=discord.Color.red(),
-                )
+                if sql_cog:
+                    sql_cog.ajouter_devoir(
+                        guild_id=interaction.guild_id,
+                        user_id=interaction.user.id,
+                        devoir=self.devoir,
+                        classe_name = class_id # c'est toujours pas des names c'est des ID
+                    )
+                    embed = discord.Embed(
+                        title="Devoir enregistré",
+                        color=discord.Color.blue(),
+                        description=f"Devoir enregistré : \n**Le {self.devoir["date"]}**\n**en {self.devoir["matiere"]}**\n**{self.devoir["sujet"]}** !"
+                    )
+                else:
+                    logger.error("Le Cog SQL n'a pas été trouvé.")
+                    embed = discord.Embed(
+                        title="Problème, veuillez contacter l'assistance",
+                        color=discord.Color.red(),
+                    )
         except Exception as e:
-            logger.error(f"Erreur lors de l'ajout en BDD : {e}")
+            logger.error(f"-- [commande - on_submit] Erreur lors de l'ajout en BDD : {e}")
             embed = discord.Embed(
                 title="Problème, veuillez contacter l'assistance",
                 color=discord.Color.red(),
@@ -145,12 +145,11 @@ class CommandsCog(commands.Cog):
                 return None
 
             guild_class_roles = sql_cog.recup_tous_classes_roles(interaction.guild_id)
-
             # 1. Vérifie si la BDD ou la fonction a échoué
             if guild_class_roles is None:
                 await interaction.response.send_message("Erreur, veuillez contacter un admin",
                     ephemeral=True)
-                logger.error(f"Impossible d'accéder à guild_class_roles pour la guilde {interaction.guild_id}")
+                logger.error(f"[commands - get_classe_role] Impossible d'accéder à guild_class_roles pour la guilde {interaction.guild_id}")
                 return None
 
             # 2. Vérifie si le serveur a configuré au moins une classe
@@ -158,13 +157,12 @@ class CommandsCog(commands.Cog):
                 await interaction.response.send_message("Erreur, veuillez contacter un admin",
                     ephemeral=True)
                 logger.warning(
-                    f"Le serveur {interaction.guild.name} ({interaction.guild_id}) n'a aucune classe configurée.")
+                    f"[commands - get_classe_role] Le serveur {interaction.guild.name} ({interaction.guild_id}) n'a aucune classe configurée.")
                 return None
 
             # 3. Récupère les rôles de l'utilisateur qui correspondent aux classes du serveur
             classe_name_list = []
             user_role_ids = {str(role.id) for role in interaction.user.roles if role != interaction.guild.default_role}
-
             for class_role in guild_class_roles:
                 if str(class_role) in user_role_ids:
                     classe_name_list.append(class_role)
@@ -175,21 +173,21 @@ class CommandsCog(commands.Cog):
                     "Vous n'êtes dans aucune classe, veuillez contacter l'administrateur (commande : /configurer_les_classes).",
                     ephemeral=True)
                 logger.warning(
-                    f"L'utilisateur {interaction.user.name} ({interaction.user.id}) n'a aucun rôle de classe.")
+                    f"[commands - get_classe_role] L'utilisateur {interaction.user.name} ({interaction.user.id}) n'a aucun rôle de classe.")
                 return None
 
             # 5. Si l'utilisateur est dans plusieurs classes
             if len(classe_name_list) > 1:
                 logger.warning(
-                    f"L'utilisateur {interaction.user.name} est dans {len(classe_name_list)} classes : {classe_name_list}. "
+                    f"[commands - get_classe_role] L'utilisateur {interaction.user.name} est dans {len(classe_name_list)} classes : {classe_name_list}. "
                     f"Classe retenue : {classe_name_list[0]}"
                 )
 
-            logger.info(f"Classe trouvée pour {interaction.user.name} : {classe_name_list[0]}")
+            logger.info(f"[commands - get_classe_role] Classe trouvée pour {interaction.user.name} : {classe_name_list[0]}")
             return classe_name_list[0]
 
         except Exception as e:
-            logger.error(f"Erreur dans get_classe_role : {e}")
+            logger.error(f"[commands - get_classe_role] Erreur dans get_classe_role : {e}")
             return None
 
 
@@ -211,8 +209,8 @@ class CommandsCog(commands.Cog):
 
     @app_commands.command(name="ajouter_un_devoir", description="Ajoute un devoir")
     async def ajouter_devoir(self, interaction: discord.Interaction):
-        await self.get_classe_role(interaction)
-        if self.classe_name:
+        classe =  await self.get_classe_role(interaction)
+        if classe:
 
             embed = discord.Embed(
                 title="Ajoutez le devoir",
@@ -227,6 +225,7 @@ class CommandsCog(commands.Cog):
                 embed=embed, view=view, ephemeral=True
             )
         else :
+            logger.error(f"[commands - ajouter_devoir] Classe introuvable pour {interaction.user.name} ({interaction.user.id})")
             return
 
 
