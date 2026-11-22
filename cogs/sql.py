@@ -5,7 +5,7 @@ import json
 
 DB_PATH = "bot.db"
 
-RANGS = ["eleve", "delegue", "admin"]
+RANGS = ["eleve", "delegue", "admin", "prof"]
 CLASSES = ("B1",)
 
 
@@ -74,7 +74,10 @@ class SqlCog(commands.Cog):
             user_id INTEGER NOT NULL, 
             devoir TEXT NOT NULL,
             date_devoir TEXT NOT NULL, 
-            matiere TEXT NOT NULL
+            matiere TEXT NOT NULL,
+            eval TEXT NOT NULL,
+            date_eval TEXT NOT NULL, 
+            matiere_eval TEXT NOT NULL
         )""")
 
         conn.execute("""CREATE TABLE IF NOT EXISTS constantes_et_variables (id INTEGER PRIMARY KEY AUTOINCREMENT)""")
@@ -533,12 +536,12 @@ class SqlCog(commands.Cog):
     def ajouter_devoir(self, guild_id, user_id, devoir, classe_name):
         conn = self.connexion()
         curseur = conn.execute(
-            """INSERT INTO evenements 
-               (guild_id, classe_name, user_id, devoir, date_devoir, matiere) 
+            """INSERT INTO evenements
+                   (guild_id, classe_name, user_id, devoir, date_devoir, matiere)
                VALUES (?, ?, ?, ?, ?, ?)""",
             (
                 guild_id,
-                classe_name, #c'est toujours pas des names c'est des ID
+                classe_name,  # c'est toujours pas des names c'est des ID
                 user_id,
                 devoir["sujet"],
                 devoir["date"],
@@ -548,6 +551,92 @@ class SqlCog(commands.Cog):
         conn.commit()
         conn.close()
         logger.info(f"SQL : devoir ajouté : {devoir['sujet']}, {devoir['matiere']} dans {guild_id}")
+        return curseur.rowcount == 1
+
+    def ajouter_eval(self, guild_id, user_id, eval, classe_name):
+        conn = self.connexion()
+        curseur = conn.execute(
+            """INSERT INTO evenements 
+               (guild_id, classe_name, user_id, devoir, date_devoir, matiere) 
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                guild_id,
+                classe_name, #c'est toujours pas des names c'est des ID
+                user_id,
+                eval["sujet"],
+                eval["date"],
+                eval["matiere"]
+            )
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"SQL : évaluation ajoutée : {eval['sujet']}, {eval['matiere']} dans {guild_id}")
+        return curseur.rowcount == 1
+
+    def get_devoir_user(self, guild_id, devoir, classe_name):
+        with self.connexion() as conn:
+            user_id = conn.execute(
+                "SELECT user_id FROM evenements WHERE guild_id = ? AND devoir = ? AND classe_name = ? AND date_devoir = ? AND matiere = ?",
+                (guild_id, devoir["sujet"], classe_name, devoir["date"], devoir["matiere"])
+            ).fetchall()
+
+        logger.info(
+            f"SQL : user trouvé pour le devoir : {devoir['sujet']}, {devoir['matiere']} dans {guild_id} : {user_id}")
+        return user_id
+
+    def get_eval_user(self, guild_id, eval, classe_name):
+        with self.connexion() as conn:
+            user_id = conn.execute(
+                "SELECT user_id FROM evenements WHERE guild_id = ? AND eval = ? AND classe_name = ? AND date_eval = ? AND matiere_eval = ?",
+                (guild_id, eval["sujet"], classe_name, eval["date"], eval["matiere"])
+            ).fetchall()
+
+        logger.info(
+            f"SQL : user trouvé pour l'évaluation : {eval['sujet']}, {eval['matiere']} dans {guild_id} : {user_id}")
+        return user_id
+
+    def modifier_devoir(self, guild_id, user_id, devoir, classe_name):
+        conn = self.connexion()
+        curseur = conn.execute(
+            """UPDATE evenements
+               SET devoir      = ?,
+                   date_devoir = ?,
+                   matiere     = ?
+               WHERE guild_id = ?
+                 AND classe_name = ?
+                 AND user_id = ?""",
+            (
+                devoir["sujet"],
+                devoir["date"],
+                devoir["matiere"],
+                guild_id,
+                classe_name,
+                user_id
+            )
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"SQL : devoir modifié : {devoir['sujet']}, {devoir['matiere']} dans {guild_id}")
+        return curseur.rowcount == 1
+
+    def modifier_eval(self, guild_id, user_id, eval, classe_name):
+        conn = self.connexion()
+        curseur = conn.execute(
+            """UPDATE evenements 
+               SET eval = ?, date_eval = ?, matiere_eval = ? 
+               WHERE guild_id = ? AND classe_name = ? AND user_id = ?""",
+            (
+                eval["sujet"],
+                eval["date"],
+                eval["matiere"],
+                guild_id,
+                classe_name,
+                user_id
+            )
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"SQL : évaluation modifiée : {eval['sujet']}, {eval['matiere']} dans {guild_id}")
         return curseur.rowcount == 1
 
     def recup_tous_devoirs(self, guild_id, classe_name):
@@ -560,14 +649,36 @@ class SqlCog(commands.Cog):
         logger.info(f"SQL : {len(devoirs)} devoir(s) trouvé(s)")
         return devoirs
 
+    def recup_tous_evals(self, guild_id, classe_name):
+        with self.connexion() as conn:
+            evals = conn.execute(
+                "SELECT eval AS sujet, date_eval, matiere_eval FROM evenements WHERE guild_id = ? AND classe_name = ?",
+                (guild_id, classe_name)
+            ).fetchall()
+
+        logger.info(f"SQL : {len(evals)} évaluation(s) trouvée(s)")
+        return evals
+
     def supprimer_devoir(self, guild_id, classe_name, devoir):
         with self.connexion() as conn:
             curseur = conn.execute(
                 "DELETE FROM evenements WHERE guild_id = ? AND classe_name = ? AND devoir = ? AND date_devoir = ? AND matiere = ?",
-                (guild_id,classe_name, devoir["sujet"], devoir["date"], devoir["matiere"]),
+                (guild_id, classe_name, devoir["sujet"], devoir["date"], devoir["matiere"]),
             )
             conn.commit()
-            logger.info(f"Devoir supprimé : {devoir['sujet'], devoir['matiere'], devoir['date']} pour la classe {classe_name} du serveur {guild_id}")
+            logger.info(
+                f"Devoir supprimé : {devoir['sujet'], devoir['matiere'], devoir['date']} pour la classe {classe_name} du serveur {guild_id}")
+
+        return curseur.rowcount > 0
+
+    def supprimer_eval(self, guild_id, classe_name, eval):
+        with self.connexion() as conn:
+            curseur = conn.execute(
+                "DELETE FROM evenements WHERE guild_id = ? AND classe_name = ? AND eval = ? AND date_eval = ? AND matiere_eval = ?",
+                (guild_id,classe_name, eval["sujet"], eval["date"], eval["matiere"]),
+            )
+            conn.commit()
+            logger.info(f"Évaluation supprimée : {eval['sujet'], eval['matiere'], eval['date']} pour la classe {classe_name} du serveur {guild_id}")
 
         return curseur.rowcount > 0
 

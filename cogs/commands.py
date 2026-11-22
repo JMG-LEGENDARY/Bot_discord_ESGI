@@ -11,25 +11,27 @@ from utils import cours
 
 
 
-class DateModal(discord.ui.Modal, title="Entrez la date du devoir ainsi que son sujet"):
-    date_input = discord.ui.TextInput(
-        label="Date du devoir",
-        placeholder="JJ/MM/AAAA",
-        min_length=10,
-        max_length=10,
-        required=True,
-    )
+class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
 
-    subject_input = discord.ui.TextInput(
-        label="Sujet du devoir",
-        min_length=20,
-        max_length=500,
-        required=True,
-    )
-
-    def __init__(self, devoir):
+    def __init__(self, devoir, dico):
         super().__init__()
         self.devoir = devoir
+        self.dico = dico
+
+        self.date_input = discord.ui.TextInput(
+            label=f"Date {self.dico['du']}",
+            placeholder="JJ/MM/AAAA",
+            min_length=10,
+            max_length=10,
+            required=True,
+        )
+
+        self.subject_input = discord.ui.TextInput(
+            label=f"Sujet {self.dico['du']}",
+            min_length=20,
+            max_length=500,
+            required=True,
+        )
 
     async def on_submit(self, interaction: discord.Interaction):
         saisie = self.date_input.value
@@ -37,9 +39,11 @@ class DateModal(discord.ui.Modal, title="Entrez la date du devoir ainsi que son 
         try:
             date = datetime.strptime(saisie, "%d/%m/%Y").date()
         except ValueError:
-            logger.error(f"Date du devoir : {saisie} par {interaction.user.name}")
+            logger.error(f"Date {self.dico['du']} : {saisie} par {interaction.user.name}")
             await interaction.response.send_message("Format invalide. Utilisez JJ/MM/AAAA avec une date existante, commande annulez veuillez recommencer.")
             return None
+
+
         self.devoir["date"] = date
 
         saisie2 = self.subject_input.value
@@ -54,17 +58,66 @@ class DateModal(discord.ui.Modal, title="Entrez la date du devoir ainsi que son 
                 class_id = await commands_cog.get_classe_role(interaction=interaction)
 
                 if sql_cog:
-                    sql_cog.ajouter_devoir(
-                        guild_id=interaction.guild_id,
-                        user_id=interaction.user.id,
-                        devoir=self.devoir,
-                        classe_name = class_id # c'est toujours pas des names c'est des ID
-                    )
-                    embed = discord.Embed(
-                        title="Devoir enregistré",
-                        color=discord.Color.blue(),
-                        description=f"Devoir enregistré : \n**Le {self.devoir["date"]}**\n**en {self.devoir["matiere"]}**\n**{self.devoir["sujet"]}** !"
-                    )
+                    is_devoir = True if self.dico["commande"] == "ajouter_un_devoir" else False
+                    if is_devoir:
+                        autres_devoirs = sql_cog.recup_devoirs(interaction.guild_id, class_id)
+
+                    if not is_devoir:
+                        autres_devoirs = sql_cog.recup_tous_evals(interaction.guild_id, class_id)
+
+                    for devoir in autres_devoirs:
+                        if devoir["date"] == self.devoir["date"] and devoir["matiere"] == self.devoir["matiere"]:
+                            embed = discord.Embed(
+                                title=f"Ceci a déjà été enregistré",
+                                color=discord.Color.yellow(),
+                                description=f"{self.dico['le']} pour **{self.devoir['matiere']}** est déjà enregistré pour le **{self.devoir['date']}** ! \nVoulez vous le modifier ?"
+                            )
+                            view = EmbedButtonAccepterRefuser()
+                            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+                            await view.wait()  # Attend que l'utilisateur clique sur un bouton
+                            if view.confirmed:
+                                try :
+                                    if is_devoir:
+                                        self_user_id = sql_cog.get_devoir_user(interaction.guild_id, self.devoir,class_id)
+                                    if not is_devoir:
+                                        self_user_id = sql_cog.get_eval_user(interaction.guild_id, self.devoir,class_id)
+                                    rang = sql_cog.get_rang(interaction.user.id)
+                                    if rang == "admin" or rang == "prof" or rang == "delegue" or self_user_id == interaction.user.id:
+                                        if is_devoir:
+                                            sql_cog.modifier_devoir(
+                                                guild_id=interaction.guild_id,
+                                                user_id=interaction.user.id,
+                                                devoir=self.devoir,
+                                                classe_name=class_id)
+                                            embed = discord.Embed(
+                                                title="Devoir enregistré",
+                                                color=discord.Color.blue(),
+                                                description=f"Devoir enregistré : \n**Le {self.devoir["date"]}**\n**en {self.devoir["matiere"]}**\n**{self.devoir["sujet"]}** !"
+                                            )
+                                        if not is_devoir:
+                                            sql_cog.modifier_eval(
+                                                guild_id=interaction.guild_id,
+                                                user_id=interaction.user.id,
+                                                devoir=self.devoir,
+                                                classe_name=class_id)
+                                            embed = discord.Embed(
+                                                title="Évaluation enregistrée",
+                                                color=discord.Color.blue(),
+                                                description=f"Évaluation enregistrée : \n**Le {self.devoir["date"]}**\n**en {self.devoir["matiere"]}**\n**{self.devoir["sujet"]}** !"
+                                            )
+                                    else :
+                                        embed = discord.Embed(
+                                            title=f"Vous n'avez pas les droits pour modifier {self.dico['le']}",
+                                            color=discord.Color.red(),
+                                        )
+                                except Exception as e:
+                                    logger.error(f"-- [commande - on_submit] Erreur lors de la modification en BDD : {e}")
+                                    embed = discord.Embed(
+                                        title="Problème, veuillez contacter l'assistance",
+                                        color=discord.Color.red(),
+                                    )
+                            break  # Sort de la boucle après avoir trouvé un devoir correspondant
+
                 else:
                     logger.error("Le Cog SQL n'a pas été trouvé.")
                     embed = discord.Embed(
@@ -103,8 +156,9 @@ class EmbedButtonAccepterRefuser(discord.ui.View):
 
 class SelectMatiere(discord.ui.Select):
 
-    def __init__(self, cours: dict):
+    def __init__(self, cours: dict, dico: dict):
         self.selected_value = None
+        self.dico = dico
         options = [
             discord.SelectOption(label=str(value), value=str(key)) for key, value in cours.items()
         ]
@@ -112,10 +166,10 @@ class SelectMatiere(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         self.selected_value = self.options[0]
-        devoir = {"date": "", "matiere": self.values[0], "sujet": ""}
+        topic = {"date": "", "matiere": self.values[0], "sujet": ""}
 
         # On ouvre directement le Modal au lieu de defer()
-        modal = DateModal(devoir)
+        modal = DateModal(topic, self.dico)
         await interaction.response.send_modal(modal)
 
 
@@ -191,6 +245,31 @@ class CommandsCog(commands.Cog):
             return None
 
 
+
+
+
+    async def ajouter_eval_devoir(self, interaction: discord.Interaction, dico: dict):
+        classe = await self.get_classe_role(interaction)
+        if classe:
+
+            embed = discord.Embed(
+                title=f"Ajoutez {dico['le']}",
+                description="Choisissez la matière dans le menu ci-dessous.",
+                color=discord.Color.green(),
+            )
+
+            view = discord.ui.View()
+            view.add_item(SelectMatiere(cours, dico))
+
+            await interaction.response.send_message(
+                embed=embed, view=view, ephemeral=True
+            )
+        else:
+            logger.error(
+                f"[commands - ajouter_eval_devoir] Classe introuvable pour {interaction.user.name} ({interaction.user.id})")
+            return
+
+
     @app_commands.command(name="ping", description="Vérifie la latence du bot")
     async def ping(self, interaction: discord.Interaction):
         logger.info(
@@ -207,44 +286,54 @@ class CommandsCog(commands.Cog):
     async def implorer_le_tout_puissant(self, interaction: discord.Interaction):
         await self.events_cog.scraping(message=None, interaction=interaction)
 
+    @app_commands.command(name="ajouter_une_évaluation",description="Vous permet de recevoir une notification ainsi que des fiches de révisions pour l'évaluation")
+    async def ajouter_eval(self, interaction: discord.Interaction):
+        dico = {"commande": "ajouter_une_évaluation", "le": "l'évaluation", "du" : "de l'évaluation"}
+        await self.ajouter_eval_devoir(interaction, dico)
+
+
     @app_commands.command(name="ajouter_un_devoir", description="Ajoute un devoir")
     async def ajouter_devoir(self, interaction: discord.Interaction):
-        classe =  await self.get_classe_role(interaction)
-        if classe:
+        dico = {"commande": "ajouter_un_devoir", "le": "le devoir", "du" : "du devoir"}
+        await self.ajouter_eval_devoir(interaction, dico)
 
-            embed = discord.Embed(
-                title="Ajoutez le devoir",
-                description="Choisissez la matière dans le menu ci-dessous.",
-                color=discord.Color.green(),
-            )
-
-            view = discord.ui.View()
-            view.add_item(SelectMatiere(cours))
-
+    @app_commands.command(name="lister_les_devoirs", description="Fais une liste de tous les prochains devoirs")
+    async def lister_les_devoirs(self, interaction: discord.Interaction):
+        try :
+            classe = await self.get_classe_role(interaction)
+            if classe:
+                sql_cog = interaction.client.get_cog("SqlCog")
+                if sql_cog:
+                    devoirs = sql_cog.recup_devoirs(interaction.guild_id, classe)
+                    if devoirs:
+                        embed = discord.Embed(
+                            title=f"Devoirs pour la classe {classe}",
+                            color=discord.Color.blue(),
+                        )
+                        for devoir in devoirs:
+                            embed.add_field(
+                                name=f"{devoir['matiere']} - {devoir['date']}",
+                                value=devoir['sujet'],
+                                inline=False
+                            )
+                        await interaction.response.send_message(embed=embed, ephemeral=False)
+                    else:
+                        await interaction.response.send_message(
+                            "Aucun devoir trouvé pour votre classe.",
+                            ephemeral=True
+                        )
+                else:
+                    logger.error("SqlCog introuvable.")
+            else:
+                logger.error(f"[commands - lister_les_devoirs] Classe introuvable pour {interaction.user.name} ({interaction.user.id})")
+        except Exception as e:
+            logger.error(f"[commands - lister_les_devoirs] Erreur lors de la récupération des devoirs : {e}")
             await interaction.response.send_message(
-                embed=embed, view=view, ephemeral=True
+                "Erreur lors de la récupération des devoirs, veuillez contacter un administrateur.",
+                ephemeral=True
             )
-        else :
-            logger.error(f"[commands - ajouter_devoir] Classe introuvable pour {interaction.user.name} ({interaction.user.id})")
-            return
 
 
-
-
-
-
-
-
-    @app_commands.command(name="ajouter_une_évaluation", description="Vous permet de recevoir une notification ainsi que des fiches de révisions pour l'évaluation")
-    async def ajouter_eval(self, interaction: discord.Interaction):
-        embed = discord.Embed(
-            title="Quelle matière ?",
-            color=discord.Color.green(),
-        )
-        view = discord.ui.View()
-        select_menu = SelectMatiere()
-        view.add_item(select_menu)
-        await interaction.response.send_message(embed=embed, view=view)
 
     @app_commands.command(name="nouvelle_identité", description="Supprime tous les messages que tu as envoyés")
     async def nouvelle_identite(self, interaction: discord.Interaction):
