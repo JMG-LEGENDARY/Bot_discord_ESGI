@@ -338,7 +338,7 @@ class CommandsCog(commands.Cog):
                         )
                         for devoir in devoirs:
                             embed.add_field(
-                                name=f"{devoir['matiere']} - {devoir['date']}",
+                                name=f"{devoir['matiere']} - {devoir['date_devoir']}",
                                 value=devoir['sujet'],
                                 inline=False
                             )
@@ -374,7 +374,7 @@ class CommandsCog(commands.Cog):
                         )
                         for evaluation in evaluations:
                             embed.add_field(
-                                name=f"{evaluation['matiere']} - {evaluation['date']}",
+                                name=f"{evaluation['matiere']} - {evaluation['date_eval']}",
                                 value=evaluation['sujet'],
                                 inline=False
                             )
