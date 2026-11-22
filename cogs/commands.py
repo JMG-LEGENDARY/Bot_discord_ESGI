@@ -330,7 +330,7 @@ class CommandsCog(commands.Cog):
             if classe:
                 sql_cog = interaction.client.get_cog("SqlCog")
                 if sql_cog:
-                    devoirs = sql_cog.recup_devoirs(interaction.guild_id, classe)
+                    devoirs = sql_cog.recup_tous_devoirs(interaction.guild_id, classe)
                     if devoirs:
                         embed = discord.Embed(
                             title=f"Devoirs pour la classe {classe}",
@@ -356,6 +356,43 @@ class CommandsCog(commands.Cog):
             logger.error(f"[commands - lister_les_devoirs] Erreur lors de la récupération des devoirs : {e}")
             await interaction.response.send_message(
                 "Erreur lors de la récupération des devoirs, veuillez contacter un administrateur.",
+                ephemeral=True
+            )
+
+    @app_commands.command(name="lister_les_évaluations", description="Fais une liste de tous les prochaines évaluations")
+    async def lister_les_evaluations(self, interaction: discord.Interaction):
+        try:
+            classe = await self.get_classe_role(interaction)
+            if classe:
+                sql_cog = interaction.client.get_cog("SqlCog")
+                if sql_cog:
+                    evaluations = sql_cog.recup_toutes_évaluations(interaction.guild_id, classe)
+                    if evaluations:
+                        embed = discord.Embed(
+                            title=f"Évaluations pour la classe {classe}",
+                            color=discord.Color.blue(),
+                        )
+                        for evaluation in evaluations:
+                            embed.add_field(
+                                name=f"{evaluation['matiere']} - {evaluation['date']}",
+                                value=evaluation['sujet'],
+                                inline=False
+                            )
+                        await interaction.response.send_message(embed=embed, ephemeral=False)
+                    else:
+                        await interaction.response.send_message(
+                            "Aucune évaluation trouvée pour votre classe.",
+                            ephemeral=True
+                        )
+                else:
+                    logger.error("SqlCog introuvable.")
+            else:
+                logger.error(
+                    f"[commands - lister_les_evaluations] Classe introuvable pour {interaction.user.name} ({interaction.user.id})")
+        except Exception as e:
+            logger.error(f"[commands - lister_les_evaluations] Erreur lors de la récupération des évaluations : {e}")
+            await interaction.response.send_message(
+                "Erreur lors de la récupération des évaluations, veuillez contacter un administrateur.",
                 ephemeral=True
             )
 
