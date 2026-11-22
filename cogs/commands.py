@@ -13,9 +13,9 @@ from utils import cours
 
 class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
 
-    def __init__(self, devoir, dico):
+    def __init__(self, topic, dico):
         super().__init__()
-        self.devoir = devoir
+        self.topic = topic
         self.dico = dico
 
         self.date_input = discord.ui.TextInput(
@@ -44,10 +44,10 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
             return None
 
 
-        self.devoir["date"] = date
+        self.topic["date"] = date
 
         saisie2 = self.subject_input.value
-        self.devoir["sujet"] = saisie2
+        self.topic["sujet"] = saisie2
         try:
             # 1. Utilise interaction.client pour cibler le bot
             # 2. Utilise le NOM DE LA CLASSE de ton cog (ex: SQLCog), pas le chemin du fichier
@@ -66,11 +66,11 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
                         autres_devoirs = sql_cog.recup_tous_evals(interaction.guild_id, class_id)
 
                     for devoir in autres_devoirs:
-                        if devoir["date"] == self.devoir["date"] and devoir["matiere"] == self.devoir["matiere"]:
+                        if devoir["date"] == self.topic["date"] and devoir["matiere"] == self.topic["matiere"]:
                             embed = discord.Embed(
                                 title=f"Ceci a déjà été enregistré",
                                 color=discord.Color.yellow(),
-                                description=f"{self.dico['le']} pour **{self.devoir['matiere']}** est déjà enregistré pour le **{self.devoir['date']}** ! \nVoulez vous le modifier ?"
+                                description=f"{self.dico['le']} pour **{self.topic['matiere']}** est déjà enregistré pour le **{self.topic['date']}** ! \nVoulez vous le modifier ?"
                             )
                             view = EmbedButtonAccepterRefuser()
                             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
@@ -78,32 +78,32 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
                             if view.confirmed:
                                 try :
                                     if is_devoir:
-                                        self_user_id = sql_cog.get_devoir_user(interaction.guild_id, self.devoir,class_id)
+                                        self_user_id = sql_cog.get_devoir_user(interaction.guild_id, self.topic,class_id)
                                     if not is_devoir:
-                                        self_user_id = sql_cog.get_eval_user(interaction.guild_id, self.devoir,class_id)
+                                        self_user_id = sql_cog.get_eval_user(interaction.guild_id, self.topic,class_id)
                                     rang = sql_cog.get_rang(interaction.user.id)
                                     if rang == "admin" or rang == "prof" or rang == "delegue" or self_user_id == interaction.user.id:
                                         if is_devoir:
                                             sql_cog.modifier_devoir(
                                                 guild_id=interaction.guild_id,
                                                 user_id=interaction.user.id,
-                                                devoir=self.devoir,
+                                                devoir=self.topic,
                                                 classe_name=class_id)
                                             embed = discord.Embed(
                                                 title="Devoir enregistré",
                                                 color=discord.Color.blue(),
-                                                description=f"Devoir enregistré : \n**Le {self.devoir["date"]}**\n**en {self.devoir["matiere"]}**\n**{self.devoir["sujet"]}** !"
+                                                description=f"Devoir enregistré : \n**Le {self.topic["date"]}**\n**en {self.topic["matiere"]}**\n**{self.topic["sujet"]}** !"
                                             )
                                         if not is_devoir:
                                             sql_cog.modifier_eval(
                                                 guild_id=interaction.guild_id,
                                                 user_id=interaction.user.id,
-                                                devoir=self.devoir,
+                                                devoir=self.topic,
                                                 classe_name=class_id)
                                             embed = discord.Embed(
                                                 title="Évaluation enregistrée",
                                                 color=discord.Color.blue(),
-                                                description=f"Évaluation enregistrée : \n**Le {self.devoir["date"]}**\n**en {self.devoir["matiere"]}**\n**{self.devoir["sujet"]}** !"
+                                                description=f"Évaluation enregistrée : \n**Le {self.topic["date"]}**\n**en {self.topic["matiere"]}**\n**{self.topic["sujet"]}** !"
                                             )
                                     else :
                                         embed = discord.Embed(
