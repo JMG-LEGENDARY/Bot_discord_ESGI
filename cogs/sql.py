@@ -642,7 +642,7 @@ class SqlCog(commands.Cog):
     def recup_tous_devoirs(self, guild_id, classe_name):
         with self.connexion() as conn:
             devoirs = conn.execute(
-                "SELECT devoir AS sujet, date_devoir, matiere FROM evenements WHERE guild_id = ? AND classe_name = ?",
+                "SELECT devoir AS sujet, date, matiere FROM evenements WHERE guild_id = ? AND classe_name = ?",
                 (guild_id, classe_name)
             ).fetchall()
 
@@ -652,7 +652,7 @@ class SqlCog(commands.Cog):
     def recup_tous_evals(self, guild_id, classe_name):
         with self.connexion() as conn:
             evals = conn.execute(
-                "SELECT eval AS sujet, date_eval, matiere_eval FROM evenements WHERE guild_id = ? AND classe_name = ?",
+                "SELECT eval AS sujet, date, matiere_eval FROM evenements WHERE guild_id = ? AND classe_name = ?",
                 (guild_id, classe_name)
             ).fetchall()
 
