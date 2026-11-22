@@ -332,8 +332,9 @@ class CommandsCog(commands.Cog):
                 if sql_cog:
                     devoirs = sql_cog.recup_tous_devoirs(guild_id=interaction.guild.id, classe_name=classe)
                     if devoirs:
+                        role = discord.utils.get(interaction.guild.roles, name=classe)
                         embed = discord.Embed(
-                            title=f"Devoirs pour la classe {classe}",
+                            title=f"Devoirs pour la classe {role.name}",
                             color=discord.Color.blue(),
                         )
                         for devoir in devoirs:
