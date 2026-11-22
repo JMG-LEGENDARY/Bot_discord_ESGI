@@ -330,7 +330,7 @@ class CommandsCog(commands.Cog):
             if classe:
                 sql_cog = interaction.client.get_cog("SqlCog")
                 if sql_cog:
-                    devoirs = sql_cog.recup_tous_devoirs(guild_id=interaction.guild.id, classe_name=classe)
+                    devoirs = sql_cog.recup_tous_devoirs(guild_id=interaction.guild.id, name=classe)
                     if devoirs:
                         role = discord.utils.get(interaction.guild.roles, name=classe)
                         embed = discord.Embed(
