@@ -537,7 +537,7 @@ class SqlCog(commands.Cog):
         conn = self.connexion()
         curseur = conn.execute(
             """INSERT INTO evenements
-                   (guild_id, classe_name, user_id, devoir, date_item, matiere)
+                   (guild_id, classe_name, user_id, devoir, date_devoir, matiere)
                VALUES (?, ?, ?, ?, ?, ?)""",
             (
                 guild_id,
@@ -557,7 +557,7 @@ class SqlCog(commands.Cog):
         conn = self.connexion()
         curseur = conn.execute(
             """INSERT INTO evenements 
-               (guild_id, classe_name, user_id, devoir, date_item, matiere) 
+               (guild_id, classe_name, user_id, devoir, date_eval, matiere) 
                VALUES (?, ?, ?, ?, ?, ?)""",
             (
                 guild_id,
@@ -576,7 +576,7 @@ class SqlCog(commands.Cog):
     def get_devoir_user(self, guild_id, devoir, classe_name):
         with self.connexion() as conn:
             user_id = conn.execute(
-                "SELECT user_id FROM evenements WHERE guild_id = ? AND devoir = ? AND classe_name = ? AND date_item = ? AND matiere = ?",
+                "SELECT user_id FROM evenements WHERE guild_id = ? AND devoir = ? AND classe_name = ? AND date_devoir = ? AND matiere = ?",
                 (guild_id, devoir["sujet"], classe_name, devoir["date_item"], devoir["matiere"])
             ).fetchall()
 
@@ -587,7 +587,7 @@ class SqlCog(commands.Cog):
     def get_eval_user(self, guild_id, eval, classe_name):
         with self.connexion() as conn:
             user_id = conn.execute(
-                "SELECT user_id FROM evenements WHERE guild_id = ? AND eval = ? AND classe_name = ? AND date_item = ? AND matiere_eval = ?",
+                "SELECT user_id FROM evenements WHERE guild_id = ? AND eval = ? AND classe_name = ? AND date_eval = ? AND matiere_eval = ?",
                     (guild_id, eval["sujet"], classe_name, eval["date_item"], eval["matiere"])
             ).fetchall()
 
@@ -623,7 +623,7 @@ class SqlCog(commands.Cog):
         conn = self.connexion()
         curseur = conn.execute(
             """UPDATE evenements 
-               SET eval = ?, date_item = ?, matiere_eval = ? 
+               SET eval = ?, date_eval = ?, matiere_eval = ? 
                WHERE guild_id = ? AND classe_name = ? AND user_id = ?""",
             (
                 eval["sujet"],
@@ -642,7 +642,7 @@ class SqlCog(commands.Cog):
     def recup_tous_devoirs(self, guild_id, classe_name):
         with self.connexion() as conn:
             devoirs = conn.execute(
-                "SELECT devoir AS sujet, date_item, matiere FROM evenements WHERE guild_id = ? AND classe_name = ?",
+                "SELECT devoir AS sujet, date_devoir, matiere FROM evenements WHERE guild_id = ? AND classe_name = ?",
                 (guild_id, classe_name)
             ).fetchall()
 
@@ -652,7 +652,7 @@ class SqlCog(commands.Cog):
     def recup_tous_evals(self, guild_id, classe_name):
         with self.connexion() as conn:
             evals = conn.execute(
-                "SELECT eval AS sujet, date_item, matiere_eval FROM evenements WHERE guild_id = ? AND classe_name = ?",
+                "SELECT eval AS sujet, date_eval, matiere_eval FROM evenements WHERE guild_id = ? AND classe_name = ?",
                 (guild_id, classe_name)
             ).fetchall()
 
@@ -662,7 +662,7 @@ class SqlCog(commands.Cog):
     def supprimer_devoir(self, guild_id, classe_name, devoir):
         with self.connexion() as conn:
             curseur = conn.execute(
-                "DELETE FROM evenements WHERE guild_id = ? AND classe_name = ? AND devoir = ? AND date_item = ? AND matiere = ?",
+                "DELETE FROM evenements WHERE guild_id = ? AND classe_name = ? AND devoir = ? AND date_devoir = ? AND matiere = ?",
                 (guild_id, classe_name, devoir["sujet"], devoir["date_item"], devoir["matiere"]),
             )
             conn.commit()
@@ -674,11 +674,11 @@ class SqlCog(commands.Cog):
     def supprimer_eval(self, guild_id, classe_name, eval):
         with self.connexion() as conn:
             curseur = conn.execute(
-                "DELETE FROM evenements WHERE guild_id = ? AND classe_name = ? AND eval = ? AND date_item = ? AND matiere_eval = ?",
+                "DELETE FROM evenements WHERE guild_id = ? AND classe_name = ? AND eval = ? AND date_eval = ? AND matiere_eval = ?",
                 (guild_id,classe_name, eval["sujet"], eval["date_item"], eval["matiere"]),
             )
             conn.commit()
-            logger.info(f"Évaluation supprimée : {eval['sujet'], eval['matiere'], eval['date']} pour la classe {classe_name} du serveur {guild_id}")
+            logger.info(f"Évaluation supprimée : {eval['sujet'], eval['matiere'], eval['date_item']} pour la classe {classe_name} du serveur {guild_id}")
 
         return curseur.rowcount > 0
 
