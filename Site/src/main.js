@@ -17,22 +17,20 @@ gsap.registerPlugin(ScrollTrigger);
 const canvas = document.querySelector('#bg');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x03060e);
-scene.fog = new THREE.FogExp2(0x03060e, 0.0085);
+scene.fog = new THREE.FogExp2(0x03060e, 0.0068);
 
-const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.95;
+renderer.toneMappingExposure = 0.96;
 
-// Environnement subtil pour les reflets métalliques
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
 
-// RenderTarget HDR + OutputPass : empêche la tour de saturer en blanc
 const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
   type: THREE.HalfFloatType,
   samples: 4
@@ -42,14 +40,14 @@ composer.addPass(new RenderPass(scene, camera));
 
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.30, // Halo néon fin et maîtrisé
-  0.25, // Rayon court
-  1.25  // Seuil HDR : seuls les matériaux émissifs (> 1.25) brillent
+  0.32, // Halo néon maîtrisé
+  0.25,
+  1.25  // Seuil HDR
 );
 composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
 
-// Éclairage architectural cyberpunk
+// Éclairage général
 const hemiLight = new THREE.HemisphereLight(0x6ea8ff, 0x090d1a, 0.65);
 scene.add(hemiLight);
 
@@ -62,114 +60,276 @@ rimLight.position.set(-45, 35, -40);
 scene.add(rimLight);
 
 // ==========================================
-// 2. DÉCORS CYBERPUNK (SKYLINE, DRONES, PARTICULES)
+// 2. MÉTROPOLE & SOL CYBERPUNK (PLUS DE VIDE)
 // ==========================================
-function buildCyberpunkEnvironment() {
-  const envGroup = new THREE.Group();
+function buildCyberpunkMetropolis() {
+  const cityGroup = new THREE.Group();
 
-  // Texture procédurale de fenêtres pour les tours voisines
+  // A. SOL URBAIN RÉFLÉCHISSANT AVEC AVENUES LUMINEUSES (y = -0.05)
+  const groundCvs = document.createElement('canvas');
+  groundCvs.width = 512;
+  groundCvs.height = 512;
+  const gCtx = groundCvs.getContext('2d');
+  gCtx.fillStyle = '#050914';
+  gCtx.fillRect(0, 0, 512, 512);
+
+  // Quadrillage de blocs urbains
+  gCtx.strokeStyle = '#0f1c33';
+  gCtx.lineWidth = 18;
+  gCtx.strokeRect(0, 0, 512, 512);
+  gCtx.strokeRect(128, 0, 256, 512);
+  gCtx.strokeRect(0, 128, 512, 256);
+
+  // Lignes de circulation néon cyan & magenta
+  gCtx.strokeStyle = '#00f3ff';
+  gCtx.lineWidth = 2;
+  gCtx.setLineDash([16, 14]);
+  gCtx.beginPath();
+  gCtx.moveTo(128, 0);
+  gCtx.lineTo(128, 512);
+  gCtx.moveTo(0, 384);
+  gCtx.lineTo(512, 384);
+  gCtx.stroke();
+
+  gCtx.strokeStyle = '#ff007f';
+  gCtx.beginPath();
+  gCtx.moveTo(384, 0);
+  gCtx.lineTo(384, 512);
+  gCtx.moveTo(0, 128);
+  gCtx.lineTo(512, 128);
+  gCtx.stroke();
+
+  const groundTex = new THREE.CanvasTexture(groundCvs);
+  groundTex.wrapS = THREE.RepeatWrapping;
+  groundTex.wrapT = THREE.RepeatWrapping;
+  groundTex.repeat.set(16, 16);
+  groundTex.colorSpace = THREE.SRGBColorSpace;
+
+  const groundPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(460, 460),
+    new THREE.MeshStandardMaterial({
+      map: groundTex,
+      color: 0x111827,
+      metalness: 0.75,
+      roughness: 0.3
+    })
+  );
+  groundPlane.rotation.x = -Math.PI / 2;
+  groundPlane.position.y = -0.05;
+  cityGroup.add(groundPlane);
+
+  // B. PARVIS MONUMENTAL AUTOUR DE LA TOUR ESGI
+  const plazaSize = 44;
+  const plaza = new THREE.Mesh(
+    new THREE.BoxGeometry(plazaSize, 0.3, plazaSize),
+    new THREE.MeshStandardMaterial({ color: 0x0d1424, metalness: 0.8, roughness: 0.25 })
+  );
+  plaza.position.y = 0.05;
+  cityGroup.add(plaza);
+
+  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 2.4, 3.0), toneMapped: false });
+  const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.8, 0.1, 1.5), toneMapped: false });
+
+  // Bordures lumineuses du parvis + 4 pylônes d'angle avec faisceaux verticaux
+  const halfP = plazaSize / 2;
+  [
+    [0, 0.22, halfP, plazaSize, 0.1, 0.2],
+    [0, 0.22, -halfP, plazaSize, 0.1, 0.2],
+    [halfP, 0.22, 0, 0.2, 0.1, plazaSize],
+    [-halfP, 0.22, 0, 0.2, 0.1, plazaSize]
+  ].forEach(([bx, by, bz, bw, bh, bd]) => {
+    const border = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), cyanHdr);
+    border.position.set(bx, by, bz);
+    cityGroup.add(border);
+  });
+
+  [
+    [halfP, halfP],
+    [-halfP, halfP],
+    [halfP, -halfP],
+    [-halfP, -halfP]
+  ].forEach(([cx, cz]) => {
+    const pylon = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 4.5, 0.8),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9, roughness: 0.2 })
+    );
+    pylon.position.set(cx, 2.25, cz);
+    cityGroup.add(pylon);
+
+    const lightBeam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.45, 55, 12, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0x00f3ff,
+        transparent: true,
+        opacity: 0.07,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      })
+    );
+    lightBeam.position.set(cx, 29, cz);
+    cityGroup.add(lightBeam);
+  });
+
+  // C. 36 GRATTE-CIELS CYBERPUNK DÉTAILLÉS (AVEC FENÊTRES ÉMISSIVES & COURONNES NÉONS)
   const winCvs = document.createElement('canvas');
-  winCvs.width = 128;
-  winCvs.height = 256;
+  winCvs.width = 256;
+  winCvs.height = 512;
   const wCtx = winCvs.getContext('2d');
-  wCtx.fillStyle = '#070b14';
-  wCtx.fillRect(0, 0, 128, 256);
-  for (let y = 8; y < 250; y += 16) {
-    for (let x = 8; x < 120; x += 16) {
-      if (Math.random() > 0.45) {
-        wCtx.fillStyle = Math.random() > 0.85 ? '#00f3ff' : '#1e3a5f';
-        wCtx.fillRect(x, y, 8, 8);
+  wCtx.fillStyle = '#060a14';
+  wCtx.fillRect(0, 0, 256, 512);
+
+  for (let y = 10; y < 500; y += 14) {
+    const rowLit = Math.random() > 0.25;
+    for (let x = 10; x < 246; x += 16) {
+      if (rowLit && Math.random() > 0.35) {
+        const rnd = Math.random();
+        wCtx.fillStyle = rnd > 0.88 ? '#00f3ff' : rnd > 0.80 ? '#ff007f' : '#38bdf8';
+        wCtx.fillRect(x, y, 10, 6);
+      } else {
+        wCtx.fillStyle = '#0f172a';
+        wCtx.fillRect(x, y, 10, 6);
       }
     }
   }
   const winTex = new THREE.CanvasTexture(winCvs);
   winTex.wrapS = THREE.RepeatWrapping;
   winTex.wrapT = THREE.RepeatWrapping;
-  winTex.repeat.set(2, 6);
+  winTex.repeat.set(2, 4);
   winTex.colorSpace = THREE.SRGBColorSpace;
 
-  const bgTowerMat = new THREE.MeshStandardMaterial({
-    color: 0x0c1322,
+  const towerBodyMat = new THREE.MeshStandardMaterial({
+    color: 0x0f172a,
     map: winTex,
-    roughness: 0.6,
-    metalness: 0.4
+    emissiveMap: winTex,
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 0.85,
+    metalness: 0.6,
+    roughness: 0.35
   });
 
   const beaconMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(3.0, 0.1, 0.4), // Rouge HDR qui déclenche un léger bloom
+    color: new THREE.Color(3.0, 0.1, 0.35),
     toneMapped: false
   });
 
-  // 28 tours voisines disposées en cercle éloigné
-  for (let i = 0; i < 28; i++) {
-    const angle = (i / 28) * Math.PI * 2 + (Math.random() - 0.5) * 0.15;
-    const dist = 68 + Math.random() * 75;
-    const h = 35 + Math.random() * 75;
-    const w = 8 + Math.random() * 10;
+  const towerPositions = [];
+  for (let i = 0; i < 36; i++) {
+    const ring = i < 14 ? 0 : 1; // 2 couronnes de buildings
+    const countInRing = ring === 0 ? 14 : 22;
+    const idxInRing = ring === 0 ? i : i - 14;
+    const angle = (idxInRing / countInRing) * Math.PI * 2 + ring * 0.2;
+    const dist = ring === 0 ? 56 + Math.random() * 18 : 92 + Math.random() * 45;
 
-    const bMesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), bgTowerMat);
-    bMesh.position.set(Math.cos(angle) * dist, h / 2 - 15, Math.sin(angle) * dist);
-    envGroup.add(bMesh);
+    const h = ring === 0 ? 34 + Math.random() * 42 : 48 + Math.random() * 65;
+    const w = 9 + Math.random() * 8;
+    const d = 9 + Math.random() * 8;
 
-    // Balise lumineuse au sommet
-    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 8), beaconMat);
-    beacon.position.set(bMesh.position.x, h - 14.5, bMesh.position.z);
-    envGroup.add(beacon);
+    const tx = Math.cos(angle) * dist;
+    const tz = Math.sin(angle) * dist;
+
+    // Corps principal
+    const mainBlock = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), towerBodyMat);
+    mainBlock.position.set(tx, h / 2, tz);
+    cityGroup.add(mainBlock);
+
+    // Couronne néon au sommet du corps principal
+    const crownMat = i % 3 === 0 ? pinkHdr : cyanHdr;
+    const crown = new THREE.Mesh(new THREE.BoxGeometry(w + 0.3, 0.35, d + 0.3), crownMat);
+    crown.position.set(tx, h - 1.2, tz);
+    cityGroup.add(crown);
+
+    // Étage supérieur en retrait (silhouette architecturale)
+    const upperH = 6 + Math.random() * 10;
+    const upperBlock = new THREE.Mesh(
+      new THREE.BoxGeometry(w * 0.62, upperH, d * 0.62),
+      towerBodyMat
+    );
+    upperBlock.position.set(tx, h + upperH / 2, tz);
+    cityGroup.add(upperBlock);
+
+    // Antenne + balise anti-collision
+    const spireH = 4 + Math.random() * 7;
+    const spire = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.15, spireH, 6),
+      new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9 })
+    );
+    spire.position.set(tx, h + upperH + spireH / 2, tz);
+    cityGroup.add(spire);
+
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), beaconMat);
+    beacon.position.set(tx, h + upperH + spireH, tz);
+    cityGroup.add(beacon);
+
+    if (ring === 0) {
+      towerPositions.push({ x: tx, z: tz, h });
+    }
   }
 
-  // Trafic aérien futuriste (véhicules/drones en orbite)
-  const drones = [];
-  const cyanDroneMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(0.1, 2.8, 3.2),
-    toneMapped: false
-  });
-  const pinkDroneMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(3.2, 0.1, 1.8),
-    toneMapped: false
-  });
+  // Passerelles aériennes lumineuses entre quelques tours proches
+  for (let i = 0; i < towerPositions.length - 1; i += 2) {
+    const a = towerPositions[i];
+    const b = towerPositions[i + 1];
+    const bridgeY = Math.min(a.h, b.h) * 0.65;
+    const start = new THREE.Vector3(a.x, bridgeY, a.z);
+    const end = new THREE.Vector3(b.x, bridgeY, b.z);
+    const length = start.distanceTo(end);
 
-  for (let i = 0; i < 36; i++) {
+    if (length < 42) {
+      const bridge = new THREE.Mesh(
+        new THREE.BoxGeometry(1.4, 1.2, length),
+        new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.3 })
+      );
+      bridge.position.copy(start).lerp(end, 0.5);
+      bridge.lookAt(end);
+      cityGroup.add(bridge);
+
+      const bridgeNeon = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, length), cyanHdr);
+      bridgeNeon.position.copy(bridge.position);
+      bridgeNeon.position.y -= 0.6;
+      bridgeNeon.lookAt(end);
+      cityGroup.add(bridgeNeon);
+    }
+  }
+
+  // D. TRAFIC AÉRIEN & PARTICULES
+  const drones = [];
+  for (let i = 0; i < 40; i++) {
     const isCyan = i % 2 === 0;
     const drone = new THREE.Mesh(
-      new THREE.BoxGeometry(0.18, 0.12, 1.8),
-      isCyan ? cyanDroneMat : pinkDroneMat
+      new THREE.BoxGeometry(0.18, 0.12, 2.0),
+      isCyan ? cyanHdr : pinkHdr
     );
-    const orbitR = 24 + Math.random() * 38;
-    const orbitY = 2 + Math.random() * 82;
+    const orbitR = 26 + Math.random() * 44;
+    const orbitY = 4 + Math.random() * 82;
     const speed = (0.12 + Math.random() * 0.22) * (isCyan ? 1 : -1);
     const phase = Math.random() * Math.PI * 2;
-
-    envGroup.add(drone);
+    cityGroup.add(drone);
     drones.push({ mesh: drone, orbitR, orbitY, speed, phase });
   }
 
-  // Particules atmosphériques (flux de données en suspension)
   const particleCount = 1200;
   const positions = new Float32Array(particleCount * 3);
   for (let i = 0; i < particleCount; i++) {
-    positions[i * 3] = (Math.random() - 0.5) * 140;
-    positions[i * 3 + 1] = -40 + Math.random() * 145;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 140;
+    positions[i * 3] = (Math.random() - 0.5) * 150;
+    positions[i * 3 + 1] = -46 + Math.random() * 150;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 150;
   }
   const particleGeo = new THREE.BufferGeometry();
   particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const particleMat = new THREE.PointsMaterial({
-    color: 0x38bdf8,
-    size: 0.22,
-    transparent: true,
-    opacity: 0.55
-  });
-  const particles = new THREE.Points(particleGeo, particleMat);
-  envGroup.add(particles);
+  const particles = new THREE.Points(
+    particleGeo,
+    new THREE.PointsMaterial({ color: 0x38bdf8, size: 0.22, transparent: true, opacity: 0.55 })
+  );
+  cityGroup.add(particles);
 
-  scene.add(envGroup);
+  scene.add(cityGroup);
   return { drones, particles };
 }
 
 // ==========================================
 // 3. GÉNÉRATEUR DE PANNEAUX HOLOGRAPHIQUES 3D
 // ==========================================
-function createNeonPanel(tag, title, lines, accentColor = '#00f3ff', width = 9.2, height = 4.6) {
+function createNeonPanel(tag, title, lines, accentColor = '#00f3ff', width = 9.0, height = 4.5, withMountArms = true) {
   const group = new THREE.Group();
 
   const cvs = document.createElement('canvas');
@@ -177,11 +337,9 @@ function createNeonPanel(tag, title, lines, accentColor = '#00f3ff', width = 9.2
   cvs.height = 512;
   const ctx = cvs.getContext('2d');
 
-  // Fond sombre haute lisibilité
-  ctx.fillStyle = 'rgba(4, 10, 22, 0.93)';
+  ctx.fillStyle = 'rgba(4, 10, 22, 0.94)';
   ctx.fillRect(0, 0, cvs.width, cvs.height);
 
-  // Grille technique subtile en fond
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
   ctx.lineWidth = 1;
   for (let gx = 0; gx < cvs.width; gx += 32) {
@@ -197,28 +355,23 @@ function createNeonPanel(tag, title, lines, accentColor = '#00f3ff', width = 9.2
     ctx.stroke();
   }
 
-  // Bordure principale
   ctx.strokeStyle = accentColor;
   ctx.lineWidth = 6;
   ctx.strokeRect(14, 14, cvs.width - 28, cvs.height - 28);
 
-  // Tag système en haut à droite
   ctx.font = 'bold 24px monospace';
   ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
   ctx.textAlign = 'right';
   ctx.fillText(tag, cvs.width - 44, 58);
 
-  // Titre principal
   ctx.textAlign = 'left';
-  ctx.font = 'bold 50px "Segoe UI", sans-serif';
+  ctx.font = 'bold 48px "Segoe UI", sans-serif';
   ctx.fillStyle = accentColor;
   ctx.fillText(title.toUpperCase(), 52, 112);
 
-  // Ligne de séparation
   ctx.fillStyle = accentColor;
   ctx.fillRect(52, 134, 180, 4);
 
-  // Lignes de contenu
   ctx.font = '32px "Segoe UI", sans-serif';
   ctx.fillStyle = '#eef8ff';
   lines.forEach((line, i) => {
@@ -234,7 +387,6 @@ function createNeonPanel(tag, title, lines, accentColor = '#00f3ff', width = 9.2
   );
   group.add(screenMesh);
 
-  // Barres métalliques émettrices haut & bas pour donner du volume 3D au panneau
   const hexColor = new THREE.Color(accentColor);
   const hdrNeonMat = new THREE.MeshBasicMaterial({
     color: hexColor.clone().multiplyScalar(2.4),
@@ -247,6 +399,17 @@ function createNeonPanel(tag, title, lines, accentColor = '#00f3ff', width = 9.2
   botBar.position.y = -height / 2 - 0.06;
   group.add(topBar, botBar);
 
+  // Bras métalliques d'ancrage vers la façade (vers -Z local après rotation)
+  if (withMountArms) {
+    const armMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9, roughness: 0.25 });
+    [-width * 0.35, width * 0.35].forEach((ax) => {
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.2, 8), armMat);
+      arm.rotation.x = Math.PI / 2;
+      arm.position.set(ax, 0, -1.6);
+      group.add(arm);
+    });
+  }
+
   return group;
 }
 
@@ -257,37 +420,24 @@ function buildSkyPlatform(topY) {
   const group = new THREE.Group();
   group.position.set(0, topY + 6.5, 0);
 
-  // Socle métallique octogonal
   const base = new THREE.Mesh(
     new THREE.CylinderGeometry(6.8, 4.4, 1.2, 8),
-    new THREE.MeshStandardMaterial({
-      color: 0x131a29,
-      metalness: 0.9,
-      roughness: 0.25
-    })
+    new THREE.MeshStandardMaterial({ color: 0x131a29, metalness: 0.9, roughness: 0.25 })
   );
   group.add(base);
 
-  // Anneaux néons HDR
-  const cyanHdrMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(0.0, 2.5, 3.0),
-    toneMapped: false
-  });
-  const pinkHdrMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(2.8, 0.1, 1.5),
-    toneMapped: false
-  });
+  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 2.5, 3.0), toneMapped: false });
+  const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.8, 0.1, 1.5), toneMapped: false });
 
-  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(7.1, 0.08, 16, 64), cyanHdrMat);
+  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(7.1, 0.08, 16, 64), cyanHdr);
   ring1.rotation.x = Math.PI / 2;
   group.add(ring1);
 
-  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(5.2, 0.06, 16, 64), pinkHdrMat);
+  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(5.2, 0.06, 16, 64), pinkHdr);
   ring2.rotation.x = Math.PI / 2;
   ring2.position.y = -1.1;
   group.add(ring2);
 
-  // Faisceau vertical subtil vers le ciel
   const beam = new THREE.Mesh(
     new THREE.CylinderGeometry(0.15, 1.8, 45, 16, 1, true),
     new THREE.MeshBasicMaterial({
@@ -301,7 +451,6 @@ function buildSkyPlatform(topY) {
   beam.position.y = 22;
   group.add(beam);
 
-  // Enseigne "ESGI BOT"
   const signCvs = document.createElement('canvas');
   signCvs.width = 1024;
   signCvs.height = 256;
@@ -328,139 +477,309 @@ function buildSkyPlatform(topY) {
 }
 
 // ==========================================
-// 5. ACTES 3 & 4 : ÉGOUTS FUTURISTES & PILIERS FONDATEURS
+// 5. ACTES 3 & 4 : CAVERNE SOUTERRAINE & PILIERS EN TRIANGLE
 // ==========================================
-function buildUndergroundFoundations() {
+function buildUndergroundMasterclass() {
   const underGroup = new THREE.Group();
-  const floorY = -38;
+  const floorY = -44;
+  const ceilY = -16; // Plafond de fondation juste sous le gratte-ciel
 
-  // Sol sombre réfléchissant (eau calme & métal sombre)
-  const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(140, 140),
-    new THREE.MeshStandardMaterial({
-      color: 0x050912,
-      metalness: 0.88,
-      roughness: 0.14
-    })
-  );
+  const concreteMat = new THREE.MeshStandardMaterial({
+    color: 0x0b101d,
+    metalness: 0.55,
+    roughness: 0.65
+  });
+  const darkSteelMat = new THREE.MeshStandardMaterial({
+    color: 0x161f30,
+    metalness: 0.85,
+    roughness: 0.28
+  });
+  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 2.5, 3.0), toneMapped: false });
+  const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.8, 0.1, 1.5), toneMapped: false });
+
+  // 1. SOL, MURS LATERAUX ET DALLE DE FONDATION SUPÉRIEURE (VRAI ESPACE CLOS)
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(90, 110), concreteMat);
   floor.rotation.x = -Math.PI / 2;
-  floor.position.y = floorY;
+  floor.position.set(0, floorY, -4);
   underGroup.add(floor);
 
-  // Plafond technique / dalle de fondation de la tour
-  const ceiling = new THREE.Mesh(
-    new THREE.PlaneGeometry(140, 140),
-    new THREE.MeshStandardMaterial({
-      color: 0x080d18,
-      metalness: 0.7,
-      roughness: 0.5
-    })
-  );
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(90, 110), concreteMat);
   ceiling.rotation.x = Math.PI / 2;
-  ceiling.position.y = floorY + 24;
+  ceiling.position.set(0, ceilY, -4);
   underGroup.add(ceiling);
 
-  // Passerelles métalliques latérales & conduits néons au sol
-  const cyanStripMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(0.0, 2.4, 3.0),
-    toneMapped: false
-  });
-  const walkwayMat = new THREE.MeshStandardMaterial({
-    color: 0x111827,
-    metalness: 0.8,
-    roughness: 0.35
+  // Mur du fond & parois latérales de la chambre souterraine
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(90, 32, 2), concreteMat);
+  backWall.position.set(0, floorY + 15, -34);
+  underGroup.add(backWall);
+
+  [-28, 28].forEach((wx) => {
+    const sideWall = new THREE.Mesh(new THREE.BoxGeometry(2, 32, 110), concreteMat);
+    sideWall.position.set(wx, floorY + 15, -4);
+    underGroup.add(sideWall);
   });
 
-  [-9, 9].forEach((xPos) => {
-    const walkway = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.35, 90), walkwayMat);
-    walkway.position.set(xPos, floorY + 0.18, 0);
-    underGroup.add(walkway);
+  // 2. ARCHES STRUCTURELLES EN ACIER & CONDUITS SOUTERRAINS (STYLE ÉGOUT MÉGASTRUCTURE)
+  for (let zArch = -28; zArch <= 26; zArch += 9) {
+    const arch = new THREE.Mesh(
+      new THREE.TorusGeometry(26, 0.75, 10, 32, Math.PI),
+      darkSteelMat
+    );
+    arch.position.set(0, floorY + 2, zArch);
+    underGroup.add(arch);
 
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 90), cyanStripMat);
-    strip.position.set(xPos > 0 ? xPos - 1.5 : xPos + 1.5, floorY + 0.38, 0);
-    underGroup.add(strip);
-  });
+    // Bande néon encastrée sous chaque arche
+    const archNeon = new THREE.Mesh(
+      new THREE.TorusGeometry(25.1, 0.07, 8, 32, Math.PI),
+      zArch % 18 === 0 ? pinkHdr : cyanHdr
+    );
+    archNeon.position.set(0, floorY + 2, zArch);
+    underGroup.add(archNeon);
+  }
 
-  // Tuyaux industriels monumentaux sur les flancs des égouts
-  const pipeMat = new THREE.MeshStandardMaterial({
-    color: 0x1e293b,
-    metalness: 0.85,
-    roughness: 0.25
-  });
-  [-17, 17].forEach((xSide) => {
-    [4, 9].forEach((yPipe) => {
-      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 90, 16), pipeMat);
+  // Tuyaux industriels massifs le long des parois + passerelles de maintenance
+  [-23, 23].forEach((px) => {
+    // Passerelle métallique supérieure
+    const catwalk = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.4, 90), darkSteelMat);
+    catwalk.position.set(px, floorY + 11, -4);
+    underGroup.add(catwalk);
+
+    // 3 gros collecteurs d'eau/énergie superposés
+    [3.5, 6.5, 15.0].forEach((py, pIdx) => {
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 90, 16), darkSteelMat);
       pipe.rotation.x = Math.PI / 2;
-      pipe.position.set(xSide, floorY + yPipe, 0);
+      pipe.position.set(px + (px > 0 ? 1.5 : -1.5), floorY + py, -4);
       underGroup.add(pipe);
+
+      // Bague lumineuse tous les 14 mètres
+      for (let rz = -26; rz <= 22; rz += 14) {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.95, 0.06, 8, 24),
+          pIdx === 1 ? pinkHdr : cyanHdr
+        );
+        ring.position.set(pipe.position.x, pipe.position.y, rz);
+        underGroup.add(ring);
+      }
     });
   });
 
-  // Éclairage souterrain ciblé
-  const underLight = new THREE.PointLight(0x38bdf8, 22, 65);
-  underLight.position.set(0, floorY + 13, 14);
-  underGroup.add(underLight);
+  // 3. CANAL CENTRAL D'EAU REFLECHISSANTE & FLUX D'ÉNERGIE ANIMÉ
+  const canalWater = new THREE.Mesh(
+    new THREE.PlaneGeometry(8.5, 95),
+    new THREE.MeshStandardMaterial({
+      color: 0x041322,
+      emissive: 0x003344,
+      emissiveIntensity: 0.6,
+      metalness: 0.95,
+      roughness: 0.08
+    })
+  );
+  canalWater.rotation.x = -Math.PI / 2;
+  canalWater.position.set(0, floorY + 0.06, -4);
+  underGroup.add(canalWater);
 
-  // LES 5 PILIERS FONDATEURS (incluant Gemini AI)
-  const creators = [
-    { name: 'BRYAN (JMG)', role: 'Architecture & Core Dev', tag: 'PILIER // 01' },
-    { name: 'COLLABORATEUR 2', role: 'Systèmes & Base de données', tag: 'PILIER // 02' },
-    { name: 'GEMINI AI', role: 'Co-Pilote WebGL & Shaders', tag: 'PILIER // 03' },
-    { name: 'COLLABORATEUR 3', role: 'Modules & Commandes', tag: 'PILIER // 04' },
-    { name: 'PROMO ESGI REIMS', role: 'Tests, Idées & Communauté', tag: 'PILIER // 05' }
+  // Bordures métalliques du canal
+  [-4.4, 4.4].forEach((cx) => {
+    const curb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.45, 95), darkSteelMat);
+    curb.position.set(cx, floorY + 0.22, -4);
+    underGroup.add(curb);
+
+    const curbNeon = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 95), cyanHdr);
+    curbNeon.position.set(cx > 0 ? cx - 0.22 : cx + 0.22, floorY + 0.46, -4);
+    underGroup.add(curbNeon);
+  });
+
+  // Onde lumineuse qui circule dans le canal (animée dans animate())
+  const waterPulse = new THREE.Mesh(
+    new THREE.PlaneGeometry(6.5, 18),
+    new THREE.MeshBasicMaterial({
+      color: 0x00f3ff,
+      transparent: true,
+      opacity: 0.14,
+      side: THREE.DoubleSide
+    })
+  );
+  waterPulse.rotation.x = -Math.PI / 2;
+  waterPulse.position.set(0, floorY + 0.09, -15);
+  underGroup.add(waterPulse);
+
+  // 4. SOCLE D'ANCRAGE DE LA TOUR AU PLAFOND (RELIE LE GRATTE-CIEL AUX PILIERS)
+  const megastructureCap = new THREE.Mesh(
+    new THREE.CylinderGeometry(18, 22, 3.2, 6),
+    darkSteelMat
+  );
+  megastructureCap.position.set(0, ceilY - 1.4, -3);
+  underGroup.add(megastructureCap);
+
+  const capRing = new THREE.Mesh(new THREE.TorusGeometry(20, 0.12, 12, 6), cyanHdr);
+  capRing.rotation.x = Math.PI / 2;
+  capRing.position.set(0, ceilY - 3.0, -3);
+  underGroup.add(capRing);
+
+  // Éclairages souterrains dramatiques
+  const mainUnderLight = new THREE.PointLight(0x38bdf8, 35, 70);
+  mainUnderLight.position.set(0, floorY + 16, 12);
+  underGroup.add(mainUnderLight);
+
+  const rearUnderLight = new THREE.PointLight(0xff007f, 28, 65);
+  rearUnderLight.position.set(0, floorY + 14, -18);
+  underGroup.add(rearUnderLight);
+
+  // ==========================================
+  // 5. DISPOSITION EN TRIANGLE DES 5 PILIERS FONDATEURS
+  // ==========================================
+  // Parcours en arc autour du triangle : Pointe avant -> Flanc gauche -> Arrière gauche -> Arrière droit -> Flanc droit
+  const pillarsData = [
+    {
+      id: 0,
+      label: 'pillar-0',
+      name: 'BRYAN (JMG)',
+      role: 'Architecture & Core Dev',
+      tag: 'APEX // PILIER 01',
+      color: '#00f3ff',
+      pos: new THREE.Vector3(0, floorY, 6.5),        // Pointe avant du triangle
+      camPos: new THREE.Vector3(0, floorY + 5.2, 16.5)
+    },
+    {
+      id: 1,
+      label: 'pillar-1',
+      name: 'COLLABORATEUR 2',
+      role: 'Systèmes & Base de données',
+      tag: 'FLANC G // PILIER 02',
+      color: '#ff007f',
+      pos: new THREE.Vector3(-8.0, floorY, -2.5),    // Milieu gauche du triangle
+      camPos: new THREE.Vector3(-14.2, floorY + 5.2, 6.5)
+    },
+    {
+      id: 2,
+      label: 'pillar-2',
+      name: 'COLLABORATEUR 3',
+      role: 'Modules & Commandes',
+      tag: 'BASE G // PILIER 03',
+      color: '#00f3ff',
+      pos: new THREE.Vector3(-15.0, floorY, -12.0),  // Angle arrière gauche du triangle
+      camPos: new THREE.Vector3(-19.5, floorY + 5.2, -1.5)
+    },
+    {
+      id: 3,
+      label: 'pillar-3',
+      name: 'PROMO ESGI REIMS',
+      role: 'Tests, Idées & Communauté',
+      tag: 'BASE D // PILIER 04',
+      color: '#ff007f',
+      pos: new THREE.Vector3(15.0, floorY, -12.0),   // Angle arrière droit du triangle
+      camPos: new THREE.Vector3(19.5, floorY + 5.2, -1.5)
+    },
+    {
+      id: 4,
+      label: 'pillar-4',
+      name: 'GEMINI AI',
+      role: 'Co-Pilote WebGL & Shaders',
+      tag: 'FLANC D // PILIER 05',
+      color: '#00f3ff',
+      pos: new THREE.Vector3(8.0, floorY, -2.5),     // Milieu droit du triangle
+      camPos: new THREE.Vector3(14.2, floorY + 5.2, 6.5)
+    }
   ];
 
-  const pillarMat = new THREE.MeshStandardMaterial({
-    color: 0x131926,
-    metalness: 0.75,
-    roughness: 0.35
-  });
+  // Lignes néons au sol reliant les sommets du triangle
+  const triPoints = [
+    new THREE.Vector3(0, floorY + 0.12, 6.5),
+    new THREE.Vector3(-15.0, floorY + 0.12, -12.0),
+    new THREE.Vector3(15.0, floorY + 0.12, -12.0),
+    new THREE.Vector3(0, floorY + 0.12, 6.5)
+  ];
+  const triGeo = new THREE.BufferGeometry().setFromPoints(triPoints);
+  const triLine = new THREE.Line(
+    triGeo,
+    new THREE.LineBasicMaterial({ color: 0x00f3ff })
+  );
+  underGroup.add(triLine);
 
-  const pinkCollarMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(2.6, 0.1, 1.5),
-    toneMapped: false
-  });
-  const cyanCollarMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(0.0, 2.4, 2.8),
-    toneMapped: false
-  });
+  const interactivePillarObjects = [];
+  const pillarAnimItems = [];
 
-  creators.forEach((person, index) => {
-    // Disposition en léger arc de cercle pour une lisibilité parfaite
-    const offset = index - 2; // -2, -1, 0, +1, +2
-    const x = offset * 6.4;
-    const z = -4.5 - Math.abs(offset) * 0.9;
+  pillarsData.forEach((p) => {
+    const pGroup = new THREE.Group();
+    pGroup.position.copy(p.pos);
 
-    // Pilier massif reliant le sol au plafond de fondation
-    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.6, 26, 8), pillarMat);
-    pillar.position.set(x, floorY + 13, z);
-    underGroup.add(pillar);
+    const isCyan = p.color === '#00f3ff';
+    const ringMat = isCyan ? cyanHdr : pinkHdr;
 
-    // Anneaux lumineux autour du pilier
-    const collar = new THREE.Mesh(
-      new THREE.TorusGeometry(1.52, 0.06, 12, 32),
-      index % 2 === 0 ? cyanCollarMat : pinkCollarMat
-    );
-    collar.rotation.x = Math.PI / 2;
-    collar.position.set(x, floorY + 7.2, z);
-    underGroup.add(collar);
+    // Socle octogonal massif au sol
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.5, 1.8, 8), darkSteelMat);
+    pedestal.position.y = 0.9;
+    pGroup.add(pedestal);
 
-    // Plaque holographique fixée sur le pilier
+    // Colonne structurelle montant jusqu'au plafond de fondation (hauteur = 28)
+    const column = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.55, 28, 8), darkSteelMat);
+    column.position.y = 14;
+    pGroup.add(column);
+
+    // 4 vérins hydrauliques autour de la colonne
+    for (let k = 0; k < 4; k++) {
+      const ka = (k / 4) * Math.PI * 2 + Math.PI / 4;
+      const piston = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.24, 27, 8),
+        new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9, roughness: 0.2 })
+      );
+      piston.position.set(Math.cos(ka) * 1.65, 13.5, Math.sin(ka) * 1.65);
+      pGroup.add(piston);
+    }
+
+    // Anneaux énergétiques rotatifs autour du pilier
+    const ringLower = new THREE.Mesh(new THREE.TorusGeometry(1.85, 0.07, 12, 32), ringMat);
+    ringLower.rotation.x = Math.PI / 2;
+    ringLower.position.y = 2.4;
+    pGroup.add(ringLower);
+
+    const ringUpper = new THREE.Mesh(new THREE.TorusGeometry(1.75, 0.07, 12, 32), ringMat);
+    ringUpper.rotation.x = Math.PI / 2;
+    ringUpper.position.y = 8.2;
+    pGroup.add(ringUpper);
+
+    // Plaque holographique fixée sur le pilier, orientée vers sa caméra dédiée
     const plaque = createNeonPanel(
-      person.tag,
-      person.name,
-      [person.role, 'Soutien structurel ESGI BOT'],
-      index % 2 === 0 ? '#00f3ff' : '#ff007f',
-      5.5,
-      2.8
+      p.tag,
+      p.name,
+      [p.role, 'Cliquer ou scroller pour explorer'],
+      p.color,
+      5.4,
+      2.7,
+      false
     );
-    plaque.position.set(x, floorY + 4.4, z + 1.75);
-    plaque.lookAt(0, floorY + 4.4, 21); // Oriente légèrement chaque plaque vers la caméra
-    underGroup.add(plaque);
+    plaque.position.set(0, 5.2, 0);
+
+    // Calcul de la direction vers la caméra de ce pilier pour décaler et orienter la plaque devant lui
+    const toCam = new THREE.Vector3().subVectors(p.camPos, new THREE.Vector3(p.pos.x, p.pos.y + 5.2, p.pos.z)).normalize();
+    plaque.position.addScaledVector(toCam, 1.85);
+    plaque.lookAt(p.camPos);
+    pGroup.add(plaque);
+
+    // Zone cliquable invisible englobant tout le pilier + plaque
+    const hitBox = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.6, 2.6, 14, 12),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    hitBox.position.y = 7;
+    hitBox.userData = { label: p.label, ringLower, ringUpper };
+    pGroup.add(hitBox);
+    interactivePillarObjects.push(hitBox);
+
+    // Ajout des éléments de la plaque aussi dans le raycast
+    plaque.traverse((child) => {
+      if (child.isMesh) {
+        child.userData = { label: p.label, ringLower, ringUpper };
+        interactivePillarObjects.push(child);
+      }
+    });
+
+    pillarAnimItems.push({ ringLower, ringUpper, offset: p.id * 1.3 });
+    underGroup.add(pGroup);
   });
 
   scene.add(underGroup);
-  return floorY;
+  return { floorY, pillarsData, interactivePillarObjects, pillarAnimItems, waterPulse };
 }
 
 // ==========================================
@@ -491,17 +810,17 @@ function getFacadeRadiusAtY(tower, y, fallbackRadius) {
 }
 
 // ==========================================
-// 6. CHARGEMENT DU GRATTE-CIEL & TIMELINE
+// 6. CHARGEMENT DU GRATTE-CIEL & TIMELINE COMPLETE
 // ==========================================
 const loader = new GLTFLoader();
 let skyPlatform = null;
 const panelMeshes = [];
-const cyberEnv = buildCyberpunkEnvironment();
+const cyberCity = buildCyberpunkMetropolis();
+const underground = buildUndergroundMasterclass();
 
 loader.load('/skyscraper.glb', (gltf) => {
   const tower = gltf.scene;
 
-  // Normalisation de la tour : base à y = 0, hauteur = 80
   const box = new THREE.Box3().setFromObject(tower);
   const size = box.getSize(new THREE.Vector3());
 
@@ -518,7 +837,6 @@ loader.load('/skyscraper.glb', (gltf) => {
     scaledBox.max.z - scaledBox.min.z
   ) / 2;
 
-  // Conversion des murs clairs en titane sombre cyberpunk (zéro saturation blanche)
   tower.traverse((child) => {
     if (child.isMesh && child.material) {
       if (child.material.color) {
@@ -532,17 +850,16 @@ loader.load('/skyscraper.glb', (gltf) => {
   });
 
   scene.add(tower);
-
   skyPlatform = buildSkyPlatform(targetHeight);
-  const undergroundY = buildUndergroundFoundations();
 
-  // Définition des 4 panneaux néons
+  // 4 panneaux alignés sur les 4 faces cardinales du gratte-ciel (centrage parfait)
   const panelsData = [
     {
       y: 64,
-      angle: Math.PI * 0.45,
+      angle: Math.PI * 0.5, // Face droite (+X)
       color: '#00f3ff',
       tag: 'SYS.01 // FEATURES',
+      title: 'Fonctionnalités Clés',
       zoneName: 'NIVEAU 01 — FONCTIONNALITÉS',
       lines: [
         'Rappels automatiques devoirs & examens',
@@ -552,9 +869,10 @@ loader.load('/skyscraper.glb', (gltf) => {
     },
     {
       y: 46,
-      angle: Math.PI * 0.95,
+      angle: Math.PI * 1.0, // Face arrière (-Z)
       color: '#ff007f',
       tag: 'SYS.02 // INTERFACE',
+      title: 'Expérience Étudiante',
       zoneName: 'NIVEAU 02 — EXPÉRIENCE',
       lines: [
         'Modales interactives Discord',
@@ -564,9 +882,10 @@ loader.load('/skyscraper.glb', (gltf) => {
     },
     {
       y: 28,
-      angle: Math.PI * 1.45,
+      angle: Math.PI * 1.5, // Face gauche (-X)
       color: '#00f3ff',
       tag: 'SYS.03 // ARCHITECTURE',
+      title: 'Architecture & Code',
       zoneName: 'NIVEAU 03 — STACK TECHNIQUE',
       lines: [
         'Développé en Python & portage Rust',
@@ -576,9 +895,10 @@ loader.load('/skyscraper.glb', (gltf) => {
     },
     {
       y: 12,
-      angle: Math.PI * 1.9,
+      angle: Math.PI * 2.0, // Face avant (+Z)
       color: '#a855f7',
       tag: 'SYS.04 // DEPLOYMENT',
+      title: 'Open-Source ESGI',
       zoneName: 'NIVEAU 04 — OPEN-SOURCE',
       lines: [
         'Code modulaire & maintenable',
@@ -590,10 +910,10 @@ loader.load('/skyscraper.glb', (gltf) => {
 
   panelsData.forEach((p) => {
     const surfaceR = getFacadeRadiusAtY(tower, p.y, maxHalfWidth * 0.65);
-    p.panelRadius = surfaceR + 2.5;
+    p.panelRadius = surfaceR + 2.6;
     p.camRadius = p.panelRadius + 13.5;
 
-    const panel = createNeonPanel(p.tag, p.title || p.zoneName.split('— ')[1], p.lines, p.color);
+    const panel = createNeonPanel(p.tag, p.title, p.lines, p.color, 9.0, 4.5, true);
     panel.position.set(
       Math.sin(p.angle) * p.panelRadius,
       p.y,
@@ -607,26 +927,46 @@ loader.load('/skyscraper.glb', (gltf) => {
   });
 
   // ==========================================
-  // 7. CHORÉGRAPHIE & AIMANT FLUIDE AU SCROLL
+  // 7. CHORÉGRAPHIE HYBRIDE (TOUR ORBITALE + TRIANGLE SOUTERRAIN)
   // ==========================================
+  const lastPanel = panelsData[panelsData.length - 1];
+  const lastPanelCamX = Math.sin(lastPanel.angle) * lastPanel.camRadius;
+  const lastPanelCamZ = Math.cos(lastPanel.angle) * lastPanel.camRadius;
+
+  // mode = 0 : caméra en orbite cylindrique autour de la tour
+  // mode = 1 : caméra libre 3D dans la chambre souterraine
   const camState = {
+    mode: 0,
     angle: 0,
     radius: 30,
     camY: targetHeight + 8.5,
     targetY: targetHeight + 4.5,
-    targetZ: 0
+    ux: lastPanelCamX,
+    uy: lastPanel.y,
+    uz: lastPanelCamZ,
+    utx: 0,
+    uty: lastPanel.y,
+    utz: 0
   };
+
+  const pillarButtons = document.querySelectorAll('.pillar-btn');
+
+  function updateActivePillarButton(activeLabel) {
+    pillarButtons.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.label === activeLabel);
+    });
+  }
 
   const tl = gsap.timeline({
     scrollTrigger: {
       trigger: '.scroll-container',
       start: 'top top',
       end: 'bottom bottom',
-      scrub: 0.9,
+      scrub: 0.45,
       snap: {
         snapTo: 'labelsDirectional',
-        duration: { min: 0.45, max: 0.95 },
-        delay: 0.12,
+        duration: { min: 0.35, max: 0.8 },
+        delay: 0.1,
         ease: 'power2.inOut'
       },
       onUpdate: (self) => {
@@ -635,30 +975,41 @@ loader.load('/skyscraper.glb', (gltf) => {
         const hudZone = document.getElementById('hud-zone');
         const hudFill = document.getElementById('hud-fill');
         const hint = document.getElementById('scroll-hint');
+        const pillarNav = document.getElementById('pillar-nav');
 
-        if (hint) hint.style.opacity = self.progress > 0.03 ? '0' : '1';
+        if (hint) hint.style.opacity = self.progress > 0.02 ? '0' : '1';
         if (hudFill) hudFill.style.width = `${Math.round(self.progress * 100)}%`;
 
-        // Altitude calculée selon la hauteur caméra
-        const meters = Math.round(camState.camY * 5);
+        const currentY = THREE.MathUtils.lerp(camState.camY, camState.uy, camState.mode);
+        const meters = Math.round(currentY * 5);
         if (hudAlt) hudAlt.textContent = `ALT ${meters}M`;
 
-        // Masque le HUD pendant la plongée silencieuse (camY < 4)
-        if (hud) {
-          if (camState.camY < 4) {
-            hud.classList.add('hidden');
-          } else {
-            hud.classList.remove('hidden');
-          }
+        // Affichage HUD vs Barre interactive des piliers
+        const isUnderground = camState.mode > 0.65;
+        if (hud) hud.classList.toggle('hidden', currentY < 4);
+        if (pillarNav) pillarNav.classList.toggle('visible', isUnderground);
+
+        if (hudZone && !isUnderground) {
+          if (currentY > 72) hudZone.textContent = 'PLATEFORME ORBITALE';
+          else if (currentY > 54) hudZone.textContent = panelsData[0].zoneName;
+          else if (currentY > 36) hudZone.textContent = panelsData[1].zoneName;
+          else if (currentY > 19) hudZone.textContent = panelsData[2].zoneName;
+          else hudZone.textContent = panelsData[3].zoneName;
         }
 
-        // Mise à jour du nom de zone
-        if (hudZone) {
-          if (camState.camY > 72) hudZone.textContent = 'PLATEFORME ORBITALE';
-          else if (camState.camY > 54) hudZone.textContent = panelsData[0].zoneName;
-          else if (camState.camY > 36) hudZone.textContent = panelsData[1].zoneName;
-          else if (camState.camY > 19) hudZone.textContent = panelsData[2].zoneName;
-          else hudZone.textContent = panelsData[3].zoneName;
+        // Met en surbrillance le bouton du pilier le plus proche de la timeline
+        if (isUnderground) {
+          const currentTime = tl.time();
+          let closestLabel = 'underground-overview';
+          let minDiff = Infinity;
+          ['underground-overview', 'pillar-0', 'pillar-1', 'pillar-2', 'pillar-3', 'pillar-4'].forEach((lbl) => {
+            const diff = Math.abs(tl.labels[lbl] - currentTime);
+            if (diff < minDiff) {
+              minDiff = diff;
+              closestLabel = lbl;
+            }
+          });
+          updateActivePillarButton(closestLabel);
         }
       }
     }
@@ -666,69 +1017,176 @@ loader.load('/skyscraper.glb', (gltf) => {
 
   tl.addLabel('top');
 
+  // Descente avec palier symétrique autour de chaque panneau (centrage garanti)
   panelsData.forEach((p, idx) => {
     tl.to(camState, {
       angle: p.angle,
       radius: p.camRadius,
       camY: p.y,
       targetY: p.y,
-      targetZ: 0,
-      duration: 2.0,
+      duration: 1.8,
       ease: 'power1.inOut'
     })
-    .addLabel(`panel-${idx}`)
+    // Début du palier de stabilisation
     .to(camState, {
-      camY: p.y - 0.12,
-      targetY: p.y - 0.12,
-      duration: 0.55,
+      angle: p.angle,
+      camY: p.y,
+      targetY: p.y,
+      duration: 0.45,
+      ease: 'none'
+    })
+    .addLabel(`panel-${idx}`)
+    // Fin du palier de stabilisation
+    .to(camState, {
+      angle: p.angle,
+      camY: p.y,
+      targetY: p.y,
+      duration: 0.45,
       ease: 'none'
     });
   });
 
-  // Plongée rapide sans texte ni HUD vers les fondations souterraines
+  // Plongée dans le sous-terrain : vue globale sur la formation en triangle des 5 piliers
+  const overviewCam = new THREE.Vector3(0, underground.floorY + 11.5, 25.5);
+  const overviewTarget = new THREE.Vector3(0, underground.floorY + 5.0, -3.5);
+
   tl.to(camState, {
-    angle: Math.PI * 2,
-    radius: 21.5,
-    camY: undergroundY + 5.2,
-    targetY: undergroundY + 4.4,
-    targetZ: -4.5,
+    mode: 1,
+    ux: overviewCam.x,
+    uy: overviewCam.y,
+    uz: overviewCam.z,
+    utx: overviewTarget.x,
+    uty: overviewTarget.y,
+    utz: overviewTarget.z,
     duration: 2.6,
     ease: 'power2.inOut'
   })
-  .addLabel('underground');
+  .to(camState, { duration: 0.4 })
+  .addLabel('underground-overview')
+  .to(camState, { duration: 0.4 });
 
-  // Boucle de rendu
+  // Tour panoramique autour des 5 piliers du triangle
+  underground.pillarsData.forEach((p) => {
+    tl.to(camState, {
+      ux: p.camPos.x,
+      uy: p.camPos.y,
+      uz: p.camPos.z,
+      utx: p.pos.x,
+      uty: p.pos.y + 5.2,
+      utz: p.pos.z,
+      duration: 1.7,
+      ease: 'power2.inOut'
+    })
+    .to(camState, { duration: 0.35 })
+    .addLabel(p.label)
+    .to(camState, { duration: 0.35 });
+  });
+
+  // ==========================================
+  // 8. NAVIGATION INTERACTIVE AU CLIC (3D + BOUTONS)
+  // ==========================================
+  function navigateToLabel(labelName) {
+    const st = tl.scrollTrigger;
+    if (!st || tl.labels[labelName] === undefined) return;
+    const progress = tl.labels[labelName] / tl.duration();
+    const targetScroll = st.start + progress * (st.end - st.start);
+    window.scrollTo({ top: targetScroll, behavior: 'smooth' });
+  }
+
+  pillarButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      navigateToLabel(btn.dataset.label);
+    });
+  });
+
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  let pointerDownPos = { x: 0, y: 0 };
+
+  window.addEventListener('pointerdown', (e) => {
+    pointerDownPos = { x: e.clientX, y: e.clientY };
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    if (camState.mode < 0.65) {
+      document.body.style.cursor = 'default';
+      return;
+    }
+    pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(underground.interactivePillarObjects, false);
+    document.body.style.cursor = hits.length > 0 ? 'pointer' : 'default';
+  });
+
+  window.addEventListener('pointerup', (e) => {
+    const moveDist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+    if (moveDist > 6 || camState.mode < 0.65) return;
+
+    pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(underground.interactivePillarObjects, false);
+
+    if (hits.length > 0 && hits[0].object.userData.label) {
+      navigateToLabel(hits[0].object.userData.label);
+    }
+  });
+
+  // ==========================================
+  // 9. BOUCLE DE RENDU
+  // ==========================================
   const clock = new THREE.Clock();
+  const orbitalCamVec = new THREE.Vector3();
+  const orbitalTargetVec = new THREE.Vector3();
+  const underCamVec = new THREE.Vector3();
+  const underTargetVec = new THREE.Vector3();
+
   function animate() {
     requestAnimationFrame(animate);
     const elapsed = clock.getElapsedTime();
 
-    // Animation plateforme céleste
     if (skyPlatform) {
       skyPlatform.group.position.y = targetHeight + 6.5 + Math.sin(elapsed * 2) * 0.3;
       skyPlatform.ring1.rotation.z = elapsed * 0.45;
       skyPlatform.ring2.rotation.z = -elapsed * 0.7;
     }
 
-    // Animation trafic aérien & particules
-    cyberEnv.drones.forEach((d) => {
+    // Trafic aérien & particules
+    cyberCity.drones.forEach((d) => {
       const a = d.phase + elapsed * d.speed;
       d.mesh.position.set(Math.cos(a) * d.orbitR, d.orbitY, Math.sin(a) * d.orbitR);
       d.mesh.rotation.y = -a;
     });
-    cyberEnv.particles.rotation.y = elapsed * 0.015;
+    cyberCity.particles.rotation.y = elapsed * 0.015;
 
-    // Position caméra
-    camera.position.x = Math.sin(camState.angle) * camState.radius;
-    camera.position.z = Math.cos(camState.angle) * camState.radius;
-    camera.position.y = camState.camY;
-    camera.lookAt(0, camState.targetY, camState.targetZ);
+    // Animation des piliers et du courant d'eau souterrain
+    underground.pillarAnimItems.forEach((item) => {
+      item.ringLower.position.y = 2.4 + Math.sin(elapsed * 2.2 + item.offset) * 0.35;
+      item.ringUpper.position.y = 8.2 - Math.sin(elapsed * 2.2 + item.offset) * 0.35;
+    });
+    underground.waterPulse.position.z = -35 + ((elapsed * 14) % 70);
 
-    // Zoom tactile subtil sur le panneau aimanté
+    // Interpolation fluide entre la caméra orbitale (tour) et la caméra 3D (sous-terrain)
+    orbitalCamVec.set(
+      Math.sin(camState.angle) * camState.radius,
+      camState.camY,
+      Math.cos(camState.angle) * camState.radius
+    );
+    orbitalTargetVec.set(0, camState.targetY, 0);
+
+    underCamVec.set(camState.ux, camState.uy, camState.uz);
+    underTargetVec.set(camState.utx, camState.uty, camState.utz);
+
+    camera.position.lerpVectors(orbitalCamVec, underCamVec, camState.mode);
+    const finalTarget = orbitalTargetVec.lerp(underTargetVec, camState.mode);
+    camera.lookAt(finalTarget);
+
+    // Zoom tactile sur les panneaux de la tour
     panelMeshes.forEach((mesh) => {
       const dist = camera.position.distanceTo(mesh.position);
-      const targetScale = dist < 16.0 ? 1.05 : 1.0;
-      mesh.scale.lerp(new THREE.Vector3(targetScale, targetScale, 1), 0.1);
+      const targetScale = dist < 15.5 ? 1.05 : 1.0;
+      mesh.scale.lerp(new THREE.Vector3(targetScale, targetScale, 1), 0.12);
     });
 
     composer.render();
@@ -736,7 +1194,6 @@ loader.load('/skyscraper.glb', (gltf) => {
   animate();
 });
 
-// Redimensionnement fenêtre
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();

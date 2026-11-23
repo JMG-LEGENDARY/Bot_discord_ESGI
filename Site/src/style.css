@@ -24,30 +24,30 @@ html, body {
 
 .scroll-container {
   position: relative;
-  height: 850vh;
+  height: 1150vh;
   z-index: 2;
   pointer-events: none;
 }
 
-/* HUD latéral discret */
+/* HUD latéral */
 .hud {
   position: fixed;
-  top: 28px;
-  right: 32px;
+  top: 26px;
+  right: 28px;
   z-index: 3;
-  width: 220px;
+  width: 230px;
   padding: 14px 16px;
-  background: rgba(5, 11, 24, 0.72);
+  background: rgba(5, 11, 24, 0.78);
   border: 1px solid rgba(0, 243, 255, 0.35);
   border-left: 3px solid #00f3ff;
   backdrop-filter: blur(6px);
   pointer-events: none;
-  transition: opacity 0.5s ease, transform 0.5s ease;
+  transition: opacity 0.45s ease, transform 0.45s ease;
 }
 
 .hud.hidden {
   opacity: 0;
-  transform: translateX(20px);
+  transform: translateX(24px);
 }
 
 .hud-top {
@@ -78,7 +78,54 @@ html, body {
   width: 0%;
   height: 100%;
   background: linear-gradient(90deg, #00f3ff, #ff007f);
-  transition: width 0.1s linear;
+  transition: width 0.08s linear;
+}
+
+/* Barre interactive des piliers dans le sous-terrain */
+.pillar-nav {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translate(-50%, 24px);
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(4, 10, 22, 0.85);
+  border: 1px solid rgba(0, 243, 255, 0.35);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+.pillar-nav.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+.pillar-btn {
+  background: rgba(15, 23, 42, 0.9);
+  color: #cbd5e1;
+  border: 1px solid rgba(0, 243, 255, 0.3);
+  padding: 7px 13px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pillar-btn:hover,
+.pillar-btn.active {
+  background: rgba(0, 243, 255, 0.18);
+  color: #00f3ff;
+  border-color: #00f3ff;
+  box-shadow: 0 0 12px rgba(0, 243, 255, 0.35);
 }
 
 .scroll-hint {

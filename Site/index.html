@@ -8,16 +8,26 @@
 <body>
   <canvas id="bg"></canvas>
 
-  <!-- HUD latéral minimaliste (masqué pendant la plongée souterraine) -->
+  <!-- HUD latéral minimaliste -->
   <div class="hud" id="hud">
     <div class="hud-top">
       <span class="hud-tag">SYS // ONLINE</span>
-      <span class="hud-alt" id="hud-alt">ALT 420M</span>
+      <span class="hud-alt" id="hud-alt">ALT 440M</span>
     </div>
     <div class="hud-zone" id="hud-zone">PLATEFORME ORBITALE</div>
     <div class="hud-track">
       <div class="hud-fill" id="hud-fill"></div>
     </div>
+  </div>
+
+  <!-- Sélecteur interactif des piliers (apparaît dans le sous-terrain) -->
+  <div class="pillar-nav" id="pillar-nav">
+    <button class="pillar-btn" data-label="underground-overview">Vue Triangle</button>
+    <button class="pillar-btn" data-label="pillar-0">01. Bryan</button>
+    <button class="pillar-btn" data-label="pillar-1">02. Collab 2</button>
+    <button class="pillar-btn" data-label="pillar-2">03. Collab 3</button>
+    <button class="pillar-btn" data-label="pillar-3">04. Promo ESGI</button>
+    <button class="pillar-btn" data-label="pillar-4">05. Gemini AI</button>
   </div>
 
   <div class="scroll-hint" id="scroll-hint">Scroll pour descendre dans la tour ↓</div>
