@@ -4,6 +4,8 @@ from datetime import timedelta, date, datetime, time
 from discord.ext import commands, tasks
 import zoneinfo
 
+from discord.ext.commands import bot
+
 from LOGS import logger
 
 
@@ -17,8 +19,6 @@ class NotificationsCog(commands.Cog):
     @tasks.loop(time=time(hour=7, minute=30, tzinfo=tz_paris))
     async def check_database_task(self):
         logger.info("Scan des devoirs en cours...")
-        channel_id = 1546638618267750430 #à faire en vitesse pour débug c'est général de b1
-        channel = self.bot.get_channel(channel_id)
         sql_cog = self.bot.get_cog("SqlCog")
         if not sql_cog:
             logger.error("SqlCog introuvable.")
@@ -29,6 +29,36 @@ class NotificationsCog(commands.Cog):
             for classe in classes:
                 nom_de_classe = guild.get_role(int(classe))
                 devoirs = sql_cog.recup_tous_devoirs(guild.id, classe)
+                possible_channel = []
+
+                for channel in guild.text_channels:
+                    role_class = guild.get_role(int(classe))
+                    if role_class in channel.overwrites:
+                        if channel.overwrites[role_class].read_messages:
+                            logger.info(f"Salon trouvé pour la classe {nom_de_classe.name} : {channel.name}")
+                            possible_channel.append(channel)
+
+                for channel in possible_channel:
+                    name_channel = self.bot.get_channel(int(channel)).name
+                    if "notif" in name_channel.lower():
+                        channel_to_post = channel
+                        break
+                    if "devoir" in name_channel.lower():
+                        channel_to_post = channel
+                        break
+                    if "général" in name_channel.lower() or "general" in name_channel.lower():
+                        channel_to_post = channel
+                        break
+
+                if not channel_to_post:
+                    channel_to_post = possible_channel[0] if possible_channel else None
+                    if channel_to_post:
+                        logger.info(f"Salon par défaut choisi pour la classe {nom_de_classe.name} : {channel_to_post.name}")
+                    else:
+                        logger.warning(f"Aucun salon trouvé pour la classe {nom_de_classe.name} dans le serveur {guild.name}.")
+                        continue
+
+
 
                 for devoir in devoirs:
                     logger.info(f"Itération sur {devoir}")
@@ -43,8 +73,9 @@ class NotificationsCog(commands.Cog):
                             description=f'En {devoir["matiere"]}, {devoir["sujet"]}',
                             color=discord.Color.yellow()
                         )
-                        if channel:
-                            await channel.send(content=f"{nom_de_classe.mention}", embed=embed)
+
+                        if channel_to_post:
+                            await channel_to_post.send(content=f"{nom_de_classe.mention}", embed=embed)
                             logger.info(f"Notification de devoir envoyée")
 
                     if date_devoir == date.today() + timedelta(days=1):
