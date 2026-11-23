@@ -72,8 +72,20 @@ export function createHoloPanel(tag, title, lines, accentColor = '#00f3ff', widt
   ctx.font = '32px "Segoe UI", sans-serif';
   ctx.fillStyle = '#eef8ff';
   lines.forEach((line, i) => {
-    ctx.fillText(`▸ ${line}`, 56, 206 + i * 64);
+    ctx.fillText(`▸ ${line}`, 56, 206 + i * 62);
   });
+
+  // Bandeau d'action en bas du panneau 3D
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+  ctx.fillRect(54, 408, cvs.width - 108, 54);
+  ctx.strokeStyle = accentColor;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(54, 408, cvs.width - 108, 54);
+
+  ctx.font = 'bold 23px monospace';
+  ctx.fillStyle = accentColor;
+  ctx.textAlign = 'center';
+  ctx.fillText('[ APPUYEZ SUR ENTRÉE OU CLIQUEZ POUR EXPLORER LE DOSSIER ↗ ]', cvs.width / 2, 443);
 
   const texture = new THREE.CanvasTexture(cvs);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -96,7 +108,7 @@ export function createHoloPanel(tag, title, lines, accentColor = '#00f3ff', widt
   botBar.position.y = -height / 2 - 0.14;
   group.add(topBar, botBar);
 
-  return group;
+  return { group, screenMesh };
 }
 
 export function buildSkyPlatform(scene, topY) {
@@ -104,10 +116,20 @@ export function buildSkyPlatform(scene, topY) {
   const baseY = topY + 7.5;
   group.position.set(0, baseY, 0);
 
-  const base = new THREE.Mesh(
-    new THREE.CylinderGeometry(7.2, 4.5, 1.3, 8),
-    new THREE.MeshStandardMaterial({ color: 0x131a29, metalness: 0.9, roughness: 0.25 })
-  );
+  const darkSteelMat = new THREE.MeshStandardMaterial({
+    color: 0x131a29,
+    metalness: 0.9,
+    roughness: 0.25
+  });
+  const solarMat = new THREE.MeshStandardMaterial({
+    color: 0x0c4a6e,
+    emissive: 0x0284c7,
+    emissiveIntensity: 0.25,
+    metalness: 0.85,
+    roughness: 0.2
+  });
+
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(7.2, 4.5, 1.3, 8), darkSteelMat);
   group.add(base);
 
   const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 2.2, 2.8), toneMapped: false });
@@ -126,13 +148,11 @@ export function buildSkyPlatform(scene, topY) {
   ring3.rotation.x = Math.PI / 2.3;
   group.add(ring3);
 
-  // Enseigne holographique haute lisibilité (sans laser parasite)
   const signCvs = document.createElement('canvas');
   signCvs.width = 1024;
   signCvs.height = 320;
   const ctx = signCvs.getContext('2d');
 
-  // Cartouche sombre discret pour un contraste net face aux étoiles
   ctx.fillStyle = 'rgba(3, 8, 18, 0.72)';
   ctx.beginPath();
   ctx.roundRect(110, 24, 804, 260, 18);
@@ -165,11 +185,44 @@ export function buildSkyPlatform(scene, topY) {
 
   scene.add(group);
 
+  const satellites = [];
+  for (let s = 0; s < 3; s++) {
+    const sat = new THREE.Group();
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.8, 8), darkSteelMat);
+    core.rotation.z = Math.PI / 2;
+    const panelL = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.06, 0.9), solarMat);
+    panelL.position.x = -2.0;
+    const panelR = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.06, 0.9), solarMat);
+    panelR.position.x = 2.0;
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), s === 0 ? pinkHdr : cyanHdr);
+    beacon.position.y = 0.55;
+
+    sat.add(core, panelL, panelR, beacon);
+    scene.add(sat);
+    satellites.push({
+      mesh: sat,
+      angle: (s / 3) * Math.PI * 2,
+      radius: 26 + s * 6,
+      yOffset: 11 + s * 3.5,
+      speed: 0.16 - s * 0.02
+    });
+  }
+
   function update(elapsed) {
     group.position.y = baseY + Math.sin(elapsed * 2) * 0.35;
     ring1.rotation.z = elapsed * 0.45;
     ring2.rotation.z = -elapsed * 0.7;
     ring3.rotation.y = elapsed * 0.35;
+
+    satellites.forEach((sat) => {
+      const a = sat.angle + elapsed * sat.speed;
+      sat.mesh.position.set(
+        Math.cos(a) * sat.radius,
+        baseY + sat.yOffset,
+        Math.sin(a) * sat.radius
+      );
+      sat.mesh.rotation.y = -a;
+    });
   }
 
   return { group, update };

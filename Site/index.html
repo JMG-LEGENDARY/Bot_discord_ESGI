@@ -1,38 +1,112 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ESGI BOT — Megastructure 3D</title>
-</head>
-<body>
-  <canvas id="bg"></canvas>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ESGI BOT — Megastructure Cybernétique</title>
+  </head>
+  <body>
+    <canvas id="bg"></canvas>
 
-  <div class="hud" id="hud">
-    <div class="hud-top">
-      <span class="hud-tag">SYS // ONLINE</span>
-      <span class="hud-alt" id="hud-alt">ALT 690M</span>
+    <!-- HUD Télémétrie Haut -->
+    <header id="hud">
+      <div class="hud-left">
+        <span class="hud-dot"></span>
+        <span id="hud-zone">CITADELLE ORBITALE</span>
+      </div>
+      <div class="hud-center">
+        <div class="hud-progress-track">
+          <div id="hud-fill"></div>
+        </div>
+      </div>
+      <div class="hud-right">
+        <span id="hud-alt">ALT 695M</span>
+      </div>
+    </header>
+
+    <!-- Indication Scroll Initiale -->
+    <div id="scroll-hint">
+      <span>SCROLLEZ POUR DESCENDRE LA TOUR</span>
+      <div class="scroll-line"></div>
     </div>
-    <div class="hud-zone" id="hud-zone">CITADELLE ORBITALE</div>
-    <div class="hud-track">
-      <div class="hud-fill" id="hud-fill"></div>
+
+    <!-- Invite d'exploration quand la caméra arrive devant un panneau -->
+    <div id="panel-prompt" aria-hidden="true">
+      <div class="prompt-meta">
+        <span class="prompt-tag" id="prompt-tag">SYS.01 // FEATURES</span>
+        <span class="prompt-title" id="prompt-title">FONCTIONNALITÉS CLÉS</span>
+      </div>
+      <button id="prompt-open-btn" type="button">
+        <kbd>ENTRÉE</kbd>
+        <span>OUVRIR LE DOSSIER</span>
+        <span class="prompt-arrow">↗</span>
+      </button>
     </div>
-  </div>
 
-  <div class="pillar-tooltip" id="pillar-tooltip">Cliquer pour inspecter le pilier</div>
+    <!-- Navigation des 5 Piliers Souterrains -->
+    <nav id="pillar-nav" aria-label="Piliers techniques">
+      <button class="pillar-btn" data-label="underground-overview">VUE GLOBALE</button>
+      <button class="pillar-btn" data-label="pillar-0">01 // PYTHON & RUST</button>
+      <button class="pillar-btn" data-label="pillar-1">02 // SQLITE</button>
+      <button class="pillar-btn" data-label="pillar-2">03 // RASPBERRY PI</button>
+      <button class="pillar-btn" data-label="pillar-3">04 // MODALES UI</button>
+      <button class="pillar-btn" data-label="pillar-4">05 // SYSTEMD</button>
+    </nav>
 
-  <div class="pillar-nav" id="pillar-nav">
-    <button class="pillar-btn" data-label="underground-overview">Vue Triangle</button>
-    <button class="pillar-btn" data-label="pillar-0">01. Bryan</button>
-    <button class="pillar-btn" data-label="pillar-1">02. Collab 2</button>
-    <button class="pillar-btn" data-label="pillar-2">03. Collab 3</button>
-    <button class="pillar-btn" data-label="pillar-3">04. Promo ESGI</button>
-    <button class="pillar-btn" data-label="pillar-4">05. Gemini AI</button>
-  </div>
+    <div id="pillar-tooltip">CLIQUEZ POUR INSPECTER LE PILIER</div>
 
-  <div class="scroll-hint" id="scroll-hint">Scroll pour descendre dans la tour ↓</div>
-  <div class="scroll-container"></div>
+    <!-- Page Plein Écran Néon (Scroll normal + Menus déroulants) -->
+    <section id="panel-modal" aria-modal="true" role="dialog" aria-hidden="true">
+      <div class="modal-backdrop" id="modal-backdrop"></div>
+      <div class="modal-scroll-area" id="modal-scroll-area">
+        <div class="modal-container">
+          <!-- Barre supérieure du module -->
+          <div class="modal-topbar">
+            <div class="modal-tabs" id="modal-tabs">
+              <button type="button" class="modal-tab" data-idx="0">01 // FEATURES</button>
+              <button type="button" class="modal-tab" data-idx="1">02 // INTERFACE</button>
+              <button type="button" class="modal-tab" data-idx="2">03 // ARCHITECTURE</button>
+              <button type="button" class="modal-tab" data-idx="3">04 // OPEN-SOURCE</button>
+            </div>
+            <button type="button" id="modal-close-btn" class="modal-close-btn">
+              <kbd>ÉCHAP</kbd>
+              <span>RETOUR 3D ✕</span>
+            </button>
+          </div>
 
-  <script type="module" src="/src/main.js"></script>
-</body>
+          <!-- En-tête du dossier -->
+          <div class="modal-hero">
+            <div class="modal-corner tl"></div>
+            <div class="modal-corner tr"></div>
+            <div class="modal-corner bl"></div>
+            <div class="modal-corner br"></div>
+
+            <div class="modal-badge" id="modal-tag">SYS.01 // FEATURES</div>
+            <h1 class="modal-title" id="modal-title">FONCTIONNALITÉS CLÉS</h1>
+            <p class="modal-subtitle" id="modal-subtitle"></p>
+
+            <div class="modal-metrics" id="modal-metrics"></div>
+          </div>
+
+          <!-- Menus déroulants interactifs -->
+          <div class="modal-section-header">
+            <span>DOSSIERS TECHNIQUES & SPÉCIFICATIONS</span>
+            <span class="modal-hint-inline">Cliquez sur une section pour dérouler</span>
+          </div>
+          <div class="modal-accordions" id="modal-accordions"></div>
+
+          <!-- Pied de page modal -->
+          <div class="modal-footer">
+            <span>ESGI REIMS // PROJET OPEN-SOURCE BOT DISCORD</span>
+            <button type="button" id="modal-footer-close" class="modal-secondary-btn">
+              FERMER ET REPRENDRE LA DESCENTE ↓
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <main class="scroll-container"></main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
 </html>

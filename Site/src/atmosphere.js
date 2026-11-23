@@ -1,81 +1,105 @@
 import * as THREE from 'three';
 
-function createVolumetricCloudTexture(variant = 0) {
-  const cvs = document.createElement('canvas');
-  cvs.width = 512;
-  cvs.height = 512;
-  const ctx = cvs.getContext('2d');
-  ctx.clearRect(0, 0, 512, 512);
+function buildSculptedCloudGeometry(lobes) {
+  const sunDir = new THREE.Vector3(0.45, 0.78, 0.42).normalize();
+  // Teintes calibrées pour éviter toute surexposition avec le Bloom
+  const topColor = new THREE.Color(0xcbd9ea);
+  const midColor = new THREE.Color(0x92abc9);
+  const bellyColor = new THREE.Color(0x526c90);
 
-  // Grappe dense de cumulus avec sommet éclairé et base bleutée réaliste
-  const puffs = [
-    { x: 256, y: 260, r: 175, top: 'rgba(255,255,255,0.92)', mid: 'rgba(226,238,252,0.68)' },
-    { x: 165, y: 280, r: 145, top: 'rgba(248,252,255,0.88)', mid: 'rgba(203,222,245,0.62)' },
-    { x: 350, y: 275, r: 150, top: 'rgba(250,253,255,0.88)', mid: 'rgba(208,226,248,0.62)' },
-    { x: 215, y: 205, r: 135, top: 'rgba(255,255,255,0.95)', mid: 'rgba(232,242,255,0.65)' },
-    { x: 305, y: 210, r: 130, top: 'rgba(255,255,255,0.94)', mid: 'rgba(228,240,255,0.65)' },
-    { x: 120, y: 310, r: 105, top: 'rgba(235,244,255,0.75)', mid: 'rgba(186,208,236,0.45)' },
-    { x: 395, y: 305, r: 110, top: 'rgba(235,244,255,0.75)', mid: 'rgba(186,208,236,0.45)' }
-  ];
+  let minY = Infinity;
+  let maxY = -Infinity;
+  lobes.forEach((l) => {
+    minY = Math.min(minY, l.y - l.ry);
+    maxY = Math.max(maxY, l.y + l.ry);
+  });
+  const spanY = Math.max(maxY - minY, 0.01);
 
-  if (variant === 1) {
-    puffs.reverse();
-  }
+  const geos = lobes.map((l) => {
+    const g = new THREE.SphereGeometry(1, 16, 12);
+    const pos = g.attributes.position;
+    const v = new THREE.Vector3();
 
-  puffs.forEach((p) => {
-    const grad = ctx.createRadialGradient(p.x, p.y - p.r * 0.15, p.r * 0.08, p.x, p.y, p.r);
-    grad.addColorStop(0, p.top);
-    grad.addColorStop(0.55, p.mid);
-    grad.addColorStop(1, 'rgba(200, 222, 248, 0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-    ctx.fill();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      const organic =
+        1 +
+        0.13 * Math.sin(v.x * 3.0 + l.x) * Math.cos(v.z * 2.8 + l.z) +
+        0.09 * Math.cos(v.y * 3.6);
+      v.x *= l.rx * organic;
+      v.z *= l.rz * organic;
+      v.y *= l.ry * (v.y < 0 ? 0.72 : organic);
+      v.x += l.x;
+      v.y += l.y;
+      v.z += l.z;
+      pos.setXYZ(i, v.x, v.y, v.z);
+    }
+
+    g.computeVertexNormals();
+    const norm = g.attributes.normal;
+    const colors = new Float32Array(pos.count * 3);
+    const nVec = new THREE.Vector3();
+    const c = new THREE.Color();
+
+    for (let i = 0; i < pos.count; i++) {
+      const py = pos.getY(i);
+      nVec.fromBufferAttribute(norm, i);
+
+      const heightRatio = THREE.MathUtils.clamp((py - minY) / spanY, 0, 1);
+      const sunDot = THREE.MathUtils.clamp(nVec.dot(sunDir) * 0.5 + 0.5, 0, 1);
+      const shade = THREE.MathUtils.clamp(heightRatio * 0.68 + sunDot * 0.36, 0, 1);
+
+      if (shade < 0.5) {
+        c.copy(bellyColor).lerp(midColor, shade * 2);
+      } else {
+        c.copy(midColor).lerp(topColor, (shade - 0.5) * 2);
+      }
+
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+
+    g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    return g;
   });
 
-  const tex = new THREE.CanvasTexture(cvs);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
+  let totalVerts = 0;
+  let totalIndices = 0;
+  geos.forEach((g) => {
+    totalVerts += g.attributes.position.count;
+    totalIndices += g.index.count;
+  });
 
-function createCloudSeaSheetTexture() {
-  const cvs = document.createElement('canvas');
-  cvs.width = 1024;
-  cvs.height = 1024;
-  const ctx = cvs.getContext('2d');
+  const mergedPos = new Float32Array(totalVerts * 3);
+  const mergedNorm = new Float32Array(totalVerts * 3);
+  const mergedCol = new Float32Array(totalVerts * 3);
+  const mergedIdx = new Uint32Array(totalIndices);
 
-  // Couche continue dense empêchant de voir le sol depuis l'espace
-  ctx.fillStyle = '#dcebfa';
-  ctx.fillRect(0, 0, 1024, 1024);
+  let vOffset = 0;
+  let iOffset = 0;
+  geos.forEach((g) => {
+    const count = g.attributes.position.count;
+    mergedPos.set(g.attributes.position.array, vOffset * 3);
+    mergedNorm.set(g.attributes.normal.array, vOffset * 3);
+    mergedCol.set(g.attributes.color.array, vOffset * 3);
 
-  for (let i = 0; i < 650; i++) {
-    const x = Math.random() * 1024;
-    const y = Math.random() * 1024;
-    const r = 45 + Math.random() * 110;
-    const bright = Math.random() > 0.35;
-
-    const grad = ctx.createRadialGradient(x, y, r * 0.1, x, y, r);
-    if (bright) {
-      grad.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
-      grad.addColorStop(0.6, 'rgba(235, 245, 255, 0.45)');
-      grad.addColorStop(1, 'rgba(215, 232, 250, 0)');
-    } else {
-      grad.addColorStop(0, 'rgba(176, 202, 232, 0.65)');
-      grad.addColorStop(0.65, 'rgba(195, 218, 244, 0.32)');
-      grad.addColorStop(1, 'rgba(215, 232, 250, 0)');
+    const idxArr = g.index.array;
+    for (let k = 0; k < idxArr.length; k++) {
+      mergedIdx[iOffset + k] = idxArr[k] + vOffset;
     }
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
 
-  const tex = new THREE.CanvasTexture(cvs);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(6, 6);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+    vOffset += count;
+    iOffset += idxArr.length;
+    g.dispose();
+  });
+
+  const merged = new THREE.BufferGeometry();
+  merged.setAttribute('position', new THREE.BufferAttribute(mergedPos, 3));
+  merged.setAttribute('normal', new THREE.BufferAttribute(mergedNorm, 3));
+  merged.setAttribute('color', new THREE.BufferAttribute(mergedCol, 3));
+  merged.setIndex(new THREE.BufferAttribute(mergedIdx, 1));
+  return merged;
 }
 
 function createPlanetTexture() {
@@ -94,7 +118,7 @@ function createPlanetTexture() {
   ctx.fillRect(0, 0, 512, 256);
 
   for (let y = 12; y < 245; y += 10) {
-    ctx.fillStyle = y % 20 === 0 ? 'rgba(56, 189, 248, 0.2)' : 'rgba(15, 23, 42, 0.28)';
+    ctx.fillStyle = y % 20 === 0 ? 'rgba(56, 189, 248, 0.22)' : 'rgba(15, 23, 42, 0.28)';
     ctx.fillRect(0, y, 512, 5);
   }
 
@@ -106,7 +130,7 @@ function createPlanetTexture() {
 export function createAtmosphere(scene, mainTowerHeight) {
   const atmoGroup = new THREE.Group();
 
-  // 1. DÔME DU CIEL DYNAMIQUE + NÉBULEUSE SPATIALE
+  // 1. DÔME DU CIEL DYNAMIQUE (BLEU JOUR -> ESPACE ÉTOILÉ + NÉBULEUSE)
   const skyUniforms = {
     uTopColor: { value: new THREE.Color(0x0284c7) },
     uMidColor: { value: new THREE.Color(0x38bdf8) },
@@ -170,17 +194,15 @@ export function createAtmosphere(scene, mainTowerHeight) {
           col = uHorizonColor;
         }
 
-        // Halo solaire en basse altitude
         float sunAmt = max(dot(dir, uSunDir), 0.0);
         col += vec3(1.0, 0.95, 0.85) * pow(sunAmt, 16.0) * 0.25 * uSunIntensity;
         col += vec3(1.0, 0.98, 0.92) * pow(sunAmt, 180.0) * 0.65 * uSunIntensity;
 
-        // Voie Lactée / Nébuleuse subtile dans l'espace
         if (uSpaceFactor > 0.05 && h > -0.1) {
           float band = exp(-pow((dir.x * 0.6 + dir.y * 0.5 - dir.z * 0.4) * 3.2, 2.0));
           float n = noise(dir * 5.0) * 0.6 + noise(dir * 12.0) * 0.4;
-          vec3 nebCol = mix(vec3(0.04, 0.14, 0.32), vec3(0.22, 0.05, 0.28), n);
-          col += nebCol * band * n * uSpaceFactor * 0.85;
+          vec3 nebCol = mix(vec3(0.04, 0.14, 0.34), vec3(0.24, 0.05, 0.30), n);
+          col += nebCol * band * n * uSpaceFactor * 0.9;
         }
 
         gl_FragColor = vec4(col, 1.0);
@@ -188,14 +210,13 @@ export function createAtmosphere(scene, mainTowerHeight) {
     `
   });
 
-  const skyDome = new THREE.Mesh(skyGeo, skyMat);
-  atmoGroup.add(skyDome);
+  atmoGroup.add(new THREE.Mesh(skyGeo, skyMat));
 
   // 2. ÉCLAIRAGE DYNAMIQUE
   const hemiLight = new THREE.HemisphereLight(0xbae6fd, 0x166534, 1.35);
   scene.add(hemiLight);
 
-  const sunLight = new THREE.DirectionalLight(0xffffff, 1.8);
+  const sunLight = new THREE.DirectionalLight(0xffffff, 1.85);
   sunLight.position.set(110, 230, 120);
   scene.add(sunLight);
 
@@ -203,57 +224,92 @@ export function createAtmosphere(scene, mainTowerHeight) {
   rimLight.position.set(-80, 70, -70);
   scene.add(rimLight);
 
-  // 3. MER DE NUAGES MASSIVE & RÉALISTE (y = 83 -> 91)
-  // Anneau central dégagé (r < 27) autour de la tour ESGI pour lire les panneaux sans gêne,
-  // et couverture nuageuse totale au-delà jusqu'à l'horizon !
-  const cloudSeaY = mainTowerHeight * 0.66; // ~85.8m
-  const cloudSheetTex = createCloudSeaSheetTexture();
+  // 3. NUAGES 3D VOLUMINEUX & ÉPAIS (4 ARCHETYPES SANS FORME PLATE + BORDS DOUX)
+  const cloudTemplates = [
+    // Archetype 0 : Cumulus majestueux à dôme épais
+    buildSculptedCloudGeometry([
+      { x: 0, y: 0, z: 0, rx: 11.5, ry: 6.4, rz: 9.8 },
+      { x: -8.2, y: -0.6, z: 2.2, rx: 8.8, ry: 5.0, rz: 7.8 },
+      { x: 8.8, y: -0.5, z: -1.8, rx: 9.2, ry: 5.2, rz: 8.2 },
+      { x: -2.2, y: 4.2, z: -1.0, rx: 7.8, ry: 5.8, rz: 7.2 },
+      { x: 3.8, y: 3.4, z: 2.6, rx: 6.8, ry: 5.0, rz: 6.4 },
+      { x: -13.2, y: -1.2, z: -2.0, rx: 6.4, ry: 3.8, rz: 5.8 },
+      { x: 14.0, y: -1.1, z: 2.5, rx: 6.6, ry: 3.9, rz: 6.0 }
+    ]),
+    // Archetype 1 : Gros amas Stratocumulus vallonné et épais
+    buildSculptedCloudGeometry([
+      { x: -13.5, y: -0.4, z: 1.2, rx: 9.8, ry: 4.6, rz: 7.5 },
+      { x: -4.8, y: 1.0, z: -1.6, rx: 10.8, ry: 5.4, rz: 8.2 },
+      { x: 5.2, y: 1.4, z: 1.4, rx: 11.2, ry: 5.8, rz: 8.5 },
+      { x: 14.5, y: -0.2, z: -1.0, rx: 9.2, ry: 4.4, rz: 7.0 },
+      { x: 0, y: 3.2, z: 0.2, rx: 8.0, ry: 4.8, rz: 6.5 }
+    ]),
+    // Archetype 2 : Cumulus compact à 3 tourelles rebondies
+    buildSculptedCloudGeometry([
+      { x: 0, y: 0.8, z: 0, rx: 8.6, ry: 5.6, rz: 8.2 },
+      { x: -6.0, y: -0.5, z: 2.4, rx: 6.8, ry: 4.4, rz: 6.4 },
+      { x: 5.8, y: -0.4, z: -2.2, rx: 7.2, ry: 4.6, rz: 6.6 },
+      { x: 1.2, y: 3.8, z: 1.0, rx: 5.8, ry: 4.6, rz: 5.6 }
+    ]),
+    // Archetype 3 : Banc nuageux double-dôme volumineux
+    buildSculptedCloudGeometry([
+      { x: -7.5, y: 0.4, z: -1.2, rx: 9.4, ry: 5.2, rz: 8.0 },
+      { x: 7.2, y: 0.8, z: 1.4, rx: 9.8, ry: 5.6, rz: 8.4 },
+      { x: 0, y: -0.6, z: 0, rx: 11.0, ry: 4.5, rz: 9.0 },
+      { x: -5.5, y: 3.6, z: -0.5, rx: 6.2, ry: 4.2, rz: 5.8 },
+      { x: 6.0, y: 4.0, z: 0.8, rx: 6.5, ry: 4.5, rz: 6.0 }
+    ])
+  ];
 
-  const cloudSeaMat = new THREE.MeshStandardMaterial({
-    map: cloudSheetTex,
-    roughness: 0.92,
-    metalness: 0.02,
+  const cloudMat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 1.0,
+    metalness: 0.0,
     transparent: true,
-    opacity: 0.96,
-    side: THREE.DoubleSide
+    opacity: 0.94
   });
 
-  const cloudSeaMesh = new THREE.Mesh(
-    new THREE.RingGeometry(27, 1350, 96, 12),
-    cloudSeaMat
-  );
-  cloudSeaMesh.rotation.x = -Math.PI / 2;
-  cloudSeaMesh.position.y = cloudSeaY;
-  atmoGroup.add(cloudSeaMesh);
+  // Shader custom : plafond anti-éblouissement + légère transparence douce sur les bords (Fresnel)
+  cloudMat.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <dithering_fragment>',
+      `
+      float edgeFresnel = abs(dot(normalize(vViewPosition), normal));
+      float softRim = smoothstep(0.06, 0.56, edgeFresnel);
+      gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.90, 0.94, 0.99));
+      gl_FragColor.a *= mix(0.20, 1.0, softRim);
+      #include <dithering_fragment>
+      `
+    );
+  };
 
-  // 340 amas de cumulus volumétriques 3D au-dessus et au travers de la mer de nuages
-  const cloudTexA = createVolumetricCloudTexture(0);
-  const cloudTexB = createVolumetricCloudTexture(1);
-  const cloudSprites = [];
+  const clouds = [];
+  const cloudBandY = mainTowerHeight * 0.66; // ~85.8m
 
-  for (let i = 0; i < 340; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    // Concentration forte entre 29m et 480m pour un relief massif vu de l'espace
-    const dist = 29 + Math.pow(Math.random(), 0.85) * 460;
-    const cy = cloudSeaY + (Math.random() - 0.35) * 9.5;
-    const scale = 38 + Math.random() * 68;
+  for (let i = 0; i < 150; i++) {
+    const templateIdx = i % cloudTemplates.length;
+    const mesh = new THREE.Mesh(cloudTemplates[templateIdx], cloudMat);
 
-    const mat = new THREE.SpriteMaterial({
-      map: i % 2 === 0 ? cloudTexA : cloudTexB,
-      transparent: true,
-      opacity: 0.92,
-      depthWrite: false
-    });
-    const sprite = new THREE.Sprite(mat);
-    sprite.position.set(Math.cos(angle) * dist, cy, Math.sin(angle) * dist);
-    sprite.scale.set(scale * 1.55, scale * 0.68, 1);
+    const angle = (i / 150) * Math.PI * 2 + (Math.random() - 0.5) * 0.22;
+    const dist = 34 + Math.pow(Math.random(), 0.82) * 520;
+    const cy = cloudBandY + (Math.random() - 0.42) * 14;
 
-    atmoGroup.add(sprite);
-    cloudSprites.push({
-      sprite,
+    const scaleXZ = (0.85 + Math.random() * 1.35) * (1 + dist / 480);
+    // Épaisseur verticale généreuse garantie (jamais de nuage fin)
+    const scaleY = 1.0 + Math.random() * 0.65;
+
+    mesh.position.set(Math.cos(angle) * dist, cy, Math.sin(angle) * dist);
+    mesh.rotation.y = Math.random() * Math.PI * 2;
+    mesh.scale.set(scaleXZ, scaleY, scaleXZ * (0.82 + Math.random() * 0.36));
+
+    atmoGroup.add(mesh);
+    clouds.push({
+      mesh,
       angle,
       dist,
-      speed: (0.004 + Math.random() * 0.009) * (i % 2 === 0 ? 1 : -1)
+      baseY: cy,
+      rotSpeed: (Math.random() - 0.5) * 0.014,
+      orbitSpeed: (0.0025 + Math.random() * 0.005) * (i % 2 === 0 ? 1 : -1)
     });
   }
 
@@ -306,21 +362,21 @@ export function createAtmosphere(scene, mainTowerHeight) {
     return { points, mat, baseOpacity };
   }
 
-  const fineStars = buildStarLayer(14500, 820, 1250, 1.5, 0.88);
+  const fineStars = buildStarLayer(14500, 820, 1250, 1.5, 0.9);
   const brightStars = buildStarLayer(3500, 740, 1100, 3.1, 1.0);
 
-  // Étoiles filantes occasionnelles dans l'espace
+  // Étoiles filantes
   const shootingStars = [];
-  for (let s = 0; s < 4; s++) {
+  for (let s = 0; s < 5; s++) {
     const streak = new THREE.Mesh(
-      new THREE.BoxGeometry(0.35, 0.35, 26),
+      new THREE.BoxGeometry(0.35, 0.35, 28),
       new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0 })
     );
     atmoGroup.add(streak);
     shootingStars.push({
       mesh: streak,
-      timer: s * 3.2,
-      interval: 7 + s * 2.5
+      timer: s * 2.8,
+      interval: 6.5 + s * 2.2
     });
   }
 
@@ -352,7 +408,6 @@ export function createAtmosphere(scene, mainTowerHeight) {
   atmoGroup.add(planetGroup);
   scene.add(atmoGroup);
 
-  // Palettes ciel jour -> espace
   const dayTop = new THREE.Color(0x0284c7);
   const dayMid = new THREE.Color(0x38bdf8);
   const dayHor = new THREE.Color(0xbae6fd);
@@ -378,15 +433,14 @@ export function createAtmosphere(scene, mainTowerHeight) {
 
     if (scene.fog) {
       scene.fog.color.copy(skyUniforms.uHorizonColor.value).lerp(cavernFog, undergroundMode);
-      scene.fog.density = THREE.MathUtils.lerp(0.0017, 0.0026, spaceFactor);
+      scene.fog.density = THREE.MathUtils.lerp(0.0012, 0.0018, spaceFactor);
     }
 
     hemiLight.color.copy(dayHemiSky).lerp(spaceHemiSky, spaceFactor);
     hemiLight.groundColor.copy(dayHemiGnd).lerp(spaceHemiGnd, spaceFactor);
-    hemiLight.intensity = THREE.MathUtils.lerp(1.4, 0.72, spaceFactor);
-    sunLight.intensity = THREE.MathUtils.lerp(1.85, 1.1, spaceFactor);
+    hemiLight.intensity = THREE.MathUtils.lerp(1.4, 0.78, spaceFactor);
+    sunLight.intensity = THREE.MathUtils.lerp(1.85, 1.2, spaceFactor);
 
-    // Visibilité des étoiles et de la planète au-dessus des nuages
     const starVis = THREE.MathUtils.smoothstep(camY, 76, 108) * (1 - undergroundMode);
     fineStars.mat.opacity = starVis * fineStars.baseOpacity;
     brightStars.mat.opacity = starVis * brightStars.baseOpacity;
@@ -397,7 +451,6 @@ export function createAtmosphere(scene, mainTowerHeight) {
     planetRingMat.opacity = starVis * 0.38;
     planetMesh.rotation.y = elapsed * 0.04;
 
-    // Étoiles filantes
     shootingStars.forEach((st) => {
       st.timer += delta;
       if (st.timer > st.interval) {
@@ -416,19 +469,12 @@ export function createAtmosphere(scene, mainTowerHeight) {
       }
     });
 
-    // Mer de nuages : opaque vue de l'espace (camY > 82), plus légère vue d'en bas
-    const aboveClouds = THREE.MathUtils.smoothstep(camY, 70, 90);
-    const visibleFactor = 1 - undergroundMode;
-    cloudSeaMat.opacity = THREE.MathUtils.lerp(0.42, 0.98, aboveClouds) * visibleFactor;
-    cloudSheetTex.offset.x = (elapsed * 0.003) % 1;
-    cloudSheetTex.offset.y = (elapsed * 0.002) % 1;
-
-    const spriteOpacity = THREE.MathUtils.lerp(0.55, 0.94, aboveClouds) * visibleFactor;
-    cloudSprites.forEach((c) => {
-      const a = c.angle + elapsed * c.speed;
-      c.sprite.position.x = Math.cos(a) * c.dist;
-      c.sprite.position.z = Math.sin(a) * c.dist;
-      c.sprite.material.opacity = spriteOpacity;
+    cloudMat.opacity = 0.94 * (1 - undergroundMode);
+    clouds.forEach((c) => {
+      const a = c.angle + elapsed * c.orbitSpeed;
+      c.mesh.position.x = Math.cos(a) * c.dist;
+      c.mesh.position.z = Math.sin(a) * c.dist;
+      c.mesh.rotation.y += c.rotSpeed * delta;
     });
   }
 

@@ -1,13 +1,9 @@
 import * as THREE from 'three';
 
-// Fonction déterministe de relief du terrain :
-// - Plat (y = 0) autour de la tour (r < 28) et sur les avenues principales (|x| ~ 98 ou |z| ~ 98)
-// - Collines douces & vallons naturels dans le parc et les collines périphériques
 export function getTerrainHeight(x, z) {
   const r = Math.hypot(x, z);
   if (r < 28) return 0;
 
-  // Masque plat sur les avenues principales
   const distRoadX = Math.abs(Math.abs(x) - 98);
   const distRoadZ = Math.abs(Math.abs(z) - 98);
   const roadMask = Math.min(
@@ -15,10 +11,8 @@ export function getTerrainHeight(x, z) {
     THREE.MathUtils.smoothstep(distRoadZ, 5, 16)
   );
 
-  // Transition douce hors du parvis central
   const plazaMask = THREE.MathUtils.smoothstep(r, 28, 44);
 
-  // Ondulations naturelles multi-fréquences
   const h1 = Math.sin(x * 0.028) * Math.cos(z * 0.028);
   const h2 = Math.sin(x * 0.065 + z * 0.045) * 0.5;
   const h3 = Math.cos(x * 0.012 - z * 0.015);
@@ -41,14 +35,12 @@ function createHighDetailGroundTextures() {
   bumpCvs.height = 1024;
   const bCtx = bumpCvs.getContext('2d');
 
-  // Base pelouse riche
   ctx.fillStyle = '#155e33';
   ctx.fillRect(0, 0, size, size);
 
   bCtx.fillStyle = '#707070';
   bCtx.fillRect(0, 0, 1024, 1024);
 
-  // Nuances de prairies, trèfle et terre naturelle
   const patches = [
     { x: 420, y: 420, r: 380, c: '#166534' },
     { x: 1620, y: 440, r: 400, c: '#15803d' },
@@ -68,7 +60,6 @@ function createHighDetailGroundTextures() {
     ctx.fill();
   });
 
-  // Micro-brins d'herbe haute densité (diffuse + relief bump)
   for (let i = 0; i < 110000; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
@@ -82,7 +73,6 @@ function createHighDetailGroundTextures() {
     }
   }
 
-  // Avenues périphériques texturées (asphalte + bordures)
   ctx.fillStyle = '#1e293b';
   ctx.fillRect(0, 0, size, 96);
   ctx.fillRect(0, 1952, size, 96);
@@ -95,7 +85,6 @@ function createHighDetailGroundTextures() {
   bCtx.fillRect(0, 0, 48, 1024);
   bCtx.fillRect(976, 0, 48, 1024);
 
-  // Marquages routiers
   ctx.strokeStyle = '#38bdf8';
   ctx.lineWidth = 4;
   ctx.setLineDash([42, 28]);
@@ -111,7 +100,6 @@ function createHighDetailGroundTextures() {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Allées piétonnes en dalles claires avec joints pavés
   function drawStonePath(pts, w) {
     ctx.save();
     ctx.lineCap = 'round';
@@ -132,7 +120,6 @@ function createHighDetailGroundTextures() {
     ctx.lineWidth = w;
     ctx.stroke();
 
-    // Joints de dalles sur la bump map
     bCtx.save();
     bCtx.lineCap = 'round';
     bCtx.lineJoin = 'round';
@@ -153,7 +140,6 @@ function createHighDetailGroundTextures() {
   drawStonePath([[96, 1024], [520, 780], [1024, 1180], [1520, 820], [1952, 1024]], 40);
   drawStonePath([[1024, 96], [780, 520], [1180, 1024], [820, 1520], [1024, 1952]], 40);
 
-  // Plazas circulaires pavées
   [
     [520, 520],
     [1528, 520],
@@ -267,18 +253,17 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
   const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 0.1, 1.4), toneMapped: false });
   const amberHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 1.2, 0.1), toneMapped: false });
 
-  // Matériaux doux (toneMapped: true) pour éviter tout néon agressif sur les arbres
   const softEmeraldMat = new THREE.MeshStandardMaterial({
     color: 0x10b981,
     emissive: 0x059669,
-    emissiveIntensity: 0.35,
-    roughness: 0.4
+    emissiveIntensity: 0.32,
+    roughness: 0.45
   });
   const softTealMat = new THREE.MeshStandardMaterial({
     color: 0x0ea5e9,
     emissive: 0x0284c7,
-    emissiveIntensity: 0.35,
-    roughness: 0.4
+    emissiveIntensity: 0.32,
+    roughness: 0.45
   });
 
   const whiteBridgeMat = new THREE.MeshStandardMaterial({
@@ -297,7 +282,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     metalness: 0.1
   });
 
-  // 1. SOL 3D AVEC RELIEF NATUREL & TEXTURES HD (2800m x 2800m, 220x220 subdivisions)
+  // 1. SOL 3D AVEC RELIEF NATUREL & TEXTURES HD
   const { diffTex, bumpTex } = createHighDetailGroundTextures();
   const groundGeo = new THREE.PlaneGeometry(2800, 2800, 220, 220);
   groundGeo.rotateX(-Math.PI / 2);
@@ -353,11 +338,8 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
   cityGroup.add(plazaRing);
 
   // 2. PASSERELLES AÉRIENNES SINUEUSES
-  const bridgeCurves = [];
   function buildSweepingSkybridge(points) {
     const curve = new THREE.CatmullRomCurve3(points);
-    bridgeCurves.push(curve);
-
     const tubeGeo = new THREE.TubeGeometry(curve, 80, 1.35, 8, false);
     tubeGeo.scale(1, 0.26, 1);
 
@@ -433,35 +415,35 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     maglevCars.push({ mesh: wagon, offset: w * 0.062 });
   }
 
-  // 4. ARBRES HOLOGRAPHIQUES DOUX & ORGANIQUES (NÉON RÉDUIT)
+  // 4. ARBRES HOLOGRAPHIQUES DOUX & ORGANIQUES
   const holoTreeCanopies = [];
   const holoWireGreen = new THREE.MeshBasicMaterial({
     color: 0x34d399,
     wireframe: true,
     transparent: true,
-    opacity: 0.34
+    opacity: 0.3
   });
   const holoWireTeal = new THREE.MeshBasicMaterial({
     color: 0x38bdf8,
     wireframe: true,
     transparent: true,
-    opacity: 0.32
+    opacity: 0.28
   });
   const holoLeafShellGreen = new THREE.MeshStandardMaterial({
     color: 0x16a34a,
     emissive: 0x065f46,
-    emissiveIntensity: 0.25,
+    emissiveIntensity: 0.22,
     roughness: 0.65,
     transparent: true,
-    opacity: 0.58
+    opacity: 0.6
   });
   const holoLeafShellTeal = new THREE.MeshStandardMaterial({
     color: 0x0d9488,
     emissive: 0x115e59,
-    emissiveIntensity: 0.25,
+    emissiveIntensity: 0.22,
     roughness: 0.65,
     transparent: true,
-    opacity: 0.55
+    opacity: 0.56
   });
 
   function createHoloTree(x, z, scale = 1, isTeal = false) {
@@ -470,7 +452,6 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     tree.position.set(x, gndY, z);
     tree.scale.setScalar(scale);
 
-    // Anneau projecteur discret au pied de l'arbre
     const emitter = new THREE.Mesh(
       new THREE.TorusGeometry(0.95, 0.04, 8, 24),
       isTeal ? softTealMat : softEmeraldMat
@@ -479,7 +460,6 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     emitter.position.y = 0.06;
     tree.add(emitter);
 
-    // Tronc organique sombre
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.42, 3.8, 8), woodBarkMat);
     trunk.position.y = 1.9;
     tree.add(trunk);
@@ -519,7 +499,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     );
   }
 
-  // Lampadaires & bancs design le long du parvis
+  // Lampadaires autour du parvis
   for (let l = 0; l < 16; l++) {
     const la = (l / 16) * Math.PI * 2;
     const lx = Math.cos(la) * 26.5;
@@ -533,97 +513,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     cityGroup.add(pole, bulb);
   }
 
-  // 5. PNJ ANIMÉS (75 CITOYENS SUR LE PARVIS, DANS LE PARC ET SUR LES PASSERELLES)
-  const npcs = [];
-  const headGeo = new THREE.SphereGeometry(0.16, 10, 10);
-  const torsoGeo = new THREE.BoxGeometry(0.36, 0.56, 0.22);
-  const limbGeo = new THREE.BoxGeometry(0.12, 0.54, 0.12);
-
-  const jacketMats = [
-    new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.5 }),
-    new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 }),
-    new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 }),
-    new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.4 }),
-    new THREE.MeshStandardMaterial({ color: 0x047857, roughness: 0.4 })
-  ];
-  const visorMats = [softTealMat, softEmeraldMat, pinkHdr];
-  const skinMat = new THREE.MeshStandardMaterial({ color: 0xf1c27d, roughness: 0.6 });
-
-  function createHumanoidNPC(idx) {
-    const root = new THREE.Group();
-
-    const head = new THREE.Mesh(headGeo, skinMat);
-    head.position.y = 1.48;
-
-    const visor = new THREE.Mesh(
-      new THREE.BoxGeometry(0.26, 0.06, 0.18),
-      visorMats[idx % visorMats.length]
-    );
-    visor.position.set(0, 1.5, 0.08);
-
-    const torso = new THREE.Mesh(torsoGeo, jacketMats[idx % jacketMats.length]);
-    torso.position.y = 1.02;
-
-    const stripe = new THREE.Mesh(
-      new THREE.BoxGeometry(0.38, 0.05, 0.24),
-      visorMats[(idx + 1) % visorMats.length]
-    );
-    stripe.position.y = 1.15;
-
-    const leftLeg = new THREE.Mesh(limbGeo, darkSteelMat);
-    leftLeg.position.set(-0.1, 0.45, 0);
-
-    const rightLeg = new THREE.Mesh(limbGeo, darkSteelMat);
-    rightLeg.position.set(0.1, 0.45, 0);
-
-    const leftArm = new THREE.Mesh(limbGeo, jacketMats[idx % jacketMats.length]);
-    leftArm.position.set(-0.25, 1.0, 0);
-
-    const rightArm = new THREE.Mesh(limbGeo, jacketMats[idx % jacketMats.length]);
-    rightArm.position.set(0.25, 1.0, 0);
-
-    root.add(head, visor, torso, stripe, leftLeg, rightLeg, leftArm, rightArm);
-    return { root, leftLeg, rightLeg, leftArm, rightArm };
-  }
-
-  // 55 PNJ en promenade circulaire / sinueuse dans le parc & autour du parvis
-  for (let i = 0; i < 55; i++) {
-    const npc = createHumanoidNPC(i);
-    const orbitR = 25.5 + (i % 14) * 4.2 + Math.random() * 2.0;
-    const angle = Math.random() * Math.PI * 2;
-    const dir = i % 2 === 0 ? 1 : -1;
-    const speed = (1.3 + Math.random() * 0.9) * dir;
-
-    cityGroup.add(npc.root);
-    npcs.push({
-      ...npc,
-      type: 'orbit',
-      orbitR,
-      angle,
-      angularSpeed: speed / orbitR,
-      walkFreq: 7.5 + Math.random() * 2.5,
-      phase: Math.random() * Math.PI * 2
-    });
-  }
-
-  // 20 PNJ qui traversent les passerelles aériennes sinueuses
-  for (let b = 0; b < 20; b++) {
-    const npc = createHumanoidNPC(b + 55);
-    const curve = bridgeCurves[b % bridgeCurves.length];
-    cityGroup.add(npc.root);
-    npcs.push({
-      ...npc,
-      type: 'bridge',
-      curve,
-      t: Math.random(),
-      dir: b % 2 === 0 ? 1 : -1,
-      speed: 0.018 + Math.random() * 0.012,
-      walkFreq: 8.0 + Math.random() * 2.0,
-      phase: Math.random() * Math.PI * 2
-    });
-  }
-
-  // 6. VOITURES FUTURISTES SUR LES AVENUES
+  // 5. VOITURES FUTURISTES SUR LES AVENUES
   const hoverCars = [];
   const carBodyMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.9, roughness: 0.2 });
 
@@ -657,7 +547,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     }
   });
 
-  // 7. 180 GRATTE-CIELS VARIÉS (DONT QUELQUES FLÈCHES PERÇANT LES NUAGES À 96-103M)
+  // 6. 180 GRATTE-CIELS VARIÉS + PROJECTEURS CÉLESTES
   const facadeMats = [0, 1, 2, 3, 4].map((idx) => {
     const tex = createBuildingFacadeTexture(idx);
     return new THREE.MeshStandardMaterial({
@@ -682,7 +572,16 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     toneMapped: false
   });
 
-  const maxOtherH = mainTowerHeight * 0.64; // Reste sous les nuages (85.8m)
+  const searchlightMat = new THREE.MeshBasicMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.07,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  });
+  const searchlights = [];
+
+  const maxOtherH = mainTowerHeight * 0.64;
   const rings = [
     { count: 22, minR: 108, maxR: 142, minH: 34, maxH: 72 },
     { count: 30, minR: 150, maxR: 205, minH: 42, maxH: maxOtherH },
@@ -699,10 +598,10 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
       const tz = Math.sin(angle) * dist;
       const baseGndY = getTerrainHeight(tx, tz);
 
-      // 7 tours emblématiques ont une flèche élancée qui traverse la mer de nuages (y ~ 96-103m)
+      // Flèches emblématiques qui percent la couche de nuages (y ~ 96-104m)
       const isCloudPiercer = rIdx <= 2 && i % 13 === 0;
       const h = isCloudPiercer
-        ? 95 + Math.random() * 8
+        ? 96 + Math.random() * 8
         : rc.minH + Math.random() * (rc.maxH - rc.minH);
 
       const w = 11 + Math.random() * 11;
@@ -771,32 +670,20 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
       const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.32, 6, 6), beaconMat);
       beacon.position.set(tx, baseGndY + h + spireH, tz);
       cityGroup.add(spire, beacon);
+
+      // Faisceau projecteur céleste depuis certains toits
+      if (rIdx === 0 && i % 5 === 0) {
+        const beamGeo = new THREE.CylinderGeometry(2.6, 0.25, 52, 12, 1, true);
+        beamGeo.translate(0, 26, 0);
+        const beam = new THREE.Mesh(beamGeo, searchlightMat);
+        beam.position.set(tx, baseGndY + h, tz);
+        cityGroup.add(beam);
+        searchlights.push({ mesh: beam, phase: i * 1.4 });
+      }
     }
   });
 
-  // 8. DRONES & VAISSEAUX AÉRIENS (BASSE & HAUTE ALTITUDE)
-  const drones = [];
-  for (let i = 0; i < 56; i++) {
-    const isCyan = i % 2 === 0;
-    const isHighOrbit = i > 42; // Vaisseaux qui croisent au-dessus des nuages
-    const drone = new THREE.Mesh(
-      new THREE.BoxGeometry(isHighOrbit ? 0.55 : 0.2, isHighOrbit ? 0.28 : 0.12, isHighOrbit ? 4.5 : 2.2),
-      isCyan ? cyanHdr : pinkHdr
-    );
-    const orbitR = isHighOrbit ? 48 + Math.random() * 140 : 30 + Math.random() * 75;
-    const orbitY = isHighOrbit
-      ? 96 + Math.random() * 34
-      : 8 + Math.random() * 68;
-    const speed = (0.09 + Math.random() * 0.18) * (isCyan ? 1 : -1);
-    const phase = Math.random() * Math.PI * 2;
-    cityGroup.add(drone);
-    drones.push({ mesh: drone, orbitR, orbitY, speed, phase });
-  }
-
   scene.add(cityGroup);
-
-  const tmpPos = new THREE.Vector3();
-  const tmpTangent = new THREE.Vector3();
 
   function update(delta, elapsed) {
     holoTreeCanopies.forEach((t) => {
@@ -804,39 +691,11 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
       t.mesh.position.y = 4.6 + Math.sin(elapsed * 1.6 + t.phase) * 0.1;
     });
 
-    // Animation des 75 PNJ
-    npcs.forEach((n) => {
-      const swing = Math.sin(elapsed * n.walkFreq + n.phase) * 0.45;
-      n.leftLeg.rotation.x = swing;
-      n.rightLeg.rotation.x = -swing;
-      n.leftArm.rotation.x = -swing * 0.7;
-      n.rightArm.rotation.x = swing * 0.7;
-
-      if (n.type === 'orbit') {
-        n.angle += n.angularSpeed * delta;
-        const nx = Math.cos(n.angle) * n.orbitR;
-        const nz = Math.sin(n.angle) * n.orbitR;
-        const ny = getTerrainHeight(nx, nz);
-        n.root.position.set(nx, ny, nz);
-        n.root.rotation.y = n.angularSpeed > 0 ? -n.angle : -n.angle + Math.PI;
-      } else {
-        n.t += n.speed * n.dir * delta;
-        if (n.t > 0.98) {
-          n.t = 0.98;
-          n.dir = -1;
-        } else if (n.t < 0.02) {
-          n.t = 0.02;
-          n.dir = 1;
-        }
-        n.curve.getPoint(n.t, tmpPos);
-        n.curve.getTangent(n.t, tmpTangent);
-        n.root.position.set(tmpPos.x, tmpPos.y + 0.32, tmpPos.z);
-        const yaw = Math.atan2(tmpTangent.x * n.dir, tmpTangent.z * n.dir);
-        n.root.rotation.y = yaw;
-      }
+    searchlights.forEach((sl) => {
+      sl.mesh.rotation.x = Math.sin(elapsed * 0.45 + sl.phase) * 0.22;
+      sl.mesh.rotation.z = Math.cos(elapsed * 0.38 + sl.phase) * 0.22;
     });
 
-    // Rame Maglev
     const baseAngle = elapsed * 0.24;
     maglevCars.forEach((car) => {
       const a = baseAngle - car.offset;
@@ -848,7 +707,6 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
       car.mesh.rotation.y = -a;
     });
 
-    // Voitures
     hoverCars.forEach((car) => {
       if (car.axis === 'z') {
         car.mesh.position.z += car.speed * delta;
@@ -859,13 +717,6 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
         if (car.mesh.position.x > car.limit) car.mesh.position.x = -car.limit;
         if (car.mesh.position.x < -car.limit) car.mesh.position.x = car.limit;
       }
-    });
-
-    // Drones & vaisseaux
-    drones.forEach((d) => {
-      const a = d.phase + elapsed * d.speed;
-      d.mesh.position.set(Math.cos(a) * d.orbitR, d.orbitY, Math.sin(a) * d.orbitR);
-      d.mesh.rotation.y = -a;
     });
   }
 
