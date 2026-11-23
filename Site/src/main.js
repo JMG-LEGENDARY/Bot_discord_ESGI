@@ -332,7 +332,7 @@ loader.load('/skyscraper.glb', (gltf) => {
     p.panelRadius = surfaceR + 3.0;
     p.camRadius = p.panelRadius + 14.5;
 
-    const { group, screenMesh } = createHoloPanel(p.tag, p.title, p.lines, p.color, 9.4, 4.7);
+    const group = createHoloPanel(p.tag, p.title, p.lines, p.color, 9.4, 4.7);
     group.position.set(
       Math.sin(p.angle) * p.panelRadius,
       p.y,
@@ -341,11 +341,13 @@ loader.load('/skyscraper.glb', (gltf) => {
     group.lookAt(0, p.y, 0);
     group.rotateY(Math.PI);
 
-    screenMesh.userData.panelIndex = idx;
+    if (group.screenMesh) {
+      group.screenMesh.userData.panelIndex = idx;
+      interactivePanelScreens.push(group.screenMesh);
+    }
 
     scene.add(group);
     panelGroups.push(group);
-    interactivePanelScreens.push(screenMesh);
   });
 
   // =========================================================================

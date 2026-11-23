@@ -95,6 +95,7 @@ export function createHoloPanel(tag, title, lines, accentColor = '#00f3ff', widt
     new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide })
   );
   group.add(screenMesh);
+  group.screenMesh = screenMesh;
 
   const hexColor = new THREE.Color(accentColor);
   const hdrNeonMat = new THREE.MeshBasicMaterial({
@@ -108,7 +109,7 @@ export function createHoloPanel(tag, title, lines, accentColor = '#00f3ff', widt
   botBar.position.y = -height / 2 - 0.14;
   group.add(topBar, botBar);
 
-  return { group, screenMesh };
+  return group;
 }
 
 export function buildSkyPlatform(scene, topY) {
