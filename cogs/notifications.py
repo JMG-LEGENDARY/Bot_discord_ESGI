@@ -63,13 +63,13 @@ class NotificationsCog(commands.Cog):
                 for devoir in devoirs:
                     logger.info(f"Itération sur {devoir}")
                     # Convertit la date texte de SQLite (format ex: "2026-10-31") en objet date
-                    date_devoir = datetime.strptime(
-                        devoir["date_devoir"], "%Y-%m-%d"
+                    date_item = datetime.strptime(
+                        devoir["date_item"], "%Y-%m-%d"
                     ).date()
 
-                    if date_devoir == date.today() + timedelta(days=7):
+                    if date_item == date.today() + timedelta(days=7):
                         embed = discord.Embed(
-                            title=f"Devoir prévu pour dans {(date_devoir - date.today()).days} jours !",
+                            title=f"Devoir prévu pour dans {(date_item - date.today()).days} jours !",
                             description=f'En {devoir["matiere"]}, {devoir["sujet"]}',
                             color=discord.Color.yellow()
                         )
@@ -78,7 +78,7 @@ class NotificationsCog(commands.Cog):
                             await channel_to_post.send(content=f"{nom_de_classe.mention}", embed=embed)
                             logger.info(f"Notification de devoir envoyée")
 
-                    if date_devoir == date.today() + timedelta(days=1):
+                    if date_item == date.today() + timedelta(days=1):
                         embed = discord.Embed(
                             title=f"Devoir prévu pour demain !",
                             description=f'En {devoir["matiere"]}, {devoir["sujet"]}',
@@ -88,7 +88,7 @@ class NotificationsCog(commands.Cog):
                             await channel.send(content=f"{nom_de_classe.mention}", embed=embed)
                             logger.info(f"Notification de devoir envoyée")
 
-                    if date_devoir == date.today():
+                    if date_item == date.today():
                         embed = discord.Embed(
                             title=f"Devoir prévu pour Aujourd'hui",
                             description=f'En {devoir["matiere"]}, {devoir["sujet"]}',
@@ -101,7 +101,7 @@ class NotificationsCog(commands.Cog):
 
 
                     # Compare avec la date du jour
-                    if date_devoir < datetime.now().date():
+                    if date_item < datetime.now().date():
                         sql_cog.supprimer_devoir(guild_id=guild.id, classe_name=classe, devoir=devoir)
 
 

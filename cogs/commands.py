@@ -47,7 +47,7 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
             return None
 
 
-        self.topic["date"] = date
+        self.topic["date_item"] = date
 
         saisie2 = self.subject_input.value
         self.topic["sujet"] = saisie2
@@ -70,7 +70,7 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
 
                     if autres_devoirs:
                         for devoir in autres_devoirs:
-                            if devoir["date"] == self.topic["date"] and devoir["matiere"] == self.topic["matiere"]:
+                            if devoir["date_item"] == self.topic["date_item"] and devoir["matiere"] == self.topic["matiere"]:
                                 embed = discord.Embed(
                                     title=f"Ceci a déjà été enregistré",
                                     color=discord.Color.yellow(),
@@ -96,7 +96,7 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
                                                 embed = discord.Embed(
                                                     title="Devoir enregistré",
                                                     color=discord.Color.blue(),
-                                                    description=f"Devoir enregistré : \n**Le {self.topic["date"]}**\n**en {self.topic["matiere"]}**\n**{self.topic["sujet"]}** !"
+                                                    description=f"Devoir enregistré : \n**Le {self.topic["date_item"]}**\n**en {self.topic["matiere"]}**\n**{self.topic["sujet"]}** !"
                                                 )
                                             if not is_devoir:
                                                 sql_cog.modifier_eval(
@@ -107,7 +107,7 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
                                                 embed = discord.Embed(
                                                     title="Évaluation enregistrée",
                                                     color=discord.Color.blue(),
-                                                    description=f"Évaluation enregistrée : \n**Le {self.topic["date"]}**\n**en {self.topic["matiere"]}**\n**{self.topic["sujet"]}** !"
+                                                    description=f"Évaluation enregistrée : \n**Le {self.topic["date_item"]}**\n**en {self.topic["matiere"]}**\n**{self.topic["sujet"]}** !"
                                                 )
                                         else :
                                             embed = discord.Embed(
@@ -192,7 +192,7 @@ class SelectMatiere(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         self.selected_value = self.options[0]
-        topic = {"date": "", "matiere": self.values[0], "sujet": ""}
+        topic = {"date_item": "", "matiere": self.values[0], "sujet": ""}
 
         # On ouvre directement le Modal au lieu de defer()
         modal = DateModal(topic, self.dico)
@@ -339,7 +339,7 @@ class CommandsCog(commands.Cog):
                         )
                         for devoir in devoirs:
                             embed.add_field(
-                                name=f"{devoir['matiere']} - {devoir['date_devoir']}",
+                                name=f"{devoir['matiere']} - {devoir['date_item']}",
                                 value=devoir['sujet'],
                                 inline=False
                             )
@@ -375,7 +375,7 @@ class CommandsCog(commands.Cog):
                         )
                         for evaluation in evaluations:
                             embed.add_field(
-                                name=f"{evaluation['matiere']} - {evaluation['date_eval']}",
+                                name=f"{evaluation['matiere']} - {evaluation['date_item']}",
                                 value=evaluation['sujet'],
                                 inline=False
                             )
