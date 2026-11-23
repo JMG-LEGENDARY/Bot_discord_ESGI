@@ -1,0 +1,23 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #05070d; color: #fff; font-family: sans-serif; overflow-x: hidden; }
+
+#webgl {
+position: fixed;
+top: 0;
+left: 0;
+width: 100vw;
+height: 100vh;
+z-index: 1;
+pointer-events: none;
+}
+
+.scroll-container {
+    position: relative;
+    z-index: 2;
+}
+
+.step {
+    height: 150vh; /* Donne de la distance de scroll entre chaque étape */
+    display: flex;
+    align-items: center;
+    padding-left: 10%;
