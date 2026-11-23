@@ -9,24 +9,25 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
+import { createAtmosphere } from './atmosphere.js';
+import { buildEcoCyberCity } from './city.js';
+import { createHoloPanel, buildSkyPlatform } from './panels.js';
+import { buildUndergroundMasterclass } from './underground.js';
+
 gsap.registerPlugin(ScrollTrigger);
 
-// ==========================================
-// 1. INITIALISATION SCÈNE, RENDU HDR & BLOOM
-// ==========================================
 const canvas = document.querySelector('#bg');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x03060e);
-scene.fog = new THREE.FogExp2(0x03060e, 0.0052);
+scene.fog = new THREE.FogExp2(0xbae6fd, 0.0018);
 
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1200);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.98;
+renderer.toneMappingExposure = 1.0;
 
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -40,1024 +41,19 @@ composer.addPass(new RenderPass(scene, camera));
 
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.34,
-  0.26,
-  1.25
+  0.32,
+  0.25,
+  1.28
 );
 composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
 
-const hemiLight = new THREE.HemisphereLight(0x7ab4ff, 0x090d1a, 0.7);
-scene.add(hemiLight);
+const targetHeight = 130;
+const atmosphere = createAtmosphere(scene, targetHeight);
+const ecoCity = buildEcoCyberCity(scene, targetHeight);
+const underground = buildUndergroundMasterclass(scene);
+const skyPlatform = buildSkyPlatform(scene, targetHeight);
 
-const dirLight = new THREE.DirectionalLight(0xe0f2fe, 1.0);
-dirLight.position.set(45, 140, 55);
-scene.add(dirLight);
-
-const rimLight = new THREE.DirectionalLight(0xff007f, 0.4);
-rimLight.position.set(-55, 50, -45);
-scene.add(rimLight);
-
-// ==========================================
-// 2. TEXTURES PROCÉDURALES & MÉTROPOLE VIVANTE
-// ==========================================
-function createAsphaltTexture() {
-  const cvs = document.createElement('canvas');
-  cvs.width = 1024;
-  cvs.height = 1024;
-  const ctx = cvs.getContext('2d');
-
-  // Base asphalte sombre texturée
-  ctx.fillStyle = '#090d16';
-  ctx.fillRect(0, 0, 1024, 1024);
-
-  for (let i = 0; i < 18000; i++) {
-    const x = Math.random() * 1024;
-    const y = Math.random() * 1024;
-    const v = 10 + Math.floor(Math.random() * 18);
-    ctx.fillStyle = `rgb(${v},${v + 2},${v + 7})`;
-    ctx.fillRect(x, y, 2, 2);
-  }
-
-  // Trottoirs / dalles urbaines périphériques
-  ctx.fillStyle = '#111827';
-  ctx.fillRect(0, 0, 1024, 140);
-  ctx.fillRect(0, 884, 1024, 140);
-  ctx.fillRect(0, 0, 140, 1024);
-  ctx.fillRect(884, 0, 140, 1024);
-
-  // Bordures de trottoir néons
-  ctx.strokeStyle = '#00f3ff';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(140, 140, 744, 744);
-
-  // Passages piétons futuristes
-  ctx.fillStyle = 'rgba(0, 243, 255, 0.55)';
-  for (let s = 180; s < 840; s += 44) {
-    ctx.fillRect(s, 155, 22, 48);
-    ctx.fillRect(s, 821, 22, 48);
-    ctx.fillRect(155, s, 48, 22);
-    ctx.fillRect(821, s, 48, 22);
-  }
-
-  // Lignes centrales de voies rapides
-  ctx.strokeStyle = '#ff007f';
-  ctx.lineWidth = 4;
-  ctx.setLineDash([36, 28]);
-  ctx.beginPath();
-  ctx.moveTo(512, 0);
-  ctx.lineTo(512, 1024);
-  ctx.moveTo(0, 512);
-  ctx.lineTo(1024, 512);
-  ctx.stroke();
-
-  // Bouches d'égout & grilles techniques
-  ctx.setLineDash([]);
-  ctx.strokeStyle = '#1e293b';
-  ctx.lineWidth = 3;
-  [260, 764].forEach((gx) => {
-    [260, 764].forEach((gy) => {
-      ctx.strokeRect(gx - 18, gy - 18, 36, 36);
-      ctx.beginPath();
-      ctx.moveTo(gx - 18, gy);
-      ctx.lineTo(gx + 18, gy);
-      ctx.moveTo(gx, gy - 18);
-      ctx.lineTo(gx, gy + 18);
-      ctx.stroke();
-    });
-  });
-
-  const tex = new THREE.CanvasTexture(cvs);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(14, 14);
-  tex.anisotropy = 8;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function createParkTurfTexture() {
-  const cvs = document.createElement('canvas');
-  cvs.width = 512;
-  cvs.height = 512;
-  const ctx = cvs.getContext('2d');
-
-  ctx.fillStyle = '#041a18';
-  ctx.fillRect(0, 0, 512, 512);
-
-  // Motifs géométriques bioluminescents dans l'herbe synthétique
-  for (let i = 0; i < 4000; i++) {
-    ctx.fillStyle = Math.random() > 0.2 ? '#062c28' : '#0d9488';
-    ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 3);
-  }
-
-  ctx.strokeStyle = 'rgba(16, 185, 129, 0.25)';
-  ctx.lineWidth = 2;
-  for (let r = 40; r < 240; r += 48) {
-    ctx.beginPath();
-    ctx.arc(256, 256, r, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  const tex = new THREE.CanvasTexture(cvs);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(3, 3);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function buildCyberpunkMetropolis(mainTowerHeight) {
-  const cityGroup = new THREE.Group();
-
-  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 2.5, 3.0), toneMapped: false });
-  const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.9, 0.1, 1.5), toneMapped: false });
-  const emeraldHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.1, 2.8, 1.6), toneMapped: false });
-  const amberHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.0, 1.4, 0.1), toneMapped: false });
-
-  // A. VRAI SOL ASPHALTE TEXTURÉ (y = -0.05)
-  const asphaltTex = createAsphaltTexture();
-  const groundPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(560, 560),
-    new THREE.MeshStandardMaterial({
-      map: asphaltTex,
-      roughnessMap: asphaltTex,
-      metalness: 0.45,
-      roughness: 0.55
-    })
-  );
-  groundPlane.rotation.x = -Math.PI / 2;
-  groundPlane.position.y = -0.05;
-  cityGroup.add(groundPlane);
-
-  // B. PARVIS CENTRAL DE LA TOUR ESGI
-  const plazaSize = 42;
-  const plaza = new THREE.Mesh(
-    new THREE.BoxGeometry(plazaSize, 0.35, plazaSize),
-    new THREE.MeshStandardMaterial({ color: 0x0d1526, metalness: 0.82, roughness: 0.25 })
-  );
-  plaza.position.y = 0.08;
-  cityGroup.add(plaza);
-
-  const halfP = plazaSize / 2;
-  [
-    [0, 0.27, halfP, plazaSize, 0.1, 0.22],
-    [0, 0.27, -halfP, plazaSize, 0.1, 0.22],
-    [halfP, 0.27, 0, 0.22, 0.1, plazaSize],
-    [-halfP, 0.27, 0, 0.22, 0.1, plazaSize]
-  ].forEach(([bx, by, bz, bw, bh, bd]) => {
-    const border = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), cyanHdr);
-    border.position.set(bx, by, bz);
-    cityGroup.add(border);
-  });
-
-  // 4 Pylônes d'angle avec faisceaux vers le ciel
-  [
-    [halfP, halfP],
-    [-halfP, halfP],
-    [halfP, -halfP],
-    [-halfP, -halfP]
-  ].forEach(([cx, cz]) => {
-    const pylon = new THREE.Mesh(
-      new THREE.BoxGeometry(0.9, 5.5, 0.9),
-      new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9, roughness: 0.2 })
-    );
-    pylon.position.set(cx, 2.75, cz);
-    cityGroup.add(pylon);
-
-    const beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.08, 0.5, 85, 12, 1, true),
-      new THREE.MeshBasicMaterial({
-        color: 0x00f3ff,
-        transparent: true,
-        opacity: 0.06,
-        side: THREE.DoubleSide,
-        depthWrite: false
-      })
-    );
-    beam.position.set(cx, 44, cz);
-    cityGroup.add(beam);
-  });
-
-  // C. 4 CYBER-PARCS BIOLUMINESCENTS AUTOUR DU PARVIS
-  const parkTex = createParkTurfTexture();
-  const parkMat = new THREE.MeshStandardMaterial({
-    map: parkTex,
-    roughness: 0.7,
-    metalness: 0.15
-  });
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.4 });
-  const benchMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.85, roughness: 0.25 });
-
-  const parkCenters = [
-    { x: 35, z: 35 },
-    { x: -35, z: 35 },
-    { x: 35, z: -35 },
-    { x: -35, z: -35 }
-  ];
-
-  const holoMonuments = [];
-
-  parkCenters.forEach((pc, idx) => {
-    const parkGroup = new THREE.Group();
-    parkGroup.position.set(pc.x, 0.1, pc.z);
-
-    // Pelouse synthétique + bordure néon émeraude
-    const lawn = new THREE.Mesh(new THREE.BoxGeometry(18, 0.25, 18), parkMat);
-    parkGroup.add(lawn);
-
-    const rim = new THREE.Mesh(new THREE.BoxGeometry(18.3, 0.12, 18.3), emeraldHdr);
-    rim.position.y = -0.04;
-    parkGroup.add(rim);
-
-    // Allées en croix dans le parc
-    const path1 = new THREE.Mesh(new THREE.BoxGeometry(18.1, 0.28, 2.2), benchMat);
-    const path2 = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.28, 18.1), benchMat);
-    parkGroup.add(path1, path2);
-
-    // Monument holographique central dans chaque parc
-    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 0.6, 8), benchMat);
-    pedestal.position.y = 0.4;
-    parkGroup.add(pedestal);
-
-    const crystal = new THREE.Mesh(
-      new THREE.OctahedronGeometry(1.1, 0),
-      idx % 2 === 0 ? emeraldHdr : cyanHdr
-    );
-    crystal.position.y = 2.4;
-    parkGroup.add(crystal);
-    holoMonuments.push(crystal);
-
-    // 4 Arbres cybernétiques par parc (tronc métallique + couronne lumineuse)
-    [
-      [-5.5, -5.5],
-      [5.5, -5.5],
-      [-5.5, 5.5],
-      [5.5, 5.5]
-    ].forEach(([tx, tz], tIdx) => {
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.32, 3.2, 6), trunkMat);
-      trunk.position.set(tx, 1.7, tz);
-      parkGroup.add(trunk);
-
-      const canopy = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(1.45, 0),
-        tIdx % 2 === 0 ? emeraldHdr : cyanHdr
-      );
-      canopy.position.set(tx, 3.8, tz);
-      parkGroup.add(canopy);
-    });
-
-    // Bancs néons & lampadaires
-    [
-      [0, 3.4, 0],
-      [0, -3.4, 0],
-      [3.4, 0, Math.PI / 2],
-      [-3.4, 0, Math.PI / 2]
-    ].forEach(([bx, bz, rotY]) => {
-      const bench = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.35, 0.7), benchMat);
-      bench.position.set(bx, 0.35, bz);
-      bench.rotation.y = rotY;
-      parkGroup.add(bench);
-
-      const strip = new THREE.Mesh(new THREE.BoxGeometry(2.22, 0.08, 0.72), cyanHdr);
-      strip.position.set(bx, 0.54, bz);
-      strip.rotation.y = rotY;
-      parkGroup.add(strip);
-    });
-
-    cityGroup.add(parkGroup);
-  });
-
-  // D. VOITURES DU FUTUR (HOVER-CARS) SUR LES ROUTES AU SOL
-  const hoverCars = [];
-  const carBodyMat = new THREE.MeshStandardMaterial({
-    color: 0x0f172a,
-    metalness: 0.9,
-    roughness: 0.18
-  });
-  const windshieldMat = new THREE.MeshStandardMaterial({
-    color: 0x020617,
-    metalness: 0.95,
-    roughness: 0.05
-  });
-
-  function createCyberCar(isCyan) {
-    const car = new THREE.Group();
-
-    // Châssis aérodynamique
-    const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.42, 3.4), carBodyMat);
-    chassis.position.y = 0.45;
-    car.add(chassis);
-
-    // Habitacle profilé
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.34, 1.75), windshieldMat);
-    cabin.position.set(0, 0.78, -0.15);
-    car.add(cabin);
-
-    // Phares avant HDR
-    const headlight = new THREE.Mesh(
-      new THREE.BoxGeometry(1.36, 0.1, 0.12),
-      isCyan ? cyanHdr : amberHdr
-    );
-    headlight.position.set(0, 0.46, 1.72);
-    car.add(headlight);
-
-    // Feux arrière rouges HDR
-    const taillight = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.1, 0.12), pinkHdr);
-    taillight.position.set(0, 0.48, -1.72);
-    car.add(taillight);
-
-    // Néon sous le châssis (effet antigravité)
-    const underglow = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.3, 3.0),
-      new THREE.MeshBasicMaterial({
-        color: isCyan ? 0x00f3ff : 0xff007f,
-        transparent: true,
-        opacity: 0.45,
-        side: THREE.DoubleSide
-      })
-    );
-    underglow.rotation.x = -Math.PI / 2;
-    underglow.position.y = 0.08;
-    car.add(underglow);
-
-    return car;
-  }
-
-  // Voies rectilignes Nord-Sud et Est-Ouest + boulevard circulaire extérieur
-  const lanes = [
-    { axis: 'z', fixed: 23.8, dir: 1 },
-    { axis: 'z', fixed: 25.6, dir: -1 },
-    { axis: 'z', fixed: -23.8, dir: 1 },
-    { axis: 'z', fixed: -25.6, dir: -1 },
-    { axis: 'x', fixed: 23.8, dir: 1 },
-    { axis: 'x', fixed: 25.6, dir: -1 },
-    { axis: 'x', fixed: -23.8, dir: 1 },
-    { axis: 'x', fixed: -25.6, dir: -1 }
-  ];
-
-  lanes.forEach((lane, lIdx) => {
-    for (let c = 0; c < 4; c++) {
-      const car = createCyberCar((lIdx + c) % 2 === 0);
-      const offset = -160 + c * 85 + Math.random() * 25;
-      const speed = (18 + Math.random() * 14) * lane.dir;
-      if (lane.axis === 'z') {
-        car.position.set(lane.fixed, 0.1, offset);
-        car.rotation.y = lane.dir > 0 ? 0 : Math.PI;
-      } else {
-        car.position.set(offset, 0.1, lane.fixed);
-        car.rotation.y = lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
-      }
-      cityGroup.add(car);
-      hoverCars.push({ mesh: car, axis: lane.axis, speed, limit: 180 });
-    }
-  });
-
-  // E. SKYLINE CYBERPUNK (STRICTEMENT PLUS PETITE QUE LA TOUR ESGI DE 130M)
-  const winCvs = document.createElement('canvas');
-  winCvs.width = 256;
-  winCvs.height = 512;
-  const wCtx = winCvs.getContext('2d');
-  wCtx.fillStyle = '#060a14';
-  wCtx.fillRect(0, 0, 256, 512);
-
-  for (let y = 10; y < 500; y += 14) {
-    const rowLit = Math.random() > 0.22;
-    for (let x = 10; x < 246; x += 16) {
-      if (rowLit && Math.random() > 0.34) {
-        const rnd = Math.random();
-        wCtx.fillStyle = rnd > 0.88 ? '#00f3ff' : rnd > 0.80 ? '#ff007f' : '#38bdf8';
-        wCtx.fillRect(x, y, 10, 6);
-      } else {
-        wCtx.fillStyle = '#0f172a';
-        wCtx.fillRect(x, y, 10, 6);
-      }
-    }
-  }
-  const winTex = new THREE.CanvasTexture(winCvs);
-  winTex.wrapS = THREE.RepeatWrapping;
-  winTex.wrapT = THREE.RepeatWrapping;
-  winTex.repeat.set(2, 5);
-  winTex.colorSpace = THREE.SRGBColorSpace;
-
-  const towerBodyMat = new THREE.MeshStandardMaterial({
-    color: 0x0f172a,
-    map: winTex,
-    emissiveMap: winTex,
-    emissive: new THREE.Color(0xffffff),
-    emissiveIntensity: 0.85,
-    metalness: 0.6,
-    roughness: 0.35
-  });
-
-  const beaconMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(3.0, 0.1, 0.35),
-    toneMapped: false
-  });
-
-  const maxSurroundingH = mainTowerHeight * 0.68; // Max ~88 unités vs 130 pour ESGI BOT
-  const towerPositions = [];
-
-  for (let i = 0; i < 42; i++) {
-    const ring = i < 16 ? 0 : 1;
-    const countInRing = ring === 0 ? 16 : 26;
-    const idxInRing = ring === 0 ? i : i - 16;
-    const angle = (idxInRing / countInRing) * Math.PI * 2 + ring * 0.18;
-    const dist = ring === 0 ? 64 + Math.random() * 18 : 104 + Math.random() * 55;
-
-    const h = ring === 0
-      ? 36 + Math.random() * (maxSurroundingH * 0.55)
-      : 48 + Math.random() * (maxSurroundingH * 0.65);
-    const w = 10 + Math.random() * 8;
-    const d = 10 + Math.random() * 8;
-
-    const tx = Math.cos(angle) * dist;
-    const tz = Math.sin(angle) * dist;
-
-    const mainBlock = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), towerBodyMat);
-    mainBlock.position.set(tx, h / 2, tz);
-    cityGroup.add(mainBlock);
-
-    const crownMat = i % 3 === 0 ? pinkHdr : cyanHdr;
-    const crown = new THREE.Mesh(new THREE.BoxGeometry(w + 0.3, 0.35, d + 0.3), crownMat);
-    crown.position.set(tx, h - 1.2, tz);
-    cityGroup.add(crown);
-
-    const upperH = 6 + Math.random() * 9;
-    const upperBlock = new THREE.Mesh(
-      new THREE.BoxGeometry(w * 0.62, upperH, d * 0.62),
-      towerBodyMat
-    );
-    upperBlock.position.set(tx, h + upperH / 2, tz);
-    cityGroup.add(upperBlock);
-
-    const spireH = 4 + Math.random() * 6;
-    const spire = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.06, 0.15, spireH, 6),
-      new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9 })
-    );
-    spire.position.set(tx, h + upperH + spireH / 2, tz);
-    cityGroup.add(spire);
-
-    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), beaconMat);
-    beacon.position.set(tx, h + upperH + spireH, tz);
-    cityGroup.add(beacon);
-
-    if (ring === 0) {
-      towerPositions.push({ x: tx, z: tz, h });
-    }
-  }
-
-  for (let i = 0; i < towerPositions.length - 1; i += 2) {
-    const a = towerPositions[i];
-    const b = towerPositions[i + 1];
-    const bridgeY = Math.min(a.h, b.h) * 0.65;
-    const start = new THREE.Vector3(a.x, bridgeY, a.z);
-    const end = new THREE.Vector3(b.x, bridgeY, b.z);
-    const length = start.distanceTo(end);
-
-    if (length < 46) {
-      const bridge = new THREE.Mesh(
-        new THREE.BoxGeometry(1.4, 1.2, length),
-        new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.3 })
-      );
-      bridge.position.copy(start).lerp(end, 0.5);
-      bridge.lookAt(end);
-      cityGroup.add(bridge);
-
-      const bridgeNeon = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, length), cyanHdr);
-      bridgeNeon.position.copy(bridge.position);
-      bridgeNeon.position.y -= 0.6;
-      bridgeNeon.lookAt(end);
-      cityGroup.add(bridgeNeon);
-    }
-  }
-
-  // F. TRAFIC AÉRIEN & PARTICULES
-  const drones = [];
-  for (let i = 0; i < 46; i++) {
-    const isCyan = i % 2 === 0;
-    const drone = new THREE.Mesh(
-      new THREE.BoxGeometry(0.2, 0.12, 2.2),
-      isCyan ? cyanHdr : pinkHdr
-    );
-    const orbitR = 28 + Math.random() * 52;
-    const orbitY = 6 + Math.random() * (mainTowerHeight - 8);
-    const speed = (0.11 + Math.random() * 0.2) * (isCyan ? 1 : -1);
-    const phase = Math.random() * Math.PI * 2;
-    cityGroup.add(drone);
-    drones.push({ mesh: drone, orbitR, orbitY, speed, phase });
-  }
-
-  const particleCount = 1400;
-  const positions = new Float32Array(particleCount * 3);
-  for (let i = 0; i < particleCount; i++) {
-    positions[i * 3] = (Math.random() - 0.5) * 160;
-    positions[i * 3 + 1] = -50 + Math.random() * (mainTowerHeight + 70);
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 160;
-  }
-  const particleGeo = new THREE.BufferGeometry();
-  particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const particles = new THREE.Points(
-    particleGeo,
-    new THREE.PointsMaterial({ color: 0x38bdf8, size: 0.22, transparent: true, opacity: 0.55 })
-  );
-  cityGroup.add(particles);
-
-  scene.add(cityGroup);
-  return { drones, particles, hoverCars, holoMonuments };
-}
-
-// ==========================================
-// 3. PANNEAUX HOLOGRAPHIQUES FLOTTANTS (SANS BRAS)
-// ==========================================
-function createHoloPanel(tag, title, lines, accentColor = '#00f3ff', width = 9.2, height = 4.6) {
-  const group = new THREE.Group();
-
-  const cvs = document.createElement('canvas');
-  cvs.width = 1024;
-  cvs.height = 512;
-  const ctx = cvs.getContext('2d');
-
-  // Fond verre sombre holographique
-  ctx.fillStyle = 'rgba(4, 10, 22, 0.92)';
-  ctx.fillRect(0, 0, cvs.width, cvs.height);
-
-  // Grille fine + scanlines
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
-  ctx.lineWidth = 1;
-  for (let gx = 0; gx < cvs.width; gx += 32) {
-    ctx.beginPath();
-    ctx.moveTo(gx, 0);
-    ctx.lineTo(gx, cvs.height);
-    ctx.stroke();
-  }
-  for (let gy = 0; gy < cvs.height; gy += 8) {
-    ctx.beginPath();
-    ctx.moveTo(0, gy);
-    ctx.lineTo(cvs.width, gy);
-    ctx.stroke();
-  }
-
-  // Cadre fin + coins renforcés style viseur cyber
-  ctx.strokeStyle = accentColor;
-  ctx.lineWidth = 4;
-  ctx.strokeRect(18, 18, cvs.width - 36, cvs.height - 36);
-
-  ctx.lineWidth = 10;
-  const cLen = 46;
-  // Coin haut-gauche
-  ctx.beginPath();
-  ctx.moveTo(14, 14 + cLen);
-  ctx.lineTo(14, 14);
-  ctx.lineTo(14 + cLen, 14);
-  ctx.stroke();
-  // Coin haut-droit
-  ctx.beginPath();
-  ctx.moveTo(cvs.width - 14 - cLen, 14);
-  ctx.lineTo(cvs.width - 14, 14);
-  ctx.lineTo(cvs.width - 14, 14 + cLen);
-  ctx.stroke();
-  // Coin bas-gauche
-  ctx.beginPath();
-  ctx.moveTo(14, cvs.height - 14 - cLen);
-  ctx.lineTo(14, cvs.height - 14);
-  ctx.lineTo(14 + cLen, cvs.height - 14);
-  ctx.stroke();
-  // Coin bas-droit
-  ctx.beginPath();
-  ctx.moveTo(cvs.width - 14 - cLen, cvs.height - 14);
-  ctx.lineTo(cvs.width - 14, cvs.height - 14);
-  ctx.lineTo(cvs.width - 14, cvs.height - 14 - cLen);
-  ctx.stroke();
-
-  // Tag système
-  ctx.font = 'bold 24px monospace';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.58)';
-  ctx.textAlign = 'right';
-  ctx.fillText(tag, cvs.width - 46, 62);
-
-  // Titre
-  ctx.textAlign = 'left';
-  ctx.font = 'bold 48px "Segoe UI", sans-serif';
-  ctx.fillStyle = accentColor;
-  ctx.fillText(title.toUpperCase(), 54, 114);
-
-  ctx.fillStyle = accentColor;
-  ctx.fillRect(54, 136, 190, 4);
-
-  // Lignes de texte
-  ctx.font = '32px "Segoe UI", sans-serif';
-  ctx.fillStyle = '#eef8ff';
-  lines.forEach((line, i) => {
-    ctx.fillText(`▸ ${line}`, 56, 206 + i * 64);
-  });
-
-  const texture = new THREE.CanvasTexture(cvs);
-  texture.colorSpace = THREE.SRGBColorSpace;
-
-  const screenMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(width, height),
-    new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide })
-  );
-  group.add(screenMesh);
-
-  // Émetteurs néons discrets haut & bas (aucun bras traversant)
-  const hexColor = new THREE.Color(accentColor);
-  const hdrNeonMat = new THREE.MeshBasicMaterial({
-    color: hexColor.clone().multiplyScalar(2.4),
-    toneMapped: false
-  });
-  const barGeo = new THREE.BoxGeometry(width * 0.85, 0.06, 0.08);
-  const topBar = new THREE.Mesh(barGeo, hdrNeonMat);
-  topBar.position.y = height / 2 + 0.14;
-  const botBar = new THREE.Mesh(barGeo, hdrNeonMat);
-  botBar.position.y = -height / 2 - 0.14;
-  group.add(topBar, botBar);
-
-  return group;
-}
-
-// ==========================================
-// 4. ACTE 1 : CITADELLE DE LÉVITATION (SOMMET)
-// ==========================================
-function buildSkyPlatform(topY) {
-  const group = new THREE.Group();
-  group.position.set(0, topY + 7.5, 0);
-
-  const base = new THREE.Mesh(
-    new THREE.CylinderGeometry(7.2, 4.5, 1.3, 8),
-    new THREE.MeshStandardMaterial({ color: 0x131a29, metalness: 0.9, roughness: 0.25 })
-  );
-  group.add(base);
-
-  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 2.5, 3.0), toneMapped: false });
-  const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.8, 0.1, 1.5), toneMapped: false });
-
-  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(7.6, 0.08, 16, 64), cyanHdr);
-  ring1.rotation.x = Math.PI / 2;
-  group.add(ring1);
-
-  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(5.6, 0.06, 16, 64), pinkHdr);
-  ring2.rotation.x = Math.PI / 2;
-  ring2.position.y = -1.2;
-  group.add(ring2);
-
-  const ring3 = new THREE.Mesh(new THREE.TorusGeometry(9.2, 0.05, 12, 64), cyanHdr);
-  ring3.rotation.x = Math.PI / 2.3;
-  group.add(ring3);
-
-  const beam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.18, 2.0, 55, 16, 1, true),
-    new THREE.MeshBasicMaterial({
-      color: 0x00f3ff,
-      transparent: true,
-      opacity: 0.08,
-      side: THREE.DoubleSide,
-      depthWrite: false
-    })
-  );
-  beam.position.y = 27;
-  group.add(beam);
-
-  const signCvs = document.createElement('canvas');
-  signCvs.width = 1024;
-  signCvs.height = 300;
-  const ctx = signCvs.getContext('2d');
-  ctx.clearRect(0, 0, 1024, 300);
-  ctx.font = '900 138px "Segoe UI", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#00f3ff';
-  ctx.shadowColor = 'rgba(0, 243, 255, 0.75)';
-  ctx.shadowBlur = 18;
-  ctx.fillText('ESGI BOT', 512, 165);
-
-  ctx.font = '600 32px monospace';
-  ctx.fillStyle = '#e0f7ff';
-  ctx.shadowBlur = 0;
-  ctx.fillText('MEGASTRUCTURE // REIMS CYBERNETICS', 512, 235);
-
-  const signTex = new THREE.CanvasTexture(signCvs);
-  signTex.colorSpace = THREE.SRGBColorSpace;
-  const signMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(14.5, 4.2),
-    new THREE.MeshBasicMaterial({ map: signTex, transparent: true, side: THREE.DoubleSide })
-  );
-  signMesh.position.y = 3.4;
-  group.add(signMesh);
-
-  scene.add(group);
-  return { group, ring1, ring2, ring3 };
-}
-
-// ==========================================
-// 5. ACTES 3 & 4 : CAVERNE SOUTERRAINE & TRIANGLE DE PILIERS
-// ==========================================
-function buildUndergroundMasterclass() {
-  const underGroup = new THREE.Group();
-  const floorY = -46;
-  const ceilY = -16;
-
-  const concreteMat = new THREE.MeshStandardMaterial({
-    color: 0x0b101d,
-    metalness: 0.55,
-    roughness: 0.65
-  });
-  const darkSteelMat = new THREE.MeshStandardMaterial({
-    color: 0x161f30,
-    metalness: 0.85,
-    roughness: 0.28
-  });
-  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 2.5, 3.0), toneMapped: false });
-  const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.8, 0.1, 1.5), toneMapped: false });
-
-  // Sol, plafond de fondation et parois closes
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(96, 116), concreteMat);
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.set(0, floorY, -4);
-  underGroup.add(floor);
-
-  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(96, 116), concreteMat);
-  ceiling.rotation.x = Math.PI / 2;
-  ceiling.position.set(0, ceilY, -4);
-  underGroup.add(ceiling);
-
-  const backWall = new THREE.Mesh(new THREE.BoxGeometry(96, 34, 2), concreteMat);
-  backWall.position.set(0, floorY + 16, -34);
-  underGroup.add(backWall);
-
-  [-30, 30].forEach((wx) => {
-    const sideWall = new THREE.Mesh(new THREE.BoxGeometry(2, 34, 116), concreteMat);
-    sideWall.position.set(wx, floorY + 16, -4);
-    underGroup.add(sideWall);
-  });
-
-  // Arches structurelles & néons
-  for (let zArch = -28; zArch <= 28; zArch += 9) {
-    const arch = new THREE.Mesh(new THREE.TorusGeometry(27, 0.75, 10, 32, Math.PI), darkSteelMat);
-    arch.position.set(0, floorY + 2, zArch);
-    underGroup.add(arch);
-
-    const archNeon = new THREE.Mesh(
-      new THREE.TorusGeometry(26.1, 0.07, 8, 32, Math.PI),
-      zArch % 18 === 0 ? pinkHdr : cyanHdr
-    );
-    archNeon.position.set(0, floorY + 2, zArch);
-    underGroup.add(archNeon);
-  }
-
-  // Passerelles & collecteurs industriels latéraux
-  [-24, 24].forEach((px) => {
-    const catwalk = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.4, 96), darkSteelMat);
-    catwalk.position.set(px, floorY + 11, -4);
-    underGroup.add(catwalk);
-
-    [3.5, 6.5, 15.0].forEach((py, pIdx) => {
-      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 96, 16), darkSteelMat);
-      pipe.rotation.x = Math.PI / 2;
-      pipe.position.set(px + (px > 0 ? 1.5 : -1.5), floorY + py, -4);
-      underGroup.add(pipe);
-
-      for (let rz = -26; rz <= 22; rz += 14) {
-        const ring = new THREE.Mesh(
-          new THREE.TorusGeometry(0.95, 0.06, 8, 24),
-          pIdx === 1 ? pinkHdr : cyanHdr
-        );
-        ring.position.set(pipe.position.x, pipe.position.y, rz);
-        underGroup.add(ring);
-      }
-    });
-  });
-
-  // Canal central d'eau réfléchissante
-  const canalWater = new THREE.Mesh(
-    new THREE.PlaneGeometry(8.5, 98),
-    new THREE.MeshStandardMaterial({
-      color: 0x041322,
-      emissive: 0x003344,
-      emissiveIntensity: 0.65,
-      metalness: 0.95,
-      roughness: 0.08
-    })
-  );
-  canalWater.rotation.x = -Math.PI / 2;
-  canalWater.position.set(0, floorY + 0.06, -4);
-  underGroup.add(canalWater);
-
-  [-4.4, 4.4].forEach((cx) => {
-    const curb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.45, 98), darkSteelMat);
-    curb.position.set(cx, floorY + 0.22, -4);
-    underGroup.add(curb);
-
-    const curbNeon = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 98), cyanHdr);
-    curbNeon.position.set(cx > 0 ? cx - 0.22 : cx + 0.22, floorY + 0.46, -4);
-    underGroup.add(curbNeon);
-  });
-
-  const waterPulse = new THREE.Mesh(
-    new THREE.PlaneGeometry(6.5, 18),
-    new THREE.MeshBasicMaterial({
-      color: 0x00f3ff,
-      transparent: true,
-      opacity: 0.15,
-      side: THREE.DoubleSide
-    })
-  );
-  waterPulse.rotation.x = -Math.PI / 2;
-  waterPulse.position.set(0, floorY + 0.09, -15);
-  underGroup.add(waterPulse);
-
-  // Socle massif sous la tour au plafond
-  const megastructureCap = new THREE.Mesh(
-    new THREE.CylinderGeometry(19, 23, 3.2, 6),
-    darkSteelMat
-  );
-  megastructureCap.position.set(0, ceilY - 1.4, -3);
-  underGroup.add(megastructureCap);
-
-  const capRing = new THREE.Mesh(new THREE.TorusGeometry(21, 0.12, 12, 6), cyanHdr);
-  capRing.rotation.x = Math.PI / 2;
-  capRing.position.set(0, ceilY - 3.0, -3);
-  underGroup.add(capRing);
-
-  // Turbines géantes sur le mur du fond
-  const turbines = [];
-  [-13, 13].forEach((tx, tIdx) => {
-    const frame = new THREE.Mesh(new THREE.TorusGeometry(4.2, 0.35, 10, 24), darkSteelMat);
-    frame.position.set(tx, floorY + 13, -32.8);
-    underGroup.add(frame);
-
-    const rotor = new THREE.Group();
-    rotor.position.set(tx, floorY + 13, -32.6);
-    for (let b = 0; b < 6; b++) {
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.7, 3.8, 0.12), darkSteelMat);
-      blade.rotation.z = (b / 6) * Math.PI * 2;
-      rotor.add(blade);
-    }
-    underGroup.add(rotor);
-    turbines.push({ mesh: rotor, dir: tIdx === 0 ? 1 : -1 });
-  });
-
-  const mainUnderLight = new THREE.PointLight(0x38bdf8, 38, 75);
-  mainUnderLight.position.set(0, floorY + 16, 12);
-  underGroup.add(mainUnderLight);
-
-  const rearUnderLight = new THREE.PointLight(0xff007f, 30, 70);
-  rearUnderLight.position.set(0, floorY + 14, -18);
-  underGroup.add(rearUnderLight);
-
-  // ==========================================
-  // 5 PILIERS EN TRIANGLE AVEC ÉTIQUETTES 100% VERTICALES DE FACE
-  // ==========================================
-  const pillarsData = [
-    {
-      id: 0,
-      label: 'pillar-0',
-      name: 'BRYAN (JMG)',
-      role: 'Architecture & Core Dev',
-      tag: 'APEX // PILIER 01',
-      color: '#00f3ff',
-      pos: new THREE.Vector3(0, floorY, 7.0),
-      camPos: new THREE.Vector3(0, floorY + 5.2, 16.5)
-    },
-    {
-      id: 1,
-      label: 'pillar-1',
-      name: 'COLLABORATEUR 2',
-      role: 'Systèmes & Base de données',
-      tag: 'FLANC G // PILIER 02',
-      color: '#ff007f',
-      pos: new THREE.Vector3(-8.5, floorY, -2.5),
-      camPos: new THREE.Vector3(-14.5, floorY + 5.2, 6.2)
-    },
-    {
-      id: 2,
-      label: 'pillar-2',
-      name: 'COLLABORATEUR 3',
-      role: 'Modules & Commandes',
-      tag: 'BASE G // PILIER 03',
-      color: '#00f3ff',
-      pos: new THREE.Vector3(-15.5, floorY, -12.5),
-      camPos: new THREE.Vector3(-19.5, floorY + 5.2, -2.2)
-    },
-    {
-      id: 3,
-      label: 'pillar-3',
-      name: 'PROMO ESGI REIMS',
-      role: 'Tests, Idées & Communauté',
-      tag: 'BASE D // PILIER 04',
-      color: '#ff007f',
-      pos: new THREE.Vector3(15.5, floorY, -12.5),
-      camPos: new THREE.Vector3(19.5, floorY + 5.2, -2.2)
-    },
-    {
-      id: 4,
-      label: 'pillar-4',
-      name: 'GEMINI AI',
-      role: 'Co-Pilote WebGL & Shaders',
-      tag: 'FLANC D // PILIER 05',
-      color: '#00f3ff',
-      pos: new THREE.Vector3(8.5, floorY, -2.5),
-      camPos: new THREE.Vector3(14.5, floorY + 5.2, 6.2)
-    }
-  ];
-
-  // Triangle néon au sol reliant les 3 sommets
-  const triPoints = [
-    new THREE.Vector3(0, floorY + 0.14, 7.0),
-    new THREE.Vector3(-15.5, floorY + 0.14, -12.5),
-    new THREE.Vector3(15.5, floorY + 0.14, -12.5),
-    new THREE.Vector3(0, floorY + 0.14, 7.0)
-  ];
-  const triLine = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(triPoints),
-    new THREE.LineBasicMaterial({ color: 0x00f3ff })
-  );
-  underGroup.add(triLine);
-
-  const interactivePillarObjects = [];
-  const pillarAnimItems = [];
-
-  pillarsData.forEach((p) => {
-    const pGroup = new THREE.Group();
-    pGroup.position.copy(p.pos);
-
-    const isCyan = p.color === '#00f3ff';
-    const ringMat = isCyan ? cyanHdr : pinkHdr;
-
-    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.5, 1.8, 8), darkSteelMat);
-    pedestal.position.y = 0.9;
-    pGroup.add(pedestal);
-
-    const column = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.55, 30, 8), darkSteelMat);
-    column.position.y = 15;
-    pGroup.add(column);
-
-    for (let k = 0; k < 4; k++) {
-      const ka = (k / 4) * Math.PI * 2 + Math.PI / 4;
-      const piston = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.18, 0.24, 29, 8),
-        new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9, roughness: 0.2 })
-      );
-      piston.position.set(Math.cos(ka) * 1.65, 14.5, Math.sin(ka) * 1.65);
-      pGroup.add(piston);
-    }
-
-    const ringLower = new THREE.Mesh(new THREE.TorusGeometry(1.85, 0.07, 12, 32), ringMat);
-    ringLower.rotation.x = Math.PI / 2;
-    ringLower.position.y = 2.4;
-    pGroup.add(ringLower);
-
-    const ringUpper = new THREE.Mesh(new THREE.TorusGeometry(1.75, 0.07, 12, 32), ringMat);
-    ringUpper.rotation.x = Math.PI / 2;
-    ringUpper.position.y = 8.2;
-    pGroup.add(ringUpper);
-
-    // Étiquette strictement verticale (rotation uniquement autour de Y) pile en face de camPos
-    const dx = p.camPos.x - p.pos.x;
-    const dz = p.camPos.z - p.pos.z;
-    const horizLen = Math.hypot(dx, dz) || 1;
-    const yawAngle = Math.atan2(dx, dz);
-
-    const plaque = createHoloPanel(
-      p.tag,
-      p.name,
-      [p.role, 'Cliquer ou scroller pour explorer'],
-      p.color,
-      5.4,
-      2.7
-    );
-    plaque.position.set((dx / horizLen) * 2.05, 5.2, (dz / horizLen) * 2.05);
-    plaque.rotation.set(0, yawAngle, 0);
-    pGroup.add(plaque);
-
-    const hitBox = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.6, 2.6, 14, 12),
-      new THREE.MeshBasicMaterial({ visible: false })
-    );
-    hitBox.position.y = 7;
-    hitBox.userData = { label: p.label };
-    pGroup.add(hitBox);
-    interactivePillarObjects.push(hitBox);
-
-    plaque.traverse((child) => {
-      if (child.isMesh) {
-        child.userData = { label: p.label };
-        interactivePillarObjects.push(child);
-      }
-    });
-
-    pillarAnimItems.push({ ringLower, ringUpper, offset: p.id * 1.3 });
-    underGroup.add(pGroup);
-  });
-
-  scene.add(underGroup);
-  return { floorY, pillarsData, interactivePillarObjects, pillarAnimItems, waterPulse, turbines };
-}
-
-// ==========================================
-// HELPER : RAYON EXACT DE LA FAÇADE À UNE HAUTEUR Y
-// ==========================================
 function getFacadeRadiusAtY(tower, y, fallbackRadius) {
   tower.updateMatrixWorld(true);
   const raycaster = new THREE.Raycaster();
@@ -1082,15 +78,8 @@ function getFacadeRadiusAtY(tower, y, fallbackRadius) {
   return maxR > 1 ? maxR : fallbackRadius;
 }
 
-// ==========================================
-// 6. CHARGEMENT DU GRATTE-CIEL (PLUS GRAND : 130M) & TIMELINE
-// ==========================================
 const loader = new GLTFLoader();
-let skyPlatform = null;
 const panelMeshes = [];
-const targetHeight = 130;
-const cyberCity = buildCyberpunkMetropolis(targetHeight);
-const underground = buildUndergroundMasterclass();
 
 loader.load('/skyscraper.glb', (gltf) => {
   const tower = gltf.scene;
@@ -1123,7 +112,6 @@ loader.load('/skyscraper.glb', (gltf) => {
   });
 
   scene.add(tower);
-  skyPlatform = buildSkyPlatform(targetHeight);
 
   const panelsData = [
     {
@@ -1166,7 +154,7 @@ loader.load('/skyscraper.glb', (gltf) => {
       ]
     },
     {
-      y: 22,
+      y: 24,
       angle: Math.PI * 2.0,
       color: '#a855f7',
       tag: 'SYS.04 // DEPLOYMENT',
@@ -1198,24 +186,17 @@ loader.load('/skyscraper.glb', (gltf) => {
     panelMeshes.push(panel);
   });
 
-  // ==========================================
-  // 7. CHORÉGRAPHIE & AIMANT DOUX NON-AGRESSIF
-  // ==========================================
-  const lastPanel = panelsData[panelsData.length - 1];
-  const lastPanelCamX = Math.sin(lastPanel.angle) * lastPanel.camRadius;
-  const lastPanelCamZ = Math.cos(lastPanel.angle) * lastPanel.camRadius;
-
   const camState = {
     mode: 0,
     angle: 0,
     radius: 36,
     camY: targetHeight + 9.5,
     targetY: targetHeight + 5.0,
-    ux: lastPanelCamX,
-    uy: lastPanel.y,
-    uz: lastPanelCamZ,
+    ux: 0,
+    uy: 14,
+    uz: 44,
     utx: 0,
-    uty: lastPanel.y,
+    uty: 3,
     utz: 0
   };
 
@@ -1247,8 +228,8 @@ loader.load('/skyscraper.glb', (gltf) => {
         const meters = Math.round(currentY * 5);
         if (hudAlt) hudAlt.textContent = `ALT ${meters}M`;
 
-        const isUnderground = camState.mode > 0.65;
-        if (hud) hud.classList.toggle('hidden', currentY < 5);
+        const isUnderground = camState.mode > 0.72;
+        if (hud) hud.classList.toggle('hidden', currentY < 2);
         if (pillarNav) pillarNav.classList.toggle('visible', isUnderground);
 
         if (hudZone && !isUnderground) {
@@ -1256,7 +237,8 @@ loader.load('/skyscraper.glb', (gltf) => {
           else if (currentY > 90) hudZone.textContent = panelsData[0].zoneName;
           else if (currentY > 64) hudZone.textContent = panelsData[1].zoneName;
           else if (currentY > 36) hudZone.textContent = panelsData[2].zoneName;
-          else hudZone.textContent = panelsData[3].zoneName;
+          else if (currentY > 17) hudZone.textContent = panelsData[3].zoneName;
+          else hudZone.textContent = 'ECO-PARC & SKYBRIDGES';
         }
 
         if (isUnderground) {
@@ -1304,23 +286,42 @@ loader.load('/skyscraper.glb', (gltf) => {
     });
   });
 
-  const overviewCam = new THREE.Vector3(0, underground.floorY + 12.0, 26.0);
-  const overviewTarget = new THREE.Vector3(0, underground.floorY + 5.2, -3.5);
-
   tl.to(camState, {
-    mode: 1,
-    ux: overviewCam.x,
-    uy: overviewCam.y,
-    uz: overviewCam.z,
-    utx: overviewTarget.x,
-    uty: overviewTarget.y,
-    utz: overviewTarget.z,
-    duration: 2.8,
-    ease: 'power2.inOut'
+    angle: Math.PI * 2.25,
+    radius: 48,
+    camY: 13.5,
+    targetY: 3.5,
+    duration: 2.0,
+    ease: 'power1.inOut'
   })
-  .to(camState, { duration: 0.45 })
+  .to(camState, {
+    angle: Math.PI * 2.0,
+    radius: 12,
+    camY: 6.0,
+    targetY: -12.0,
+    ux: 0,
+    uy: 6.0,
+    uz: 12,
+    utx: 0,
+    uty: -12.0,
+    utz: 4,
+    duration: 1.4,
+    ease: 'power2.in'
+  })
+  .to(camState, {
+    mode: 1,
+    ux: 0,
+    uy: underground.floorY + 12.5,
+    uz: 25.5,
+    utx: 0,
+    uty: underground.floorY + 5.2,
+    utz: -3.5,
+    duration: 2.4,
+    ease: 'power2.out'
+  })
+  .to(camState, { duration: 0.4 })
   .addLabel('underground-overview')
-  .to(camState, { duration: 0.45 });
+  .to(camState, { duration: 0.4 });
 
   underground.pillarsData.forEach((p) => {
     tl.to(camState, {
@@ -1338,7 +339,6 @@ loader.load('/skyscraper.glb', (gltf) => {
     .to(camState, { duration: 0.35 });
   });
 
-  // Système d'aimant doux : attend l'arrêt complet du scroll (340ms), jamais agressif
   let magnetTimeout = null;
   let magnetTween = null;
   let isProgrammaticScroll = false;
@@ -1363,10 +363,9 @@ loader.load('/skyscraper.glb', (gltf) => {
       if (!st) return;
 
       const currentProgress = st.progress;
-      // Aimant actif uniquement sur les 4 panneaux de la tour (tolérance douce, zéro contrainte sur les piliers)
       const magnetLabels = ['panel-0', 'panel-1', 'panel-2', 'panel-3'];
       let nearestProg = null;
-      let minDist = 0.038; // Zone d'attraction réduite et douce
+      let minDist = 0.036;
 
       magnetLabels.forEach((lbl) => {
         if (tl.labels[lbl] !== undefined) {
@@ -1400,9 +399,6 @@ loader.load('/skyscraper.glb', (gltf) => {
     }, 340);
   }, { passive: true });
 
-  // ==========================================
-  // 8. NAVIGATION INTERACTIVE AU CLIC (3D + BOUTONS)
-  // ==========================================
   function navigateToLabel(labelName) {
     const st = tl.scrollTrigger;
     if (!st || tl.labels[labelName] === undefined) return;
@@ -1437,7 +433,7 @@ loader.load('/skyscraper.glb', (gltf) => {
   });
 
   window.addEventListener('pointermove', (e) => {
-    if (camState.mode < 0.65) {
+    if (camState.mode < 0.72) {
       document.body.style.cursor = 'default';
       if (tooltip) tooltip.classList.remove('visible');
       return;
@@ -1453,7 +449,7 @@ loader.load('/skyscraper.glb', (gltf) => {
 
   window.addEventListener('pointerup', (e) => {
     const moveDist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
-    if (moveDist > 6 || camState.mode < 0.65) return;
+    if (moveDist > 6 || camState.mode < 0.72) return;
 
     pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -1465,9 +461,6 @@ loader.load('/skyscraper.glb', (gltf) => {
     }
   });
 
-  // ==========================================
-  // 9. BOUCLE DE RENDU
-  // ==========================================
   const clock = new THREE.Clock();
   const orbitalCamVec = new THREE.Vector3();
   const orbitalTargetVec = new THREE.Vector3();
@@ -1479,51 +472,12 @@ loader.load('/skyscraper.glb', (gltf) => {
     const delta = Math.min(clock.getDelta(), 0.05);
     const elapsed = clock.elapsedTime;
 
-    if (skyPlatform) {
-      skyPlatform.group.position.y = targetHeight + 7.5 + Math.sin(elapsed * 2) * 0.35;
-      skyPlatform.ring1.rotation.z = elapsed * 0.45;
-      skyPlatform.ring2.rotation.z = -elapsed * 0.7;
-      skyPlatform.ring3.rotation.y = elapsed * 0.35;
-    }
+    const currentY = THREE.MathUtils.lerp(camState.camY, camState.uy, camState.mode);
+    atmosphere.update(delta, elapsed, currentY, camState.mode);
+    ecoCity.update(delta, elapsed);
+    skyPlatform.update(elapsed);
+    underground.update(delta, elapsed);
 
-    // Circulation des voitures futuristes au sol
-    cyberCity.hoverCars.forEach((car) => {
-      if (car.axis === 'z') {
-        car.mesh.position.z += car.speed * delta;
-        if (car.mesh.position.z > car.limit) car.mesh.position.z = -car.limit;
-        if (car.mesh.position.z < -car.limit) car.mesh.position.z = car.limit;
-      } else {
-        car.mesh.position.x += car.speed * delta;
-        if (car.mesh.position.x > car.limit) car.mesh.position.x = -car.limit;
-        if (car.mesh.position.x < -car.limit) car.mesh.position.x = car.limit;
-      }
-    });
-
-    // Animation des cristaux dans les cyber-parcs
-    cyberCity.holoMonuments.forEach((c, idx) => {
-      c.rotation.y = elapsed * 0.8 + idx;
-      c.position.y = 2.4 + Math.sin(elapsed * 2.5 + idx) * 0.25;
-    });
-
-    // Trafic aérien & particules
-    cyberCity.drones.forEach((d) => {
-      const a = d.phase + elapsed * d.speed;
-      d.mesh.position.set(Math.cos(a) * d.orbitR, d.orbitY, Math.sin(a) * d.orbitR);
-      d.mesh.rotation.y = -a;
-    });
-    cyberCity.particles.rotation.y = elapsed * 0.015;
-
-    // Sous-terrain : piliers, turbines et flux d'eau
-    underground.pillarAnimItems.forEach((item) => {
-      item.ringLower.position.y = 2.4 + Math.sin(elapsed * 2.2 + item.offset) * 0.35;
-      item.ringUpper.position.y = 8.2 - Math.sin(elapsed * 2.2 + item.offset) * 0.35;
-    });
-    underground.turbines.forEach((t) => {
-      t.mesh.rotation.z += delta * 1.4 * t.dir;
-    });
-    underground.waterPulse.position.z = -35 + ((elapsed * 15) % 72);
-
-    // Caméra hybride
     orbitalCamVec.set(
       Math.sin(camState.angle) * camState.radius,
       camState.camY,
@@ -1538,7 +492,6 @@ loader.load('/skyscraper.glb', (gltf) => {
     const finalTarget = orbitalTargetVec.lerp(underTargetVec, camState.mode);
     camera.lookAt(finalTarget);
 
-    // Léger zoom tactile sur les panneaux de la tour
     panelMeshes.forEach((mesh) => {
       const dist = camera.position.distanceTo(mesh.position);
       const targetScale = dist < 16.5 ? 1.04 : 1.0;
