@@ -3,13 +3,26 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ESGI BOT — Architecture 3D</title>
-  <link rel="stylesheet" href="/src/style.css" />
+  <title>ESGI BOT — Megastructure 3D</title>
 </head>
 <body>
   <canvas id="bg"></canvas>
-  <div class="scroll-hint">Scroll pour descendre dans la tour ↓</div>
+
+  <!-- HUD latéral minimaliste (masqué pendant la plongée souterraine) -->
+  <div class="hud" id="hud">
+    <div class="hud-top">
+      <span class="hud-tag">SYS // ONLINE</span>
+      <span class="hud-alt" id="hud-alt">ALT 420M</span>
+    </div>
+    <div class="hud-zone" id="hud-zone">PLATEFORME ORBITALE</div>
+    <div class="hud-track">
+      <div class="hud-fill" id="hud-fill"></div>
+    </div>
+  </div>
+
+  <div class="scroll-hint" id="scroll-hint">Scroll pour descendre dans la tour ↓</div>
   <div class="scroll-container"></div>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
