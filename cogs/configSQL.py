@@ -139,7 +139,6 @@ class ConfigSQL(commands.Cog):
 
 
 
-
 async def setup(bot):
     """Fonction requise par discord.py pour charger le cog."""
     await bot.add_cog(ConfigSQL(bot))
