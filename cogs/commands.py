@@ -371,8 +371,9 @@ class CommandsCog(commands.Cog):
                 if sql_cog:
                     evaluations = sql_cog.recup_tous_evals(interaction.guild_id, classe)
                     if evaluations:
+                        classe_name = interaction.guild.get_role(int(classe)).name if interaction.guild.get_role (int(classe)) else classe
                         embed = discord.Embed(
-                            title=f"Évaluations pour la classe {classe}",
+                            title=f"Évaluations pour la classe {classe_name}",
                             color=discord.Color.blue(),
                         )
                         for evaluation in evaluations:
