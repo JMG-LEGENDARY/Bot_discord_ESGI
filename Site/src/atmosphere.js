@@ -1,127 +1,7 @@
 import * as THREE from 'three';
 import { SKY, SKY_DAY, DAY_UNIFORM } from './theme.js';
-
-function buildCottonCandyCloudGeometry(lobes) {
-  const geos = lobes.map((l) => {
-    const g = new THREE.SphereGeometry(1, 10, 8); // faible densité : nuages lointains, gros gain GPU
-    const pos = g.attributes.position;
-    const v = new THREE.Vector3();
-
-    for (let i = 0; i < pos.count; i++) {
-      v.fromBufferAttribute(pos, i);
-      const fluff =
-        1 +
-        0.06 * Math.sin(v.x * 2.6 + l.x) * Math.cos(v.z * 2.4 + l.z) +
-        0.04 * Math.cos(v.y * 2.8);
-      v.x *= l.rx * fluff;
-      v.y *= l.ry * fluff;
-      v.z *= l.rz * fluff;
-      v.x += l.x;
-      v.y += l.y;
-      v.z += l.z;
-      pos.setXYZ(i, v.x, v.y, v.z);
-    }
-
-    g.computeVertexNormals();
-    return g;
-  });
-
-  let totalVerts = 0;
-  let totalIndices = 0;
-  geos.forEach((g) => {
-    totalVerts += g.attributes.position.count;
-    totalIndices += g.index.count;
-  });
-
-  const mergedPos = new Float32Array(totalVerts * 3);
-  const mergedNorm = new Float32Array(totalVerts * 3);
-  const mergedIdx = new Uint32Array(totalIndices);
-
-  let vOffset = 0;
-  let iOffset = 0;
-  geos.forEach((g) => {
-    const count = g.attributes.position.count;
-    mergedPos.set(g.attributes.position.array, vOffset * 3);
-    mergedNorm.set(g.attributes.normal.array, vOffset * 3);
-
-    const idxArr = g.index.array;
-    for (let k = 0; k < idxArr.length; k++) {
-      mergedIdx[iOffset + k] = idxArr[k] + vOffset;
-    }
-
-    vOffset += count;
-    iOffset += idxArr.length;
-    g.dispose();
-  });
-
-  const merged = new THREE.BufferGeometry();
-  merged.setAttribute('position', new THREE.BufferAttribute(mergedPos, 3));
-  merged.setAttribute('normal', new THREE.BufferAttribute(mergedNorm, 3));
-  merged.setIndex(new THREE.BufferAttribute(mergedIdx, 1));
-  merged.computeBoundingSphere();
-  return merged;
-}
-
-function createPlanetTexture() {
-  const cvs = document.createElement('canvas');
-  cvs.width = 512;
-  cvs.height = 256;
-  const ctx = cvs.getContext('2d');
-
-  const grad = ctx.createLinearGradient(0, 0, 0, 256);
-  grad.addColorStop(0, '#0f172a');
-  grad.addColorStop(0.25, '#0284c7');
-  grad.addColorStop(0.5, '#06b6d4');
-  grad.addColorStop(0.75, '#1e3a8a');
-  grad.addColorStop(1, '#090d16');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 512, 256);
-
-  for (let y = 12; y < 245; y += 10) {
-    ctx.fillStyle = y % 20 === 0 ? 'rgba(56, 189, 248, 0.22)' : 'rgba(15, 23, 42, 0.28)';
-    ctx.fillRect(0, y, 512, 5);
-  }
-
-  const tex = new THREE.CanvasTexture(cvs);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-// Planète du jour : géante rouge à bandes, tempêtes plus sombres
-function createRedPlanetTexture() {
-  const cvs = document.createElement('canvas');
-  cvs.width = 512;
-  cvs.height = 256;
-  const ctx = cvs.getContext('2d');
-
-  const grad = ctx.createLinearGradient(0, 0, 0, 256);
-  grad.addColorStop(0, '#2a0606');
-  grad.addColorStop(0.2, '#8a1a12');
-  grad.addColorStop(0.45, '#d4452a');
-  grad.addColorStop(0.6, '#b8301c');
-  grad.addColorStop(0.8, '#6e140e');
-  grad.addColorStop(1, '#1e0404');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 512, 256);
-
-  for (let y = 8; y < 250; y += 7) {
-    ctx.fillStyle = y % 21 === 0 ? 'rgba(255, 140, 90, 0.22)' : 'rgba(60, 8, 6, 0.25)';
-    ctx.fillRect(0, y, 512, 3 + (y % 3));
-  }
-  // Grande tempête ovale
-  ctx.fillStyle = 'rgba(70, 10, 8, 0.7)';
-  ctx.beginPath();
-  ctx.ellipse(330, 150, 46, 18, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255, 170, 120, 0.35)';
-  ctx.beginPath();
-  ctx.ellipse(330, 150, 26, 9, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  const tex = new THREE.CanvasTexture(cvs);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
+import { createCloudPuffs } from './cloud-puffs.js';
+import { createRealisticPlanet, createIceGiantTexture, createRedGiantTexture } from './planets.js';
 
 export function createAtmosphere(scene, mainTowerHeight) {
   const atmoGroup = new THREE.Group();
@@ -372,188 +252,30 @@ export function createAtmosphere(scene, mainTowerHeight) {
   cloudSeaMesh.position.y = cloudBandY - 1.5;
   atmoGroup.add(cloudSeaMesh);
 
-  // 4. 540 NUAGES « BARBE À PAPA » 3D INSTANCIÉS JUSQU'À L'HORIZON (3 DRAW CALLS)
-  const cottonCloudTemplates = [
-    buildCottonCandyCloudGeometry([
-      { x: 0, y: 0.4, z: 0, rx: 7.5, ry: 6.2, rz: 7.2 },
-      { x: -5.8, y: -0.6, z: 1.5, rx: 5.8, ry: 4.8, rz: 5.6 },
-      { x: 6.0, y: -0.5, z: -1.2, rx: 6.0, ry: 5.0, rz: 5.8 },
-      { x: -2.2, y: 3.4, z: -1.4, rx: 5.2, ry: 4.6, rz: 5.0 },
-      { x: 2.8, y: 3.0, z: 1.8, rx: 4.8, ry: 4.3, rz: 4.6 },
-      { x: 0, y: -1.4, z: 4.5, rx: 4.6, ry: 3.8, rz: 4.4 },
-      { x: -0.5, y: -1.4, z: -4.5, rx: 4.6, ry: 3.8, rz: 4.4 }
-    ]),
-    buildCottonCandyCloudGeometry([
-      { x: -4.2, y: 0.2, z: 0.5, rx: 6.6, ry: 5.6, rz: 6.4 },
-      { x: 4.6, y: 0.8, z: -0.6, rx: 7.2, ry: 6.0, rz: 6.8 },
-      { x: 0.2, y: -0.9, z: 2.2, rx: 5.4, ry: 4.4, rz: 5.2 },
-      { x: -8.5, y: -1.1, z: -0.8, rx: 4.4, ry: 3.7, rz: 4.2 },
-      { x: 9.2, y: -0.9, z: 1.0, rx: 4.6, ry: 3.9, rz: 4.4 }
-    ]),
-    buildCottonCandyCloudGeometry([
-      { x: 0, y: 0.5, z: 0, rx: 6.2, ry: 5.4, rz: 6.0 },
-      { x: -4.4, y: -0.6, z: 1.0, rx: 4.6, ry: 4.0, rz: 4.5 },
-      { x: 4.4, y: -0.5, z: -0.8, rx: 4.8, ry: 4.1, rz: 4.6 },
-      { x: 0.4, y: 3.0, z: 0.6, rx: 4.0, ry: 3.6, rz: 3.9 }
-    ])
-  ];
-
-  const cottonCloudUniforms = {
-    uSunDir: { value: new THREE.Vector3(0.45, 0.78, 0.42).normalize() },
-    uOpacity: { value: 0.85 },
-    uDay: DAY_UNIFORM
-  };
-
-  const cottonCloudMat = new THREE.ShaderMaterial({
-    uniforms: cottonCloudUniforms,
-    transparent: true,
-    depthWrite: false,
-    vertexShader: `
-      varying vec3 vNormalWorld;
-      varying vec3 vViewDir;
-      varying vec3 vLocalPos;
-      varying vec3 vTint;
-      varying vec3 vWorldPos;
-
-      void main() {
-        vLocalPos = position;
-        vec4 localPosition = vec4(position, 1.0);
-        vec3 localNormal = normal;
-
-        #ifdef USE_INSTANCING
-          localPosition = instanceMatrix * localPosition;
-          localNormal = mat3(instanceMatrix) * localNormal;
-        #endif
-
-        #ifdef USE_INSTANCING_COLOR
-          vTint = instanceColor;
-        #else
-          vTint = vec3(1.0);
-        #endif
-
-        vec4 worldPos = modelMatrix * localPosition;
-        vWorldPos = worldPos.xyz;
-        vNormalWorld = normalize(mat3(modelMatrix) * localNormal);
-        vViewDir = normalize(cameraPosition - worldPos.xyz);
-        gl_Position = projectionMatrix * viewMatrix * worldPos;
-      }
-    `,
-    fragmentShader: `
-      uniform vec3 uSunDir;
-      uniform float uOpacity;
-      uniform float uDay;
-      varying vec3 vNormalWorld;
-      varying vec3 vViewDir;
-      varying vec3 vLocalPos;
-      varying vec3 vTint;
-      varying vec3 vWorldPos;
-
-      float hash3(vec3 p) {
-        p = fract(p * 0.3183099 + 0.1);
-        p *= 17.0;
-        return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-      }
-
-      float vnoise(vec3 x) {
-        vec3 i = floor(x);
-        vec3 f = fract(x);
-        f = f * f * (3.0 - 2.0 * f);
-        return mix(
-          mix(mix(hash3(i), hash3(i + vec3(1, 0, 0)), f.x),
-              mix(hash3(i + vec3(0, 1, 0)), hash3(i + vec3(1, 1, 0)), f.x), f.y),
-          mix(mix(hash3(i + vec3(0, 0, 1)), hash3(i + vec3(1, 0, 1)), f.x),
-              mix(hash3(i + vec3(0, 1, 1)), hash3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
-      }
-
-      void main() {
-        vec3 N = normalize(vNormalWorld);
-        vec3 V = normalize(vViewDir);
-
-        // Bourgeonnement : bruit 3D qui casse l'aspect « boules lisses »
-        float n = vnoise(vWorldPos * 0.09) * 0.6 + vnoise(vWorldPos * 0.23) * 0.4;
-
-        float wrapLight = clamp(dot(N, uSunDir) * 0.5 + 0.5, 0.0, 1.0);
-        float heightGrad = clamp(vLocalPos.y * 0.1 + 0.55, 0.0, 1.0);
-        float shade = clamp(wrapLight * 0.55 + heightGrad * 0.3 + (n - 0.5) * 0.55, 0.0, 1.0);
-
-        vec3 bellyColor = vec3(0.10, 0.04, 0.14);
-        vec3 midColor   = vec3(0.09, 0.09, 0.22);
-        vec3 topColor   = vec3(0.26, 0.30, 0.48);
-
-        vec3 col = mix(bellyColor, midColor, smoothstep(0.1, 0.55, shade));
-        col = mix(col, topColor, smoothstep(0.5, 0.95, shade));
-        col *= vTint;
-
-        // Jour : cumulus blancs, ventre gris-bleu, sommet éclatant
-        vec3 dayCol = mix(vec3(0.58, 0.66, 0.80), vec3(0.86, 0.88, 0.93), smoothstep(0.1, 0.55, shade));
-        dayCol = mix(dayCol, vec3(1.0, 0.99, 0.97), smoothstep(0.5, 0.95, shade));
-        col = mix(col, dayCol * vTint, uDay);
-
-        // Nuit : lueur des néons de la ville qui éclaire le dessous des nuages
-        float under = clamp(-N.y * 0.7 + 0.3, 0.0, 1.0) * (1.0 - heightGrad);
-        col += vec3(0.24, 0.05, 0.21) * under * (0.6 + n * 0.8) * (1.0 - uDay);
-
-        // Liseré lumineux sur les bords (argenté la nuit, doré le jour)
-        float ndotv = clamp(abs(dot(N, V)), 0.0, 1.0);
-        float rim = pow(1.0 - ndotv, 3.0) * wrapLight;
-        col += mix(vec3(0.30, 0.36, 0.56), vec3(0.35, 0.30, 0.22), uDay) * rim;
-
-        // Bords déchirés et vaporeux au lieu de contours nets
-        float edge = smoothstep(0.05, 0.75, ndotv);
-        float alpha = edge * smoothstep(0.18, 0.6, n + edge * 0.45);
-        gl_FragColor = vec4(max(col, vec3(0.0)), clamp(alpha * uOpacity, 0.0, 1.0));
-      }
-    `
-  });
-
-  const cloudsPerTemplate = 100; // 3 * 100 = 300 nuages 3D jusqu'à 1380m
-  const dummy = new THREE.Object3D();
+  // 4. NUAGES EN BOUFFÉES DE VAPEUR (SPRITES INSTANCIÉS, 1 SEUL APPEL DE DESSIN)
+  // Des milliers de carrés texturés face à la caméra forment des cumulus
+  // vaporeux bien plus réalistes que des sphères.
+  const clusters = [];
+  const cloudCount = 300; // nuages jusqu'à ~1370m
+  for (let i = 0; i < cloudCount; i++) {
+    // Répartition homogène de 40m jusqu'à l'horizon 1370m
+    const ratio = (i + Math.random()) / cloudCount;
+    const dist = 40 + Math.pow(ratio, 0.62) * 1330;
+    const angle = i * 2.399963 + (Math.random() - 0.5) * 0.35; // Angle d'or
+    // Certains cumulus éloignés montent un peu plus haut pour donner du relief à l'horizon
+    const horizonBoost = THREE.MathUtils.smoothstep(dist, 300, 1200) * (Math.random() * 11);
+    clusters.push({
+      x: Math.cos(angle) * dist,
+      y: cloudBandY - 3 + (Math.random() - 0.45) * 7 + horizonBoost,
+      z: Math.sin(angle) * dist,
+      scale: (1.05 + Math.random() * 1.45) * (1 + dist / 460)
+    });
+  }
+  const cloudPuffs = createCloudPuffs({ clusters, dayUniform: DAY_UNIFORM, puffsPerCloud: 11 });
   // Les nuages tournent tous ensemble : une seule rotation de groupe par image
-  // au lieu de recalculer 300 matrices sur le processeur.
   const cloudSpin = new THREE.Group();
+  cloudSpin.add(cloudPuffs.mesh);
   atmoGroup.add(cloudSpin);
-  const pastelPalette = [
-    new THREE.Color(1.0, 1.0, 1.0),
-    new THREE.Color(1.05, 0.92, 1.05),
-    new THREE.Color(0.9, 0.98, 1.08),
-    new THREE.Color(0.95, 0.95, 1.0)
-  ];
-
-  cottonCloudTemplates.forEach((geo, tIdx) => {
-    const instMesh = new THREE.InstancedMesh(geo, cottonCloudMat, cloudsPerTemplate);
-    instMesh.frustumCulled = false;
-
-    for (let i = 0; i < cloudsPerTemplate; i++) {
-      const globalIdx = tIdx * cloudsPerTemplate + i;
-      const total = cloudsPerTemplate * cottonCloudTemplates.length;
-
-      // Répartition homogène de 40m jusqu'à l'horizon 1370m
-      const ratio = (globalIdx + Math.random()) / total;
-      const dist = 40 + Math.pow(ratio, 0.62) * 1330;
-      const angle = globalIdx * 2.399963 + (Math.random() - 0.5) * 0.35; // Angle d'or
-
-      // Certains cumulus éloignés montent un peu plus haut pour donner du relief à l'horizon
-      const horizonBoost = THREE.MathUtils.smoothstep(dist, 300, 1200) * (Math.random() * 11);
-      const cy = cloudBandY + (Math.random() - 0.45) * 9 + horizonBoost;
-
-      const scale = (1.05 + Math.random() * 1.45) * (1 + dist / 460);
-      const rotY = Math.random() * Math.PI * 2;
-      const sy = scale * (0.88 + Math.random() * 0.24);
-
-      dummy.position.set(Math.cos(angle) * dist, cy, Math.sin(angle) * dist);
-      dummy.rotation.set(0, rotY, 0);
-      dummy.scale.set(scale, sy, scale);
-      dummy.updateMatrix();
-      instMesh.setMatrixAt(i, dummy.matrix);
-
-      instMesh.setColorAt(i, pastelPalette[globalIdx % pastelPalette.length]);
-
-    }
-
-    instMesh.instanceMatrix.needsUpdate = true;
-    if (instMesh.instanceColor) instMesh.instanceColor.needsUpdate = true;
-    cloudSpin.add(instMesh);
-  });
 
   // 5. CHAMP D'ÉTOILES
   function buildStarLayer(count, minR, maxR, size, baseOpacity) {
@@ -627,50 +349,32 @@ export function createAtmosphere(scene, mainTowerHeight) {
   const planetBasePos = new THREE.Vector3(320, 340, -620);
   planetGroup.position.copy(planetBasePos);
 
-  const planetMat = new THREE.MeshStandardMaterial({
-    map: createPlanetTexture(),
-    roughness: 0.7,
-    metalness: 0.2,
-    transparent: true,
-    opacity: 0
-  });
-  const planetMesh = new THREE.Mesh(new THREE.SphereGeometry(54, 36, 36), planetMat);
-  planetGroup.add(planetMesh);
+  // Soleil lointain (en haut à droite, un peu devant) : face nuit et terminateur visibles
+  const planetSunDir = new THREE.Vector3(0.75, 0.35, 0.55).normalize();
 
-  const planetRingMat = new THREE.MeshBasicMaterial({
-    color: 0x38bdf8,
-    transparent: true,
-    opacity: 0,
-    side: THREE.DoubleSide
+  // Planète de NUIT : géante de glace bleue, anneaux glacés
+  const nightPlanet = createRealisticPlanet({
+    radius: 54,
+    texture: createIceGiantTexture(),
+    atmo: 0x4fb4ff,
+    lightDir: planetSunDir,
+    ring: { inner: 70, outer: 112, colorA: 0x8fb4d8, colorB: 0xe6f2ff, tiltX: Math.PI / 2.6, tiltY: 0.35, tiltZ: 0.2 }
   });
-  const planetRing = new THREE.Mesh(new THREE.RingGeometry(68, 102, 64), planetRingMat);
-  planetRing.rotation.x = Math.PI / 2.6;
-  planetRing.rotation.y = 0.35;
-  planetGroup.add(planetRing);
-
+  const planetMesh = nightPlanet.mesh;
+  planetGroup.add(nightPlanet.group);
   atmoGroup.add(planetGroup);
 
-  // Planète du JOUR : rouge, anneau bleu incliné dans l'autre sens
+  // Planète du JOUR : géante rouge-orangée, anneaux inclinés dans l'autre sens
   const dayPlanetGroup = new THREE.Group();
-  const dayPlanetMat = new THREE.MeshStandardMaterial({
-    map: createRedPlanetTexture(),
-    roughness: 0.75,
-    metalness: 0.1,
-    transparent: true,
-    opacity: 0
+  const dayPlanet = createRealisticPlanet({
+    radius: 48,
+    texture: createRedGiantTexture(),
+    atmo: 0xffa060,
+    lightDir: planetSunDir,
+    ring: { inner: 64, outer: 104, colorA: 0xa08670, colorB: 0xf2e2c8, tiltX: Math.PI / 2.4, tiltY: -0.5, tiltZ: -0.3 }
   });
-  const dayPlanetMesh = new THREE.Mesh(new THREE.SphereGeometry(48, 36, 36), dayPlanetMat);
-  dayPlanetGroup.add(dayPlanetMesh);
-  const dayRingMat = new THREE.MeshBasicMaterial({
-    color: 0x38bdf8,
-    transparent: true,
-    opacity: 0,
-    side: THREE.DoubleSide
-  });
-  const dayRing = new THREE.Mesh(new THREE.RingGeometry(62, 96, 64), dayRingMat);
-  dayRing.rotation.x = Math.PI / 2.4;
-  dayRing.rotation.y = -0.5; // inclinaison inverse de celle de la planète de nuit
-  dayPlanetGroup.add(dayRing);
+  const dayPlanetMesh = dayPlanet.mesh;
+  dayPlanetGroup.add(dayPlanet.group);
   dayPlanetGroup.position.copy(planetBasePos);
   atmoGroup.add(dayPlanetGroup);
 
@@ -763,10 +467,10 @@ export function createAtmosphere(scene, mainTowerHeight) {
     dayPlanetGroup.position.copy(planetBasePos).add(swapIn.set(-(1 - arrive) * 300, (1 - arrive) * 240, 0));
     dayPlanetGroup.scale.setScalar(0.65 + arrive * 0.35);
 
-    planetMat.opacity = planetVis * 0.94 * (1 - leave);
-    planetRingMat.opacity = planetVis * 0.38 * (1 - leave);
-    dayPlanetMat.opacity = planetVis * 0.96 * arrive;
-    dayRingMat.opacity = planetVis * 0.45 * arrive;
+    nightPlanet.setOpacity(planetVis * (1 - leave));
+    dayPlanet.setOpacity(planetVis * arrive);
+    nightPlanet.update();
+    dayPlanet.update();
     planetGroup.visible = leave < 0.999;
     dayPlanetGroup.visible = arrive > 0.001;
     planetMesh.rotation.y = elapsed * 0.04;
@@ -793,7 +497,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
     const visFactor = 1 - undergroundMode;
     cloudSeaUniforms.uTime.value = elapsed;
     cloudSeaUniforms.uOpacity.value = 0.86 * visFactor;
-    cottonCloudUniforms.uOpacity.value = 0.85 * visFactor;
+    cloudPuffs.uniforms.uOpacity.value = visFactor;
 
     cloudSpin.visible = visFactor > 0.01;
     cloudSpin.rotation.y = elapsed * 0.0025;
@@ -804,6 +508,6 @@ export function createAtmosphere(scene, mainTowerHeight) {
     setPlanetLayout,
     // La planète cliquable est celle du mode affiché
     getActivePlanet: () => (DAY_UNIFORM.value > 0.5 ? dayPlanetMesh : planetMesh),
-    isPlanetVisible: () => Math.max(planetMat.opacity, dayPlanetMat.opacity) > 0.3
+    isPlanetVisible: () => Math.max(nightPlanet.opacity, dayPlanet.opacity) > 0.3
   };
 }

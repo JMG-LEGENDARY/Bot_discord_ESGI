@@ -204,7 +204,7 @@ export function buildUndergroundMasterclass(scene) {
     map: wallCircuitTex,
     emissiveMap: wallCircuitTex,
     emissive: new THREE.Color(0x38bdf8),
-    emissiveIntensity: 0.55,
+    emissiveIntensity: 0.41,
     metalness: 0.7,
     roughness: 0.4,
     side: THREE.DoubleSide
@@ -216,7 +216,8 @@ export function buildUndergroundMasterclass(scene) {
     roughness: 0.25
   });
 
-  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 2.5, 3.0), toneMapped: false });
+  // Néons bleus adoucis (ils dominaient tout le sous-sol)
+  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 1.75, 2.1), toneMapped: false });
   const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.8, 0.1, 1.5), toneMapped: false });
 
   // Puits blindé vertical (y = 0 jusqu'à ceilY = -18)
@@ -395,7 +396,7 @@ export function buildUndergroundMasterclass(scene) {
     turbines.push({ mesh: rotor, dir: tIdx === 0 ? 1 : -1 });
   });
 
-  const mainUnderLight = new THREE.PointLight(0x38bdf8, 42, 80);
+  const mainUnderLight = new THREE.PointLight(0x38bdf8, 33, 80);
   mainUnderLight.position.set(0, floorY + 16, 12);
   underGroup.add(mainUnderLight);
 
@@ -498,10 +499,10 @@ export function buildUndergroundMasterclass(scene) {
     const columnMat = pedestalMat.clone();
     columnMat.emissiveMap = pillarSlitTex;
     columnMat.emissive = new THREE.Color(p.color);
-    columnMat.emissiveIntensity = 1.8;
+    const isCyan = p.color === '#22e4ff';
+    columnMat.emissiveIntensity = isCyan ? 1.15 : 1.8;
     pGroup.position.copy(p.pos);
 
-    const isCyan = p.color === '#22e4ff';
     const ringMat = isCyan ? cyanHdr : pinkHdr;
 
     const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.5, 1.8, 24), pedestalMat);

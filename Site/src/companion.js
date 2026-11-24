@@ -9,150 +9,419 @@ import { GLOW } from './glows.js';
 // - parle dans une bulle de BD (messages envoyés par main.js)
 // =========================================================================
 
-// Revêtement « jouet » : plastique blanc nacré, joints très discrets, bandes pastel
+// Revêtement « jouet » : plastique blanc nacré, un peu plus ombré sous le ventre,
+// avec un joint discret à l'équateur
 function createHullTexture() {
   const cvs = document.createElement('canvas');
-  cvs.width = 512;
-  cvs.height = 256;
+  cvs.width = 1024;
+  cvs.height = 512;
   const ctx = cvs.getContext('2d');
-  ctx.fillStyle = '#f4f6fb';
-  ctx.fillRect(0, 0, 512, 256);
-
-  ctx.strokeStyle = 'rgba(150, 160, 190, 0.35)';
-  ctx.lineWidth = 1.2;
-  for (let x = 0; x < 512; x += 128) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, 256);
-    ctx.stroke();
+  const base = ctx.createLinearGradient(0, 0, 0, 512);
+  base.addColorStop(0, '#ffffff');
+  base.addColorStop(0.5, '#f4f6fc');
+  base.addColorStop(1, '#dde2ef');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 1024, 512);
+  // Joint gravé à l'équateur (trait sombre + trait clair)
+  ctx.fillStyle = 'rgba(120, 130, 165, 0.35)';
+  ctx.fillRect(0, 262, 1024, 3);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.fillRect(0, 265, 1024, 2);
+  // Petites grilles d'aération sous le ventre
+  for (let k = 0; k < 4; k++) {
+    const cx = 128 + k * 256;
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = 'rgba(110, 120, 160, 0.3)';
+      ctx.beginPath();
+      ctx.roundRect(cx - 24, 330 + i * 12, 48, 5, 3);
+      ctx.fill();
+    }
   }
-  // Bandes pastel autour de l'arrière du corps
-  ctx.fillStyle = '#8fe6f7';
-  ctx.fillRect(0, 168, 512, 10);
-  ctx.fillStyle = '#ffa6d8';
-  ctx.fillRect(0, 182, 512, 5);
-  // Petits points décoratifs
-  ctx.fillStyle = '#ffa6d8';
-  for (let x = 32; x < 512; x += 128) {
-    ctx.beginPath();
-    ctx.arc(x, 140, 5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
   const tex = new THREE.CanvasTexture(cvs);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = 8;
   return tex;
 }
 
-// Forme plate extrudée (ailes, dérives), dessinée dans le plan XY puis couchée
-function flatPart(points, thickness) {
-  const shape = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)));
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth: thickness,
-    bevelEnabled: true,
-    bevelThickness: thickness * 0.35,
-    bevelSize: thickness * 0.35,
-    bevelSegments: 2
-  });
-  geo.translate(0, 0, -thickness / 2);
-  return geo;
+// -------------------------------------------------------------------------
+// VISAGE : un écran dessiné sur un canvas, redessiné seulement quand
+// l'expression change (yeux ovales, yeux rieurs ^^, sommeil, tournis, colère…)
+// -------------------------------------------------------------------------
+function createFace() {
+  const S = 512;
+  const cvs = document.createElement('canvas');
+  cvs.width = S;
+  cvs.height = S;
+  const ctx = cvs.getContext('2d');
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const CYAN = '#62f4ff';
+  const EX = [178, 334]; // abscisses des yeux
+  const EY = 222;
+  let current = '';
+
+  function stroke(width) {
+    ctx.strokeStyle = CYAN;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+  }
+  function blush() {
+    [118, 394].forEach((x) => {
+      const g = ctx.createRadialGradient(x, 318, 0, x, 318, 46);
+      g.addColorStop(0, 'rgba(255, 110, 190, 0.85)');
+      g.addColorStop(1, 'rgba(255, 110, 190, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(x, 318, 46, 28, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+  const eyes = {
+    open() {
+      ctx.fillStyle = CYAN;
+      EX.forEach((x) => {
+        ctx.beginPath();
+        ctx.ellipse(x, EY, 34, 50, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // reflet
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.beginPath();
+        ctx.ellipse(x - 11, EY - 20, 11, 14, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = CYAN;
+      });
+    },
+    sleepy() {
+      ctx.fillStyle = CYAN;
+      EX.forEach((x) => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x - 40, EY - 4, 80, 60);
+        ctx.clip();
+        ctx.beginPath();
+        ctx.ellipse(x, EY, 34, 50, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+      stroke(10);
+      EX.forEach((x) => {
+        ctx.beginPath();
+        ctx.moveTo(x - 38, EY - 4);
+        ctx.lineTo(x + 38, EY - 4);
+        ctx.stroke();
+      });
+    },
+    blink() {
+      stroke(14);
+      EX.forEach((x) => {
+        ctx.beginPath();
+        ctx.moveTo(x - 32, EY + 6);
+        ctx.lineTo(x + 32, EY + 6);
+        ctx.stroke();
+      });
+    },
+    happy() {
+      // yeux rieurs « ^ ^ »
+      stroke(20);
+      EX.forEach((x) => {
+        ctx.beginPath();
+        ctx.arc(x, EY + 22, 34, Math.PI * 1.1, Math.PI * 1.9);
+        ctx.stroke();
+      });
+    },
+    sleep() {
+      // paupières fermées « u u »
+      stroke(14);
+      EX.forEach((x) => {
+        ctx.beginPath();
+        ctx.arc(x, EY - 6, 30, Math.PI * 0.15, Math.PI * 0.85);
+        ctx.stroke();
+      });
+    },
+    dizzy() {
+      // spirales
+      stroke(9);
+      EX.forEach((x) => {
+        ctx.beginPath();
+        for (let a = 0; a < Math.PI * 5; a += 0.15) {
+          const r = 4 + a * 2.6;
+          const px = x + Math.cos(a) * r;
+          const py = EY + Math.sin(a) * r;
+          if (a === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      });
+    },
+    angry() {
+      // « > < »
+      stroke(18);
+      [[EX[0], 1], [EX[1], -1]].forEach(([x, d]) => {
+        ctx.beginPath();
+        ctx.moveTo(x - 26 * d, EY - 30);
+        ctx.lineTo(x + 24 * d, EY);
+        ctx.lineTo(x - 26 * d, EY + 30);
+        ctx.stroke();
+      });
+    }
+  };
+  const mouths = {
+    smile() {
+      stroke(16);
+      ctx.beginPath();
+      ctx.arc(256, 300, 40, Math.PI * 0.18, Math.PI * 0.82);
+      ctx.stroke();
+    },
+    open() {
+      // bouche ouverte en « D » couché
+      ctx.fillStyle = CYAN;
+      ctx.beginPath();
+      ctx.moveTo(214, 320);
+      ctx.quadraticCurveTo(256, 316, 298, 320);
+      ctx.quadraticCurveTo(292, 382, 256, 384);
+      ctx.quadraticCurveTo(220, 382, 214, 320);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255, 110, 190, 0.9)';
+      ctx.beginPath();
+      ctx.ellipse(256, 366, 22, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+    },
+    grin() {
+      ctx.fillStyle = CYAN;
+      ctx.beginPath();
+      ctx.moveTo(198, 318);
+      ctx.quadraticCurveTo(256, 314, 314, 318);
+      ctx.quadraticCurveTo(300, 396, 256, 398);
+      ctx.quadraticCurveTo(212, 396, 198, 318);
+      ctx.fill();
+    },
+    o() {
+      stroke(12);
+      ctx.beginPath();
+      ctx.ellipse(256, 340, 14, 18, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    },
+    flat() {
+      stroke(14);
+      ctx.beginPath();
+      ctx.moveTo(226, 340);
+      ctx.lineTo(286, 340);
+      ctx.stroke();
+    },
+    wavy() {
+      stroke(12);
+      ctx.beginPath();
+      for (let x = 210; x <= 302; x += 4) {
+        const y = 340 + Math.sin((x - 210) * 0.14) * 9;
+        if (x === 210) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  };
+
+  /** eye : open | sleepy | blink | happy | sleep | dizzy | angry ; mouth : smile | open | grin | o | flat | wavy */
+  function set(eye, mouth, zzz = false) {
+    const key = `${eye}/${mouth}/${zzz}`;
+    if (key === current) return;
+    current = key;
+    ctx.clearRect(0, 0, S, S);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, S, S);
+    ctx.shadowColor = CYAN;
+    ctx.shadowBlur = 18; // léger halo autour des traits
+    blush();
+    eyes[eye]();
+    mouths[mouth]();
+    if (zzz) {
+      ctx.fillStyle = CYAN;
+      ctx.font = 'bold 54px sans-serif';
+      ctx.fillText('z', 360, 130);
+      ctx.font = 'bold 38px sans-serif';
+      ctx.fillText('z', 404, 92);
+    }
+    ctx.shadowBlur = 0;
+    tex.needsUpdate = true;
+  }
+  set('open', 'smile');
+  return { texture: tex, set };
+}
+
+// Aile translucide de libellule : dégradé bleuté, bord plus clair, nervure
+function createWingTexture() {
+  const W = 128;
+  const H = 256;
+  const cvs = document.createElement('canvas');
+  cvs.width = W;
+  cvs.height = H;
+  const ctx = cvs.getContext('2d');
+  const g = ctx.createLinearGradient(0, H, 0, 0);
+  g.addColorStop(0, 'rgba(150, 235, 255, 0.95)');
+  g.addColorStop(1, 'rgba(200, 245, 255, 0.55)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(W / 2, H / 2, W / 2 - 4, H / 2 - 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.lineWidth = 7;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(W / 2, H - 10);
+  ctx.quadraticCurveTo(W / 2 - 10, H / 2, W / 2 + 8, 30);
+  ctx.stroke();
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 function buildShip() {
   const ship = new THREE.Group();
-  const hullTex = createHullTexture();
+  const R = 0.3; // NOVA est une boule toute ronde
 
-  const hullMat = new THREE.MeshStandardMaterial({
+  // Plastique laqué : vernis brillant, léger reflet nacré, bords veloutés
+  const hullMat = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
-    map: hullTex,
-    metalness: 0.08,
-    roughness: 0.42,
-    envMapIntensity: 1.0
+    map: createHullTexture(),
+    metalness: 0.0,
+    roughness: 0.34,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.1,
+    sheen: 0.35,
+    sheenRoughness: 0.5,
+    sheenColor: new THREE.Color(0xf2f8ff),
+    iridescence: 0.15,
+    iridescenceIOR: 1.3,
+    envMapIntensity: 1.1
   });
-  const pastelMat = new THREE.MeshStandardMaterial({
+  const pastelMat = new THREE.MeshPhysicalMaterial({
     color: 0x9fe8f6,
-    metalness: 0.05,
-    roughness: 0.45,
-    envMapIntensity: 0.9
-  });
-  const pinkMat = new THREE.MeshStandardMaterial({
-    color: 0xffa6d8,
-    metalness: 0.05,
-    roughness: 0.45,
-    envMapIntensity: 0.9
-  });
-  const darkMat = new THREE.MeshStandardMaterial({
-    color: 0x5a5f7a,
-    metalness: 0.3,
-    roughness: 0.4,
+    roughness: 0.32,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.12,
+    sheen: 0.5,
+    sheenColor: new THREE.Color(0xffffff),
     envMapIntensity: 1.0
   });
-  const visorMat = new THREE.MeshStandardMaterial({
-    color: 0x050b16,
-    emissive: 0x08304a,
-    emissiveIntensity: 0.5,
-    metalness: 1.0,
+  const pinkMat = new THREE.MeshPhysicalMaterial({
+    color: 0xffa6d8,
+    roughness: 0.32,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.12,
+    sheen: 0.5,
+    sheenColor: new THREE.Color(0xffffff),
+    envMapIntensity: 1.0
+  });
+  const darkMat = new THREE.MeshPhysicalMaterial({
+    color: 0x3d4360,
+    metalness: 0.55,
+    roughness: 0.28,
+    clearcoat: 0.6,
+    envMapIntensity: 1.2
+  });
+  const face = createFace();
+  // Écran en verre fumé : le visage s'allume à travers (emissiveMap)
+  const visorMat = new THREE.MeshPhysicalMaterial({
+    color: 0x070c1c,
+    emissive: 0xffffff,
+    emissiveMap: face.texture,
+    emissiveIntensity: 1.6,
+    metalness: 0.2,
     roughness: 0.05,
-    envMapIntensity: 1.8
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.03,
+    iridescence: 0.35,
+    iridescenceIOR: 1.6,
+    envMapIntensity: 1.6
   });
-  const eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.45, 2.5, 3.2), toneMapped: false });
-  const cheekMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(1.6, 0.35, 0.9),
-    transparent: true,
-    opacity: 0.55,
-    toneMapped: false
-  });
+  const glintMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false });
   const engineGlowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.5, 2.6, 3.4), toneMapped: false });
   const antennaBallMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.8, 0.4, 1.8), toneMapped: false });
-
-  // Corps rond et dodu (tour d'un profil), avant vers +z
-  const profile = [
-    [0.0, -0.32], [0.12, -0.3], [0.2, -0.22], [0.245, -0.08], [0.255, 0.05],
-    [0.24, 0.2], [0.2, 0.28], [0.12, 0.31], [0.0, 0.315]
-  ].map(([r, y]) => new THREE.Vector2(r, y));
-  const bodyGeo = new THREE.LatheGeometry(profile, 48);
-  bodyGeo.rotateX(Math.PI / 2);
-  bodyGeo.scale(1.1, 1.0, 1);
-  ship.add(new THREE.Mesh(bodyGeo, hullMat));
-
-  // Grande visière vitrée à l'avant : c'est le « visage »
-  const visorGeo = new THREE.SphereGeometry(0.19, 40, 24, 0, Math.PI * 2, 0, Math.PI * 0.5);
-  visorGeo.rotateX(Math.PI / 2);
-  visorGeo.scale(1.15, 0.9, 0.85);
-  const visor = new THREE.Mesh(visorGeo, visorMat);
-  visor.position.set(0, 0.03, 0.29);
-  ship.add(visor);
-
-  // Deux yeux lumineux (ovales) + joues roses
-  const eyes = [];
-  [-1, 1].forEach((side) => {
-    const eye = new THREE.Mesh(new THREE.CircleGeometry(0.034, 24), eyeMat);
-    eye.scale.set(1, 1.35, 1);
-    eye.position.set(side * 0.07, 0.07, 0.442);
-    eye.rotation.y = side * 0.28;
-    eye.rotation.x = -0.15;
-    ship.add(eye);
-    eyes.push(eye);
-
-    const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.022, 16), cheekMat);
-    cheek.scale.set(1.5, 0.8, 1);
-    cheek.position.set(side * 0.135, 0.0, 0.42);
-    cheek.rotation.y = side * 0.55;
-    ship.add(cheek);
+  const wingMat = new THREE.MeshBasicMaterial({
+    map: createWingTexture(),
+    color: new THREE.Color(1.15, 1.15, 1.2),
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false
   });
 
-  // Deux petites ailettes arrondies qui battent (pivot à la base)
+  // Corps : une sphère à peine aplatie (bien dodue, façon boule de pâte)
+  const body = new THREE.Mesh(new THREE.SphereGeometry(R, 72, 48), hullMat);
+  body.scale.set(1.04, 0.96, 1.0);
+  ship.add(body);
+
+  // Grand écran bombé à l'avant : calotte de sphère tournée vers +z, avec des
+  // coordonnées de texture « à plat » pour y dessiner le visage
+  const capAngle = 0.98; // demi-ouverture de la calotte (rad)
+  const capR = R * 1.012;
+  const capGeo = new THREE.SphereGeometry(capR, 64, 32, 0, Math.PI * 2, 0, capAngle);
+  capGeo.rotateX(Math.PI / 2);
+  const faceRadius = capR * Math.sin(capAngle);
+  const cp = capGeo.attributes.position;
+  const cuv = capGeo.attributes.uv;
+  for (let i = 0; i < cp.count; i++) {
+    cuv.setXY(i, cp.getX(i) / (2 * faceRadius) + 0.5, cp.getY(i) / (2 * faceRadius) + 0.5);
+  }
+  const visor = new THREE.Mesh(capGeo, visorMat);
+  visor.scale.copy(body.scale);
+  ship.add(visor);
+
+  // Cerclage pastel autour de l'écran
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(faceRadius, 0.017, 14, 80), pastelMat);
+  rim.position.z = capR * Math.cos(capAngle);
+  rim.scale.copy(body.scale);
+  ship.add(rim);
+
+  // Reflets « dessin animé » sur l'écran (haut à gauche)
+  const glint = new THREE.Mesh(new THREE.CircleGeometry(0.03, 20), glintMat);
+  glint.scale.set(1.9, 0.6, 1);
+  glint.position.set(-0.1, 0.13, 0.25);
+  glint.lookAt(new THREE.Vector3(-0.1, 0.13, 0.25).multiplyScalar(3));
+  glint.rotateZ(0.6);
+  ship.add(glint);
+  const glintDot = new THREE.Mesh(new THREE.CircleGeometry(0.012, 14), glintMat);
+  glintDot.position.set(-0.035, 0.165, 0.258);
+  glintDot.lookAt(new THREE.Vector3(-0.035, 0.165, 0.258).multiplyScalar(3));
+  ship.add(glintDot);
+
+  // Deux bandes pastel qui passent par-dessus la tête (comme un casque)
+  [[-0.075, pastelMat], [0.075, pinkMat]].forEach(([x, mat]) => {
+    const r = Math.sqrt(R * R - x * x) + 0.004;
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(r, 0.011, 10, 60, Math.PI * 0.62), mat);
+    arc.rotation.y = Math.PI / 2;
+    arc.rotation.x = Math.PI * 0.12; // de l'arrière du crâne jusqu'au-dessus de l'écran
+    arc.position.x = x;
+    arc.scale.set(1, 0.96, 1.0);
+    ship.add(arc);
+  });
+
+  // « Oreilles » : deux pastilles rondes sur les côtés (comme un casque audio)
+  [-1, 1].forEach((side) => {
+    const ear = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.08, 0.04, 40), pinkMat);
+    ear.rotation.z = Math.PI / 2;
+    ear.position.set(side * 0.305, -0.01, -0.02);
+    ship.add(ear);
+    const earCap = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.02, 32), pastelMat);
+    earCap.rotation.z = Math.PI / 2;
+    earCap.position.set(side * 0.33, -0.01, -0.02);
+    ship.add(earCap);
+  });
+
+  // Deux ailes translucides sur le dos, qui battent doucement
   const wings = [];
   [-1, 1].forEach((side) => {
     const pivot = new THREE.Group();
-    pivot.position.set(side * 0.22, 0.02, -0.06);
-    const wing = new THREE.Mesh(new THREE.SphereGeometry(0.1, 28, 18), pastelMat);
-    wing.scale.set(1.6, 0.3, 1.0);
-    wing.position.set(side * 0.13, 0, 0);
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), pinkMat);
-    tip.position.set(side * 0.27, 0, 0);
-    pivot.add(wing, tip);
+    pivot.position.set(side * 0.1, 0.24, -0.1);
+    const tilt = new THREE.Group();
+    tilt.rotation.z = -side * 0.38; // écartées vers l'extérieur
+    tilt.rotation.x = -0.35; // penchées vers l'arrière
+    const wing = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.32), wingMat);
+    wing.position.y = 0.15;
+    tilt.add(wing);
+    pivot.add(tilt);
     pivot.userData.side = side;
     ship.add(pivot);
     wings.push(pivot);
@@ -160,9 +429,10 @@ function buildShip() {
 
   // Antenne avec un petit cœur lumineux au bout
   const antenna = new THREE.Group();
-  antenna.position.set(0, 0.235, 0.0);
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.14, 8), darkMat);
-  stem.position.y = 0.07;
+  antenna.position.set(0, 0.27, 0.04);
+  const socket = new THREE.Mesh(new THREE.SphereGeometry(0.026, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), pinkMat);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.011, 0.1, 12), darkMat);
+  stem.position.y = 0.05;
   const heartShape = new THREE.Shape();
   heartShape.moveTo(0, -0.03);
   heartShape.bezierCurveTo(-0.045, 0.0, -0.035, 0.035, 0, 0.018);
@@ -172,59 +442,31 @@ function buildShip() {
     bevelEnabled: true,
     bevelThickness: 0.008,
     bevelSize: 0.006,
-    bevelSegments: 3,
-    curveSegments: 16
+    bevelSegments: 4,
+    curveSegments: 20
   });
   heartGeo.center();
   const heart = new THREE.Mesh(heartGeo, antennaBallMat);
-  heart.scale.setScalar(1.3);
-  heart.position.y = 0.17;
-  antenna.add(stem, heart);
+  heart.scale.setScalar(1.2);
+  heart.position.y = 0.125;
+  antenna.add(socket, stem, heart);
   ship.add(antenna);
 
-  // Deux petits réacteurs ronds, nichés à l'arrière
+  // Deux petits réacteurs ronds, nichés à l'arrière, cerclés de pastel
   const nozzles = [];
   [-1, 1].forEach((side) => {
-    const pod = new THREE.Mesh(new THREE.SphereGeometry(0.062, 24, 16), darkMat);
+    const pod = new THREE.Mesh(new THREE.SphereGeometry(0.055, 32, 20), darkMat);
     pod.scale.set(1, 1, 1.2);
-    pod.position.set(side * 0.11, -0.07, -0.28);
+    pod.position.set(side * 0.1, -0.1, -0.25);
     ship.add(pod);
-
-    const core = new THREE.Mesh(new THREE.CircleGeometry(0.042, 20), engineGlowMat);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.009, 10, 32), pastelMat);
+    ring.position.set(side * 0.1, -0.1, -0.312);
+    ship.add(ring);
+    const core = new THREE.Mesh(new THREE.CircleGeometry(0.037, 24), engineGlowMat);
     core.rotation.y = Math.PI;
-    core.position.set(side * 0.11, -0.07, -0.356);
+    core.position.set(side * 0.1, -0.1, -0.318);
     ship.add(core);
-    nozzles.push(new THREE.Vector3(side * 0.11, -0.07, -0.38));
-  });
-
-  // Deux petits bras (épaule, coude, main ronde) : coucou, gestes et danse
-  const armMat = new THREE.MeshStandardMaterial({ color: 0xf4f6fb, roughness: 0.35, metalness: 0.05 });
-  const arms = [];
-  [-1, 1].forEach((side) => {
-    const shoulder = new THREE.Group();
-    shoulder.position.set(side * 0.265, -0.06, 0.12);
-    const joint = new THREE.Mesh(new THREE.SphereGeometry(0.034, 16, 12), pastelMat);
-    shoulder.add(joint);
-    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.027, 0.09, 6, 12), armMat);
-    upper.position.y = -0.065;
-    shoulder.add(upper);
-    const elbow = new THREE.Group();
-    elbow.position.y = -0.13;
-    shoulder.add(elbow);
-    const forearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.025, 0.08, 6, 12), armMat);
-    forearm.position.y = -0.055;
-    elbow.add(forearm);
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 18, 14), pastelMat);
-    hand.scale.set(1, 1.05, 0.8);
-    hand.position.y = -0.125;
-    elbow.add(hand);
-    const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.021, 12, 10), pinkMat);
-    thumb.position.set(-side * 0.036, -0.11, 0.022);
-    elbow.add(thumb);
-    shoulder.userData.side = side;
-    shoulder.userData.elbow = elbow;
-    ship.add(shoulder);
-    arms.push(shoulder);
+    nozzles.push(new THREE.Vector3(side * 0.1, -0.1, -0.34));
   });
 
   // Toutes les pièces dans un « rig » : il peut rebondir et s'étirer sans déplacer le vaisseau
@@ -232,13 +474,20 @@ function buildShip() {
   while (ship.children.length) rig.add(ship.children[0]);
   ship.add(rig);
 
-  return { ship, nozzles, eyes, antenna, wings, heart, rig, arms };
+  return { ship, nozzles, face, antenna, wings, heart, rig, mats: { hullMat, pastelMat } };
 }
 
 export function createCompanion(scene, camera, glows) {
-  const { ship, nozzles, eyes, antenna, wings, heart, rig, arms } = buildShip();
-  let waveUntil = 0; // fin du « coucou » de la main
+  const { ship, nozzles, face, antenna, wings, heart, rig, mats } = buildShip();
+  let moodName = null;
+  let moodUntil = 0;
   let dancing = false;
+  // Easter eggs : tournis, sieste, air fatigué, couronne
+  let spinUntil = 0;
+  let sleepUntil = 0;
+  let wasSleeping = false;
+  let sleepy = false;
+  let crown = null;
   ship.scale.setScalar(1.05);
   ship.userData.glowScale = true;
   scene.add(ship);
@@ -249,9 +498,9 @@ export function createCompanion(scene, camera, glows) {
       glows.add(ship, n, GLOW.engineCyan, 0.38);
       glows.add(ship, n, [0.6, 1.6, 2.2], 0.22, { speed: 9, phase: n.x, duty: 0.6 });
     });
-    glows.add(ship, new THREE.Vector3(-0.49, 0.03, -0.06), GLOW.navRed, 0.07);
-    glows.add(ship, new THREE.Vector3(0.49, 0.03, -0.06), GLOW.navGreen, 0.07);
-    glows.add(ship, new THREE.Vector3(0, 0.405, 0), [2.4, 0.4, 1.6], 0.16, { speed: 0.7, phase: 0.3, duty: 0.5 });
+    glows.add(ship, new THREE.Vector3(-0.345, -0.01, -0.02), GLOW.navRed, 0.06);
+    glows.add(ship, new THREE.Vector3(0.345, -0.01, -0.02), GLOW.navGreen, 0.06);
+    glows.add(ship, new THREE.Vector3(0, 0.395, 0.04), [2.4, 0.4, 1.6], 0.16, { speed: 0.7, phase: 0.3, duty: 0.5 });
   }
 
   // Traînée des réacteurs : points qui restent dans l'espace et s'estompent
@@ -337,7 +586,6 @@ export function createCompanion(scene, camera, glows) {
   }
 
   function say(text, duration = 4500) {
-    waveUntil = performance.now() + 2600;
     if (!bubble || !bubbleText) return;
     clearInterval(typingTimer);
     clearTimeout(hideTimer);
@@ -490,58 +738,66 @@ export function createCompanion(scene, camera, glows) {
     }
     blinkT = Math.min(1, blinkT + delta * 7);
     const blink = 1 - Math.sin(blinkT * Math.PI) * 0.9;
-    dancing = Boolean(info.dancing);
-    const eyeHeight = (talking || dancing ? 0.55 : 1.35) * blink;
-    eyes.forEach((eye) => {
-      eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, eyeHeight, 1 - Math.exp(-delta * 18));
-    });
+    const now = performance.now();
+    const sleeping = now < sleepUntil;
+    if (wasSleeping && !sleeping) say('Ah ! Bien dormi 😊 On reprend ?', 3500);
+    wasSleeping = sleeping;
+    dancing = Boolean(info.dancing) && !sleeping;
+    // Expression affichée sur l'écran du visage
+    const spinning = now < spinUntil;
+    const mood = now < moodUntil ? moodName : null;
+    const mouthOpen = talking && Math.floor(elapsed * 8) % 2 === 0;
+    if (sleeping) face.set('sleep', 'o', true);
+    else if (spinning) face.set('dizzy', 'wavy');
+    else if (mood === 'angry') face.set('angry', 'flat');
+    else if (dancing) face.set('happy', 'grin');
+    else if (mood === 'happy') face.set('happy', mouthOpen ? 'open' : 'grin');
+    else if (blink < 0.5) face.set('blink', mouthOpen ? 'open' : 'smile');
+    else if (talking) face.set('happy', mouthOpen ? 'open' : 'smile');
+    else if (sleepy) face.set('sleepy', 'o');
+    else face.set('open', 'smile');
     antenna.rotation.z = Math.sin(elapsed * 2.3) * 0.18 - roll * 0.5;
     antenna.rotation.x = Math.sin(elapsed * 1.7) * 0.1;
 
-    // Ailettes qui battent (plus vite quand il se déplace)
-    flapPhase += delta * (5 + Math.min(localSpeed, 3) * 4);
+    // Ailes qui battent doucement (plus vite quand il se déplace ou danse, au ralenti quand il dort)
+    flapPhase += delta * (sleeping ? 1.5 : 6 + Math.min(localSpeed, 3) * 4 + (dancing ? 6 : 0));
     wings.forEach((w) => {
-      w.rotation.z = w.userData.side * (0.35 + Math.sin(flapPhase) * 0.28);
+      w.rotation.z = -w.userData.side * Math.sin(flapPhase) * 0.32;
     });
     heart.rotation.y += delta * (dancing ? 5 : 1.6);
 
-    // Bras : danse sur la musique, coucou quand il parle, sinon au repos
-    const beat = elapsed * Math.PI * 2 * 1.05;
-    const waving = performance.now() < waveUntil;
-    const follow = 1 - Math.exp(-delta * 10);
-    arms.forEach((arm) => {
-      const side = arm.userData.side;
-      let raise;
-      let bend;
-      let swing = 0;
-      if (dancing) {
-        const phase = beat + (side > 0 ? 0 : Math.PI);
-        raise = 1.5 + Math.sin(phase) * 1.0;
-        bend = 0.9 + Math.sin(phase * 2) * 0.4;
-        swing = Math.sin(phase) * 0.4;
-      } else if (waving && side > 0) {
-        raise = 2.55; // main levée…
-        bend = 0.5 + Math.sin(elapsed * 14) * 0.55; // …qui fait coucou
-      } else if (talking) {
-        raise = 0.6 + Math.sin(elapsed * 3 + side) * 0.25;
-        bend = 0.75 + Math.sin(elapsed * 4 + side) * 0.3;
-        swing = Math.sin(elapsed * 3 + side) * 0.3;
-      } else {
-        raise = 0.3 + Math.sin(elapsed * 1.6 + side) * 0.07;
-        bend = 0.35;
-      }
-      arm.rotation.z = THREE.MathUtils.lerp(arm.rotation.z, side * raise, follow);
-      arm.rotation.x = THREE.MathUtils.lerp(arm.rotation.x, -swing, follow);
-      const elbow = arm.userData.elbow;
-      elbow.rotation.z = THREE.MathUtils.lerp(elbow.rotation.z, side * bend, follow);
-    });
-
-    // Petit rebond permanent (sautille en rythme quand il danse) + s'étire dans le sens de la vitesse
-    rig.position.y = Math.sin(elapsed * 2.4) * 0.025 + (dancing ? Math.abs(Math.sin(beat)) * 0.07 : 0);
-    rig.rotation.z = THREE.MathUtils.lerp(rig.rotation.z, dancing ? Math.sin(beat) * 0.22 : 0, follow);
+    // Danse façon rap / pop sur la musique de l'ascenseur (environ 92 BPM) :
+    // il hoche la tête sur chaque temps, sautille, et fait un gros saut
+    // (pogo) tous les 4 temps, en s'écrasant un peu à chaque atterrissage.
+    const follow = 1 - Math.exp(-delta * 12);
+    let nod = 0;
+    let hop = 0;
+    let land = 0;
+    let lean = 0;
+    if (dancing) {
+      const beats = elapsed * (92 / 60);
+      const b = beats % 1; // position dans le temps (0 = sur le temps)
+      const index = Math.floor(beats);
+      const bigJump = index % 4 === 3;
+      nod = Math.exp(-b * 6); // tête qui plonge sur le temps puis remonte
+      hop = Math.sin(Math.PI * b) * (bigJump ? 0.17 : 0.05);
+      land = Math.exp(-b * 10);
+      lean = (index % 2 ? 1 : -1) * 0.1 * nod;
+      if (bigJump) nod = -0.6 * Math.sin(Math.PI * b); // tête en arrière pendant le grand saut
+    }
+    if (sleeping) nod = 0.8 + Math.sin(elapsed * 1.2) * 0.1; // tête qui tombe, respiration lente
+    rig.rotation.x = THREE.MathUtils.lerp(rig.rotation.x, nod * 0.42, follow);
+    if (now < spinUntil) rig.rotation.y += delta * 14;
+    else rig.rotation.y = THREE.MathUtils.lerp(rig.rotation.y % (Math.PI * 2), 0, follow);
+    rig.rotation.z = THREE.MathUtils.lerp(rig.rotation.z, lean, follow);
+    antenna.rotation.x += -nod * 0.9;
+    // Petit rebond permanent + sauts en rythme quand il danse
+    rig.position.y = Math.sin(elapsed * 2.4) * 0.025 + hop;
     const stretch = THREE.MathUtils.clamp(localSpeed * 0.04, 0, 0.14);
     const sq = THREE.MathUtils.lerp(rig.scale.z, 1 + stretch, 1 - Math.exp(-delta * 6));
-    rig.scale.set(1 - (sq - 1) * 0.5, 1 - (sq - 1) * 0.5, sq);
+    // S'écrase un peu à chaque atterrissage (effet « rebond »)
+    const squash = dancing ? land * 0.14 : 0;
+    rig.scale.set((1 - (sq - 1) * 0.5) * (1 + squash * 0.5), (1 - (sq - 1) * 0.5) * (1 - squash), sq);
 
     // 5) Traînée : un point par réacteur toutes les 20 ms
     trailTimer += delta;
@@ -578,5 +834,75 @@ export function createCompanion(scene, camera, glows) {
     return raycaster.ray.intersectsSphere(hitSphere);
   }
 
-  return { update, say, hide, resize, isHit, ship };
+  // ---------------------------------------------------------------------
+  // Easter eggs
+  // ---------------------------------------------------------------------
+  /** NOVA doré (0,1 % de chance, comme les images Thomson du bot) */
+  function setGolden() {
+    // Or brillant : un peu de lumière propre pour rester doré même la nuit
+    mats.hullMat.color.set(0xffdc7a);
+    mats.hullMat.metalness = 0.55;
+    mats.hullMat.roughness = 0.28;
+    mats.hullMat.emissive.set(0x6b4a0c);
+    mats.hullMat.emissiveIntensity = 0.7;
+    mats.pastelMat.color.set(0xffeaa8);
+    mats.pastelMat.metalness = 0.5;
+    mats.pastelMat.roughness = 0.3;
+    mats.pastelMat.emissive.set(0x6b4a0c);
+    mats.pastelMat.emissiveIntensity = 0.6;
+  }
+
+  /** Expression temporaire : 'happy' ou 'angry' */
+  function setMood(name, seconds = 2.5) {
+    moodName = name;
+    moodUntil = performance.now() + seconds * 1000;
+  }
+
+  /** Il tourne sur lui-même (tournis) */
+  function spin(seconds = 1.4) {
+    spinUntil = performance.now() + seconds * 1000;
+  }
+
+  /** Il fait une sieste (yeux fermés, tête qui tombe) */
+  function sleep(seconds = 15) {
+    sleepUntil = performance.now() + seconds * 1000;
+  }
+
+  /** Air fatigué (tard la nuit) */
+  function setSleepy(value) {
+    sleepy = value;
+  }
+
+  /** Couronne dorée (« Big Boss ») */
+  function setCrown() {
+    if (crown) return;
+    const gold = new THREE.MeshStandardMaterial({ color: 0xffc94d, metalness: 1, roughness: 0.25, emissive: 0x5a3a00, emissiveIntensity: 0.4 });
+    crown = new THREE.Group();
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.12, 0.07, 24, 1, true), gold);
+    band.material.side = THREE.DoubleSide;
+    crown.add(band);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.08, 8), gold);
+      spike.position.set(Math.cos(a) * 0.125, 0.07, Math.sin(a) * 0.125);
+      crown.add(spike);
+      const gem = new THREE.Mesh(
+        new THREE.SphereGeometry(0.014, 10, 8),
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(i % 2 ? 2.4 : 0.4, 0.3, i % 2 ? 1.2 : 2.6), toneMapped: false })
+      );
+      gem.position.set(Math.cos(a) * 0.13, 0.115, Math.sin(a) * 0.13);
+      crown.add(gem);
+    }
+    crown.position.set(0, 0.3, 0.02);
+    crown.rotation.x = -0.15;
+    rig.add(crown);
+  }
+
+  return {
+    update, say, hide, resize, isHit, ship,
+    setGolden, spin, sleep, setSleepy, setCrown, setMood,
+    get sleeping() {
+      return performance.now() < sleepUntil;
+    }
+  };
 }

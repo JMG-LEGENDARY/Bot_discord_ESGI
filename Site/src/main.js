@@ -19,6 +19,7 @@ import { createGlowSystem, GLOW } from './glows.js';
 import { createCompanion } from './companion.js';
 import { createEntranceDoor } from './entrance-door.js';
 import { createElevator3D } from './elevator3d.js';
+import { createDescentShaft } from './descent-shaft.js';
 import './elevator.css';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -174,6 +175,82 @@ function toggleDayNight() {
 // L'indication elle-même est aussi un bouton (plus simple au doigt)
 if (themeHint) themeHint.addEventListener('click', toggleDayNight);
 
+// =========================================================================
+// EASTER EGGS (planète)
+// Cliquer 7 fois de suite sur la planète la transforme en « planète Discord »
+// pendant 20 secondes.
+// =========================================================================
+function createDiscordPlanetTexture() {
+  const cvs = document.createElement('canvas');
+  cvs.width = 1024;
+  cvs.height = 512;
+  const ctx = cvs.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 512);
+  g.addColorStop(0, '#7b86ff');
+  g.addColorStop(0.5, '#5865f2');
+  g.addColorStop(1, '#3c45c0');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 1024, 512);
+  // Bandes nuageuses
+  for (let i = 0; i < 14; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${0.04 + Math.random() * 0.06})`;
+    ctx.fillRect(0, Math.random() * 512, 1024, 6 + Math.random() * 18);
+  }
+  // Logo Discord (la manette « Clyde »), dessiné deux fois (la planète tourne)
+  const clyde = new Path2D(
+    'M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z'
+  );
+  [256, 768].forEach((cx) => {
+    ctx.save();
+    const scale = 1.45; // logo d'environ 185 px de large
+    ctx.translate(cx - (127.14 * scale) / 2, 256 - (96.36 * scale) / 2);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill(clyde);
+    ctx.restore();
+  });
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+let discordPlanetTex = null;
+let planetClicks = 0;
+let planetClickTimer = null;
+let planetEggActive = false;
+
+function discordPlanet() {
+  if (planetEggActive) return;
+  planetEggActive = true;
+  const mesh = atmosphere.getActivePlanet();
+  if (!discordPlanetTex) discordPlanetTex = createDiscordPlanetTexture();
+  const oldMap = mesh.material.uniforms.map.value;
+  mesh.material.uniforms.map.value = discordPlanetTex;
+  companion.say('👾 Bip bip ! Tu as réveillé la planète Discord ! Elle se rendort dans 20 secondes…', 6000);
+  setTimeout(() => {
+    mesh.material.uniforms.map.value = oldMap;
+    planetEggActive = false;
+  }, 20000);
+}
+
+// Les 2 premiers clics changent jour/nuit ; au-delà, c'est la course au secret
+function onPlanetClick() {
+  planetClicks++;
+  clearTimeout(planetClickTimer);
+  planetClickTimer = setTimeout(() => {
+    planetClicks = 0;
+  }, 2500);
+  if (planetClicks <= 2) {
+    toggleDayNight();
+    return;
+  }
+  if (planetClicks === 4) companion.say('Euh… tu vas finir par l’user, cette planète 😅', 2500);
+  if (planetClicks === 6) companion.say('Encore un clic et… 👀', 2000);
+  if (planetClicks >= 7) {
+    planetClicks = 0;
+    discordPlanet();
+  }
+}
+
 const planetSphere = new THREE.Sphere();
 function isPointerOnPlanet(raycaster) {
   if (!atmosphere.isPlanetVisible()) return false;
@@ -185,30 +262,195 @@ function isPointerOnPlanet(raycaster) {
 const ecoCity = buildEcoCyberCity(scene, targetHeight, glows);
 const spaceFleet = buildSpaceFleet(scene, targetHeight, glows);
 const underground = buildUndergroundMasterclass(scene);
+// Puits lumineux entre le pied de la tour et le plafond du sous-sol (y = -18)
+createDescentShaft(scene, { x: 0, z: 25.5, top: 1.5, bottom: -18.6, opening: { y: 2.5, tilt: 0.155 } });
 const skyPlatform = buildSkyPlatform(scene, targetHeight);
 
-// Vitres de la tour : verre sombre qui reflète surtout le ciel, avec une lueur
-// intérieure douce qui varie légèrement d'un étage à l'autre (pas de motif
-// aléatoire fenêtre par fenêtre). Le jour, la lueur s'éteint : on ne voit que le reflet.
+// Le verre du modèle est fait de longues bandes (une par étage et par
+// façade) ; la pierre posée devant découpe les fenêtres : vitres de 1,6 m
+// tous les 1,85 m, centrées sur x (ou z) = k * 1,85, et des fenêtres plus
+// étroites aux coins. On repère chaque bande (ses bords exacts et sa
+// hauteur) pour que chaque fenêtre, même étroite, ait son bureau entier.
+const WINDOW_GRID_GLSL = `
+  float winHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float winNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(winHash(i), winHash(i + vec2(1.0, 0.0)), f.x), mix(winHash(i + vec2(0.0, 1.0)), winHash(i + vec2(1.0, 1.0)), f.x), f.y);
+  }`;
+
+function tagWindowStrips(mesh) {
+  const geo = mesh.geometry;
+  const pos = geo.attributes.position;
+  const index = geo.index ? geo.index.array : null;
+  const n = pos.count;
+  // Sommets superposés soudés, puis morceaux de verre reliés (union-find)
+  const weld = new Map();
+  const rep = new Int32Array(n);
+  for (let i = 0; i < n; i++) {
+    const k = `${pos.getX(i).toFixed(4)},${pos.getY(i).toFixed(4)},${pos.getZ(i).toFixed(4)}`;
+    if (!weld.has(k)) weld.set(k, i);
+    rep[i] = weld.get(k);
+  }
+  const parent = new Int32Array(n).map((_, i) => i);
+  const find = (x) => {
+    while (parent[x] !== x) {
+      parent[x] = parent[parent[x]];
+      x = parent[x];
+    }
+    return x;
+  };
+  const tri = index || Array.from({ length: n }, (_, i) => i);
+  for (let t = 0; t < tri.length; t += 3) {
+    const a = find(rep[tri[t]]);
+    parent[find(rep[tri[t + 1]])] = a;
+    parent[find(rep[tri[t + 2]])] = a;
+  }
+  // Boîte englobante de chaque bande, dans le monde (parents à jour : la
+  // tour vient d'être mise à l'échelle et posée au sol)
+  mesh.updateWorldMatrix(true, false);
+  const p = new THREE.Vector3();
+  const boxes = new Map();
+  for (let i = 0; i < n; i++) {
+    p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+    const r = find(rep[i]);
+    if (!boxes.has(r)) boxes.set(r, new THREE.Box3());
+    boxes.get(r).expandByPoint(p);
+  }
+  const strip = new Float32Array(n * 4); // uMin, uMax, axe (0 = x, 1 = z), côté + hall
+  const stripY = new Float32Array(n * 2); // yMin, yMax
+  for (let i = 0; i < n; i++) {
+    const b = boxes.get(find(rep[i]));
+    const alongZ = b.max.z - b.min.z > b.max.x - b.min.x;
+    const other = alongZ ? (b.min.x + b.max.x) / 2 : (b.min.z + b.max.z) / 2;
+    const tall = b.max.y - b.min.y > 2.0;
+    strip.set([
+      alongZ ? b.min.z : b.min.x,
+      alongZ ? b.max.z : b.max.x,
+      alongZ ? 1 : 0,
+      (other > 0 ? 1 : 0) + (tall ? 2 : 0)
+    ], i * 4);
+    stripY.set([b.min.y, b.max.y], i * 2);
+  }
+  geo.setAttribute('aStrip', new THREE.BufferAttribute(strip, 4));
+  geo.setAttribute('aStripY', new THREE.BufferAttribute(stripY, 2));
+}
+
+// Vitres de la tour : de vrais bureaux derrière chaque fenêtre.
+// - La nuit : environ 2 bureaux sur 3 allumés, chacun avec sa lumière
+//   (blanc chaud, blanc froid, parfois une pièce néon), plafonnier en haut,
+//   stores baissés à différentes hauteurs, silhouettes de bureaux.
+// - Le jour : reflet du ciel (bleu au zénith, clair à l'horizon) qui
+//   s'intensifie en regardant la façade de biais, chaque vitre un peu différente.
+// - Hall du rez-de-chaussée : grandes baies éclairées.
 function applyWindowPattern(material) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uDay = DAY_UNIFORM;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vWinPos;')
+      .replace('#include <common>', '#include <common>\nattribute vec4 aStrip;\nattribute vec2 aStripY;\nvarying vec4 vStrip;\nvarying vec2 vStripY;\nvarying vec3 vWinPos;\nvarying vec3 vWinN;')
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvWinN = normalize(mat3(modelMatrix) * objectNormal);\nvStrip = aStrip;\nvStripY = aStripY;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvWinPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vWinPos;\nuniform float uDay;')
-      // Le jour, verre teinté bleu acier (comme un vrai mur-rideau sous le ciel)
-      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb += vec3(0.12, 0.2, 0.32) * uDay;')
+      .replace('#include <common>', `#include <common>\nvarying vec4 vStrip;\nvarying vec2 vStripY;\nvarying vec3 vWinPos;\nvarying vec3 vWinN;\nuniform float uDay;${WINDOW_GRID_GLSL}`)
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        diffuseColor.rgb *= mix(1.0, 0.35, uDay);
+        // Fenêtres incomplètes (morceaux étroits aux bords de façade) :
+        // murées avec exactement la même pierre que la façade autour
+        float cu = vStrip.z < 0.5 ? vWinPos.x : vWinPos.z;
+        float ci = floor(cu / 1.85 + 0.5);
+        float cw = min((ci + 0.5) * 1.85 - 0.125, vStrip.y) - max((ci - 0.5) * 1.85 + 0.125, vStrip.x);
+        // + les vitres de l'édicule sur le toit (au-dessus de 90 m), murées aussi
+        float wClosed = ((cw < 1.2 && vStrip.w < 1.5) || vStripY.x > 90.0) ? 1.0 : 0.0;
+        vec3 sN = normalize(vWinN);
+        float fu = dot(vWinPos.xz, normalize(vec2(abs(sN.z), abs(sN.x)) + 1e-5)) / 1.85;
+        float fv = (vWinPos.y - 1.464) / 2.667;
+        vec2 pCell = floor(vec2(fu, fv) + 0.5);
+        vec2 pLoc = fract(vec2(fu, fv) + 0.5) - 0.5;
+        float sHash = winHash(pCell + floor(abs(sN.x) * 2.0 + 0.5) * 7.0);
+        float grain = winNoise(vWinPos.xz * 7.0 + vWinPos.y * 5.0) * 0.5 + winNoise(vec2(fu * 40.0, vWinPos.y * 13.0)) * 0.5;
+        float jointH = 1.0 - smoothstep(0.0, 0.018, abs(abs(pLoc.y) - 0.5));
+        float jointV = 1.0 - smoothstep(0.0, 0.012, abs(abs(pLoc.x) - 0.5));
+        vec3 stoneCol = vec3(0.367, 0.342, 0.311) * (0.84 + sHash * 0.2 + (grain - 0.5) * 0.12) * (1.0 - max(jointH, jointV) * 0.55);
+        float ledBand = step(abs(mod(pCell.y, 6.0)), 0.5) * (1.0 - smoothstep(0.0, 0.03, abs(pLoc.y + 0.47)));
+        diffuseColor.rgb = mix(diffuseColor.rgb, stoneCol, wClosed);`
+      )
       .replace(
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
-        float floorId = floor(vWinPos.y / 3.4);
-        float floorVar = fract(sin(floorId * 91.7) * 43758.5453);
-        totalEmissiveRadiance *= (0.8 + floorVar * 0.4) * (1.0 - uDay);`
-      );
+        vec3 V = normalize(cameraPosition - vWinPos);
+        vec3 wN = normalize(vWinN);
+        if (dot(wN, V) < 0.0) wN = -wN; // même résultat pour les deux faces du verre
+        // Fenêtre réelle : travée de la grille, bornée par les bords de la bande
+        float u = vStrip.z < 0.5 ? vWinPos.x : vWinPos.z;
+        float cellIdx = floor(u / 1.85 + 0.5);
+        float visL = max((cellIdx - 0.5) * 1.85 + 0.125, vStrip.x);
+        float visR = min((cellIdx + 0.5) * 1.85 - 0.125, vStrip.y);
+        // Position dans la vitre : (0,0) en bas à gauche, (1,1) en haut à droite
+        vec2 w = vec2((u - visL) / max(visR - visL, 0.05), (vWinPos.y - vStripY.x) / max(vStripY.y - vStripY.x, 0.05));
+        vec2 cell = vec2(cellIdx, floor(vStripY.x * 3.0 + 0.5));
+        float side = vStrip.z * 7.0 + mod(vStrip.w, 2.0) * 13.0;
+        float isLobby = step(1.5, vStrip.w);
+        float h1 = winHash(cell + side);
+        float h2 = winHash(cell * 1.7 + side + 3.1);
+        float h3 = winHash(cell * 2.3 + side + 7.7);
+        float edgeShade = smoothstep(0.0, 0.08, min(min(w.x, 1.0 - w.x), min(w.y, 1.0 - w.y)));
+
+        // --- Nuit : intérieur des bureaux ---
+        // Environ 5 bureaux sur 6 allumés
+        float lit = step(0.17, h1);
+        // Couleurs : blanc chaud, blanc froid, et beaucoup de bleu et de rose néon
+        vec3 roomCol = h2 < 0.36 ? vec3(1.0, 0.76, 0.5)
+          : h2 < 0.56 ? vec3(0.8, 0.9, 1.0)
+          : h2 < 0.78 ? vec3(0.3, 0.75, 1.0)
+          : vec3(1.0, 0.32, 0.78);
+        float ceiling = 0.45 + 0.75 * smoothstep(0.25, 0.98, w.y);
+        // Stores : certains bureaux les ont baissés à mi-hauteur
+        float blindLevel = h3 < 0.35 ? mix(0.35, 0.85, h2) : 1.1;
+        // Lamelles lissées puis fondues en teinte moyenne quand la vitre est
+        // petite à l'écran (sinon elles scintillent de loin)
+        float slatW = fwidth(w.y * 14.0);
+        float slat = mix(smoothstep(0.35, 0.65, abs(fract(w.y * 14.0) - 0.5) * 2.0), 0.5, clamp(slatW * 1.5, 0.0, 1.0));
+        float blinds = w.y > blindLevel ? mix(0.25, 0.45, slat) : 1.0;
+        // Silhouettes de bureaux et d'écrans en bas de la vitre
+        float deskW = clamp(fwidth(w.x * 3.0) * 1.5, 0.0, 1.0);
+        float desk = (1.0 - smoothstep(0.24, 0.27, w.y)) * step(0.5, h3) * (0.55 + 0.45 * mix(step(0.5, fract(w.x * 3.0 + h1)), 0.5, deskW));
+        float interior = ceiling * blinds * (1.0 - desk * 0.7) * edgeShade * (0.8 + 0.4 * h3);
+        vec3 nightGlow = roomCol * interior * lit * 0.95 + vec3(0.03, 0.04, 0.08) * (1.0 - lit);
+        // Hall du rez-de-chaussée (grandes baies) : vrai hall d'entrée,
+        // bandeau lumineux au plafond, imposte, comptoir d'accueil, montants
+        vec2 lw = vec2((u - vStrip.x) / max(vStrip.y - vStrip.x, 0.05), w.y);
+        vec3 warm = vec3(1.0, 0.8, 0.56);
+        vec3 lobbyCol = warm * (0.12 + 0.3 * smoothstep(0.0, 0.85, lw.y));
+        lobbyCol += warm * 1.1 * smoothstep(0.86, 0.89, lw.y) * (1.0 - smoothstep(0.93, 0.96, lw.y));
+        float transom = 1.0 - smoothstep(0.0, 0.012, abs(lw.y - 0.8));
+        float counter = (1.0 - smoothstep(0.26, 0.29, lw.y)) * step(0.2, lw.x) * step(lw.x, 0.8);
+        float mullion = 1.0 - smoothstep(0.0, 0.012, min(lw.x, 1.0 - lw.x));
+        lobbyCol *= (1.0 - transom * 0.85) * (1.0 - counter * 0.75) * (1.0 - mullion * 0.9);
+        nightGlow = mix(nightGlow, lobbyCol, isLobby);
+
+        // --- Jour : reflet du ciel ---
+        vec3 R = reflect(-V, wN);
+        float fres = 0.2 + 0.8 * pow(1.0 - max(dot(wN, V), 0.0), 3.0);
+        vec3 sky = mix(vec3(0.42, 0.62, 0.88), vec3(0.08, 0.24, 0.6), clamp(R.y * 1.4 + 0.25 + (h1 - 0.5) * 0.3, 0.0, 1.0));
+        sky = mix(vec3(0.1, 0.14, 0.2), sky, smoothstep(-0.25, 0.05, R.y));
+        // Petit reflet du soleil sur certaines vitres
+        float glint = pow(max(dot(R, normalize(vec3(0.5, 0.6, 0.6))), 0.0), 60.0) * 2.0;
+        vec3 dayGlow = (sky * (0.45 + fres * 0.65) + glint) * edgeShade + vec3(0.02, 0.04, 0.08);
+
+        totalEmissiveRadiance = mix(nightGlow, dayGlow, uDay);
+        // Fenêtre murée : même éclairage que la pierre de façade
+        vec3 stoneEmis = vec3(1.0, 0.76, 0.5) * 0.55 * exp(-max(vWinPos.y, 0.0) / 9.0) * diffuseColor.rgb * (1.0 - uDay);
+        stoneEmis += vec3(0.4, 0.85, 1.0) * 0.45 * exp(-abs(vWinPos.y - 124.0) / 5.0) * diffuseColor.rgb * (1.0 - uDay);
+        stoneEmis += vec3(0.13, 0.89, 1.0) * ledBand * mix(1.1, 0.12, uDay);
+        totalEmissiveRadiance = mix(totalEmissiveRadiance, stoneEmis, wClosed);`
+      )
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.65, wClosed);')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, mix(0.12, 0.42, sHash * sHash) + max(jointH, jointV) * 0.4, wClosed);');
   };
-  material.customProgramCacheKey = () => 'tower-windows';
+  material.customProgramCacheKey = () => 'tower-windows-v14';
 }
 
 // Matières de la tour, par nom de matériau du modèle 3D
@@ -235,47 +477,110 @@ function applySurfacePattern(material, pattern) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uDay = DAY_UNIFORM;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vSurfPos;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vSurfPos;\nvarying vec3 vSurfN;')
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvSurfN = normalize(mat3(modelMatrix) * objectNormal);')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvSurfPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    // Dallage du parvis : granit poli à grain fin, veines claires, dalles
+    // biseautées aux joints sombres, et lignes néon encastrées toutes les
+    // 5 dalles (cyan dans un sens, rose dans l'autre) qui s'allument la nuit.
     const body = pattern === 'tiles'
       ? `
         vec2 tileUv = vSurfPos.xz / 2.2;
         vec2 tileId = floor(tileUv);
         vec2 tileF = fract(tileUv);
-        float tHash = fract(sin(dot(tileId, vec2(127.1, 311.7))) * 43758.5453);
-        float joint = step(0.04, tileF.x) * step(0.04, tileF.y);
-        diffuseColor.rgb *= mix(0.35, 0.85 + tHash * 0.3, joint);`
+        float tHash = sxHash(tileId);
+        float edge = min(min(tileF.x, 1.0 - tileF.x), min(tileF.y, 1.0 - tileF.y));
+        float joint = smoothstep(0.012, 0.03, edge);
+        float bevel = smoothstep(0.03, 0.16, edge);
+        float grain = sxNoise(vSurfPos.xz * 9.0) * 0.6 + sxNoise(vSurfPos.xz * 31.0) * 0.4;
+        float veins = smoothstep(0.6, 0.68, sxNoise(vSurfPos.xz * 1.4 + tHash * 17.0));
+        vec3 stone = diffuseColor.rgb * (0.74 + tHash * 0.32) * (0.84 + grain * 0.32);
+        stone = mix(stone, stone * 1.45, veins * 0.45);
+        stone *= mix(0.7, 1.0, bevel);
+        diffuseColor.rgb = mix(stone * 0.22, stone, joint);
+        vec2 laneD = abs(fract(tileUv / 5.0 + 0.5) - 0.5) * 5.0;
+        float laneX = 1.0 - smoothstep(0.012, 0.04, laneD.x);
+        float laneZ = 1.0 - smoothstep(0.012, 0.04, laneD.y);
+        // Murets et bordures (faces verticales) : panneaux d'aluminium
+        // anthracite brossé, joints creux, au lieu du granit du sol
+        float wall = 1.0 - smoothstep(0.35, 0.6, abs(vSurfN.y));
+        float wallU = abs(vSurfN.x) > abs(vSurfN.z) ? vSurfPos.z : vSurfPos.x;
+        vec2 wallF = fract(vec2(wallU / 1.4, vSurfPos.y / 0.5));
+        float wallSeam = smoothstep(0.0, 0.03, wallF.x) * smoothstep(1.0, 0.97, wallF.x) * smoothstep(0.0, 0.05, wallF.y) * smoothstep(1.0, 0.95, wallF.y);
+        float brushed = sxNoise(vec2(wallU * 60.0, vSurfPos.y * 2.0)) * 0.6 + sxNoise(vec2(wallU * 3.0, vSurfPos.y * 7.0)) * 0.4;
+        vec3 wallCol = mix(vec3(0.11, 0.12, 0.16), vec3(0.28, 0.3, 0.36), uDay) * (0.82 + brushed * 0.3);
+        wallCol *= mix(0.45, 1.0, wallSeam);
+        diffuseColor.rgb = mix(diffuseColor.rgb, wallCol, wall);
+        laneX *= 1.0 - wall;
+        laneZ *= 1.0 - wall;`
       : `
-        vec3 panelId = floor(vSurfPos / vec3(3.9, 3.4, 3.9));
-        float sHash = fract(sin(dot(panelId, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
-        float grain = fract(sin(dot(floor(vSurfPos * 6.0), vec3(7.1, 3.7, 5.3))) * 9751.31);
-        diffuseColor.rgb *= 0.86 + sHash * 0.22 + (grain - 0.5) * 0.05;
-        // Traces de ruissellement plus sombres vers le bas de chaque panneau
-        diffuseColor.rgb *= 0.92 + 0.08 * fract(vSurfPos.y / 3.4);`;
+        // Façade calée sur la grille des fenêtres : un panneau de pierre par
+        // travée et par étage, joints creux, grain fin, traînées de pluie
+        // sous chaque fenêtre, et un bandeau LED tous les 6 étages.
+        vec3 sN = normalize(vSurfN);
+        float facadeMask = 1.0 - smoothstep(0.35, 0.6, abs(sN.y));
+        float fu = dot(vSurfPos.xz, normalize(vec2(abs(sN.z), abs(sN.x)) + 1e-5)) / 1.85;
+        float fv = (vSurfPos.y - 1.464) / 2.667;
+        vec2 pCell = floor(vec2(fu, fv) + 0.5);
+        vec2 pLoc = fract(vec2(fu, fv) + 0.5) - 0.5;
+        float sHash = sxHash(pCell + floor(abs(sN.x) * 2.0 + 0.5) * 7.0);
+        float grain = sxNoise(vSurfPos.xz * 7.0 + vSurfPos.y * 5.0) * 0.5 + sxNoise(vec2(fu * 40.0, vSurfPos.y * 13.0)) * 0.5;
+        diffuseColor.rgb *= 0.84 + sHash * 0.2 + (grain - 0.5) * 0.12;
+        // Joints : horizontal au niveau des dalles, vertical entre les travées
+        float jointH = 1.0 - smoothstep(0.0, 0.018, abs(abs(pLoc.y) - 0.5));
+        float jointV = 1.0 - smoothstep(0.0, 0.012, abs(abs(pLoc.x) - 0.5));
+        diffuseColor.rgb *= 1.0 - max(jointH, jointV) * 0.55 * facadeMask;
+        // Traînées sombres qui coulent sous les fenêtres
+        float underWin = step(abs(pLoc.x), 0.42) * step(pLoc.y, -0.25) * step(-0.5, pLoc.y);
+        float streak = sxNoise(vec2(fu * 22.0, 0.5)) * smoothstep(-0.5, -0.25, pLoc.y);
+        diffuseColor.rgb *= 1.0 - underWin * streak * 0.22 * facadeMask;
+        // Bandeau LED (au niveau d'une dalle, tous les 6 étages)
+        float ledFloor = step(abs(mod(pCell.y, 6.0)), 0.5);
+        float ledBand = ledFloor * (1.0 - smoothstep(0.0, 0.03, abs(pLoc.y + 0.47))) * facadeMask;`;
     // Éclairage d'architecte : projecteurs chauds au pied de la façade,
     // couronne éclairée au sommet, flaque de lumière sur le parvis.
     const light = pattern === 'tiles'
       ? `
         float plazaGlow = exp(-length(vSurfPos.xz) / 22.0);
-        totalEmissiveRadiance += vec3(1.0, 0.74, 0.46) * 0.66 * plazaGlow * diffuseColor.rgb * (1.0 - uDay);`
+        totalEmissiveRadiance += vec3(1.0, 0.74, 0.46) * 0.5 * plazaGlow * diffuseColor.rgb * (1.0 - uDay);
+        // Lignes néon encastrées (discrètes le jour)
+        float laneOn = mix(1.2, 0.18, uDay);
+        totalEmissiveRadiance += (vec3(0.13, 0.89, 1.0) * laneX + vec3(1.0, 0.24, 0.73) * laneZ * (1.0 - laneX)) * laneOn;`
       : `
         float footWash = exp(-max(vSurfPos.y, 0.0) / 9.0);
         float crownWash = exp(-abs(vSurfPos.y - 124.0) / 5.0);
         totalEmissiveRadiance += vec3(1.0, 0.76, 0.5) * 0.55 * footWash * diffuseColor.rgb * (1.0 - uDay);
-        totalEmissiveRadiance += vec3(0.4, 0.85, 1.0) * 0.45 * crownWash * diffuseColor.rgb * (1.0 - uDay);`;
+        totalEmissiveRadiance += vec3(0.4, 0.85, 1.0) * 0.45 * crownWash * diffuseColor.rgb * (1.0 - uDay);
+        totalEmissiveRadiance += vec3(0.13, 0.89, 1.0) * ledBand * mix(1.1, 0.12, uDay);`;
     // Petits reflets métalliques : chaque panneau de façade a son propre brillant
     // (certains très lisses, d'autres satinés), les reflets scintillent en bougeant.
     const shine = pattern === 'stone'
       ? `
-        roughnessFactor = mix(0.08, 0.42, sHash * sHash);`
-      : '';
+        roughnessFactor = mix(0.12, 0.42, sHash * sHash) + max(jointH, jointV) * 0.4;`
+      : `
+        // Dalles plus ou moins polies (reflets des néons), joints mats
+        roughnessFactor = mix(0.9, mix(0.14, 0.42, tHash) + grain * 0.08, joint);
+        roughnessFactor = mix(roughnessFactor, 0.32 + brushed * 0.12, wall);`;
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vSurfPos;\nuniform float uDay;')
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vSurfPos;
+        varying vec3 vSurfN;
+        uniform float uDay;
+        float sxHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float sxNoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(sxHash(i), sxHash(i + vec2(1.0, 0.0)), f.x), mix(sxHash(i + vec2(0.0, 1.0)), sxHash(i + vec2(1.0, 1.0)), f.x), f.y);
+        }`
+      )
       .replace('#include <color_fragment>', `#include <color_fragment>${body}`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>${shine}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>${light}`);
   };
-  material.customProgramCacheKey = () => `tower-${pattern}`;
+  material.customProgramCacheKey = () => `tower-${pattern}-v6`;
 }
 
 function getFacadeRadiusAtY(tower, y, fallbackRadius) {
@@ -344,6 +649,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
         // Lueur intérieure douce, légèrement froide
         mat.emissive.set(0x5a6a96);
         mat.emissiveIntensity = 0.55;
+        tagWindowStrips(child);
         applyWindowPattern(mat);
       }
     } else {
@@ -1121,29 +1427,42 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   .to(camState, { duration: 0.4 })
   .addLabel('tower-door')
   .to(camState, { duration: 0.4 })
+  // La caméra recule au-dessus de l'entrée du puits et regarde vers le bas…
   .to(camState, {
     angle: Math.PI * 2.0,
-    radius: 12,
-    camY: 6.0,
-    targetY: -12.0,
+    radius: 25.5,
+    camY: 5.0,
+    targetY: -40.0,
     ux: 0,
-    uy: 6.0,
-    uz: 12,
+    uy: 5.0,
+    uz: 25.5,
     utx: 0,
-    uty: -12.0,
-    utz: 4,
+    uty: -30.0,
+    utz: 24.5,
     duration: 1.4,
-    ease: 'power2.in'
+    ease: 'power1.inOut'
   })
+  // …plonge à la verticale dans le puits lumineux…
   .to(camState, {
     mode: 1,
+    ux: 0,
+    uy: -16.0,
+    uz: 25.5,
+    utx: 0,
+    uty: -40.0,
+    utz: 25.0,
+    duration: 1.6,
+    ease: 'power2.in'
+  })
+  // …et ressort au plafond du sous-sol en se redressant vers les piliers
+  .to(camState, {
     ux: 0,
     uy: underground.floorY + 12.5,
     uz: 25.5,
     utx: 0,
     uty: underground.floorY + 5.2,
     utz: -3.5,
-    duration: 2.4,
+    duration: 1.8,
     ease: 'power2.out'
   })
   .to(camState, { duration: 0.4 })
@@ -1322,8 +1641,24 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     });
   }
 
+  // Easter egg : 5 clics de suite sur « 01 // JMG » -> NOVA porte la couronne du Big Boss
+  let bossClicks = 0;
+  let bossTimer = null;
   pillarButtons.forEach((btn) => {
-    btn.addEventListener('click', () => navigateToLabel(btn.dataset.label));
+    btn.addEventListener('click', () => {
+      navigateToLabel(btn.dataset.label);
+      if (btn.dataset.label !== 'pillar-0') return;
+      bossClicks++;
+      clearTimeout(bossTimer);
+      bossTimer = setTimeout(() => {
+        bossClicks = 0;
+      }, 6000);
+      if (bossClicks >= 5) {
+        bossClicks = 0;
+        companion.setCrown();
+        companion.say('👑 Bryan alias JMG, le Big Boss… je porte sa couronne maintenant !', 5000);
+      }
+    });
   });
 
   // =========================================================================
@@ -1422,15 +1757,15 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     }
     if (insideTower) return;
 
-    // Clic sur NOVA : il répond
+    // Clic sur NOVA : il répond (et s'agace si on insiste…)
     if (companion.isHit(raycaster)) {
-      companion.say(NOVA_POKES[Math.floor(Math.random() * NOVA_POKES.length)]);
+      pokeNova();
       return;
     }
 
     if (camState.mode < 0.35) {
       if (isPointerOnPlanet(raycaster)) {
-        toggleDayNight();
+        onPlanetClick();
         return;
       }
       if (entranceDoor.isHit(raycaster)) {
@@ -1482,6 +1817,38 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     'Hé ! Tu t\'es endormi ? 😴',
     'Tu es toujours là ? On continue la visite ?'
   ];
+  // Easter egg : cliquer NOVA 10 fois de suite
+  let novaClicks = 0;
+  let novaClickTimer = null;
+  const NOVA_ANNOYED = {
+    3: 'Hé ! Ça chatouille 😆',
+    5: 'Arrête, je travaille là 😤',
+    7: 'Wouah… j’ai le tournis 😵‍💫',
+    9: 'Dernier avertissement ! 😠',
+    10: 'Bon. Je fais une sieste. Réveille-moi plus tard 💤'
+  };
+  function pokeNova() {
+    if (companion.sleeping) {
+      companion.say('💤 Zzz… (chut, il dort)', 2000);
+      return;
+    }
+    novaClicks++;
+    clearTimeout(novaClickTimer);
+    novaClickTimer = setTimeout(() => {
+      novaClicks = 0;
+    }, 6000);
+    if (novaClicks === 7) companion.spin();
+    if (novaClicks === 3) companion.setMood('happy', 2.5);
+    if (novaClicks === 5 || novaClicks === 9) companion.setMood('angry', 2.5);
+    if (novaClicks >= 10) {
+      novaClicks = 0;
+      companion.say(NOVA_ANNOYED[10], 3000);
+      companion.sleep(15);
+      return;
+    }
+    companion.say(NOVA_ANNOYED[novaClicks] || NOVA_POKES[Math.floor(Math.random() * NOVA_POKES.length)], 2600);
+  }
+
   const NOVA_POKES = [
     'Hé, ça chatouille ! 😆',
     'Je suis NOVA, ton guide de la tour 🛰️',
@@ -1791,6 +2158,34 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   }
   animate();
   hideLoader();
+
+  // Easter egg : NOVA doré, 0,1 % de chance (comme les images Thomson du bot)
+  if (Math.random() < 0.001) {
+    companion.setGolden();
+    setTimeout(() => {
+      companion.say('✨ Waouh, tu as trouvé NOVA doré ! 0,1 % de chance, comme les images Thomson du bot. Fais une capture !', 9000);
+    }, 2500);
+  }
+  if (import.meta.env.DEV) window.__eggs = { golden: () => companion.setGolden(), discordPlanet, pokeNova, nova: companion };
+
+  // Easter egg : messages selon l'heure (fatigué la nuit, rappel des devoirs à 7 h 30)
+  let reminderDone = false;
+  function checkClock(onLoad) {
+    const now = new Date();
+    const h = now.getHours();
+    const minutes = h * 60 + now.getMinutes();
+    const lateNight = h < 5;
+    companion.setSleepy(lateNight);
+    if (onLoad && lateNight) {
+      setTimeout(() => companion.say('🥱 Il est tard… Va dormir, les devoirs attendront demain !', 6000), 4000);
+    }
+    if (!reminderDone && minutes >= 7 * 60 + 25 && minutes <= 7 * 60 + 40) {
+      reminderDone = true;
+      setTimeout(() => companion.say('⏰ 7 h 30 ! C’est l’heure des rappels du bot : pense à vérifier tes devoirs 📚', 7000), onLoad ? 4000 : 0);
+    }
+  }
+  checkClock(true);
+  setInterval(() => checkClock(false), 60000);
 
   const returnParam = new URLSearchParams(window.location.search).get('ascenseur');
   if (returnParam) {

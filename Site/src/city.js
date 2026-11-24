@@ -22,12 +22,15 @@ function mergeStaticMeshes(group) {
 
   buckets.forEach(({ material, meshes }) => {
     if (meshes.length < 2) return;
+    // Couleurs par sommet gardées seulement si toutes les formes en ont (feuillages)
+    const keep = ['position', 'normal', 'uv'];
+    if (meshes.every((m) => m.geometry.attributes.color)) keep.push('color');
     const geos = meshes.map((m) => {
       const g = m.geometry.clone();
       g.applyMatrix4(m.matrixWorld);
       // Ne garder que les attributs communs à toutes les formes
       Object.keys(g.attributes).forEach((name) => {
-        if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+        if (!keep.includes(name)) g.deleteAttribute(name);
       });
       return g;
     });
@@ -65,10 +68,10 @@ export function getTerrainHeight(x, z) {
 }
 
 const GROUND_NIGHT = {
-  base: '#0a0f1f',
-  patches: ['#0e1630', '#120f2e', '#0b1228', '#101a36', '#121a3a', '#170f33', '#0e1a30'],
-  fade: 'rgba(10, 15, 31, 0)',
-  specks: ['#1a2647', '#121b36', '#070b18', '#1b1440'],
+  base: '#111b36',
+  patches: ['#16224a', '#1a1844', '#13203f', '#182650', '#1b2756', '#21184a', '#152447'],
+  fade: 'rgba(17, 27, 54, 0)',
+  specks: ['#18244a', '#131e3e', '#0f1833', '#1a1a46'],
   road: '#05070f',
   roadLine: '#22e4ff',
   pathOuter: '#8b2a7a',
@@ -79,10 +82,10 @@ const GROUND_NIGHT = {
 
 // Jour : parc urbain sobre (pelouse, allées claires, asphalte)
 const GROUND_DAY = {
-  base: '#3f5a45',
-  patches: ['#46684c', '#3e5f45', '#4a6b4f', '#40624a', '#527456', '#5b6b45', '#456a4e'],
-  fade: 'rgba(63, 90, 69, 0)',
-  specks: ['#5f8a5f', '#3f6a48', '#2f4a36', '#6b7a4a'],
+  base: '#4b6c3b',
+  patches: ['#587b41', '#486a38', '#628846', '#53773e', '#6b8e4a', '#7b8a49', '#50733d'],
+  fade: 'rgba(75, 108, 59, 0)',
+  specks: ['#5d8246', '#4a6c3b', '#43633a', '#66894b'],
   road: '#2b3038',
   roadLine: '#e2e8f0',
   pathOuter: '#94a3b8',
@@ -345,11 +348,6 @@ export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
     metalness: 0.82,
     roughness: 0.28
   });
-  const woodBarkMat = new THREE.MeshStandardMaterial({
-    color: 0x1a1426,
-    roughness: 0.85,
-    metalness: 0.1
-  });
 
   // 1. SOL 3D AVEC RELIEF NATUREL & TEXTURES HD
   const { diffTex, bumpTex } = createHighDetailGroundTextures(GROUND_NIGHT);
@@ -377,29 +375,73 @@ export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
     })
   );
   cityGroup.add(terrainMesh);
+  // Pelouse : la texture de base est enrichie dans le shader par un bruit
+  // à plusieurs échelles (taches d'herbe plus ou moins drue, brins fins).
+  // La nuit, l'herbe devient bleu nuit et de petites spores lumineuses
+  // (cyan et roses) scintillent près de la caméra, comme les lucioles des arbres.
+  const terrainTime = { value: 0 };
   terrainMesh.material.onBeforeCompile = (shader) => {
     shader.uniforms.uDayMap = { value: dayDiffTex };
     shader.uniforms.uDay = DAY_UNIFORM;
+    shader.uniforms.uTime = terrainTime;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vTerrPos;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvTerrPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D uDayMap;\nuniform float uDay;')
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform sampler2D uDayMap;
+        uniform float uDay;
+        uniform float uTime;
+        varying vec3 vTerrPos;
+        float gxHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float gxNoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(gxHash(i), gxHash(i + vec2(1.0, 0.0)), f.x), mix(gxHash(i + vec2(0.0, 1.0)), gxHash(i + vec2(1.0, 1.0)), f.x), f.y);
+        }`
+      )
       .replace(
         '#include <map_fragment>',
         `#ifdef USE_MAP
           vec4 sampledDiffuseColor = mix(texture2D(map, vMapUv), texture2D(uDayMap, vMapUv), uDay);
           diffuseColor *= sampledDiffuseColor;
-        #endif`
+        #endif
+        float grassBig = gxNoise(vTerrPos.xz * 0.06) * 0.55 + gxNoise(vTerrPos.xz * 0.23) * 0.45;
+        float grassFine = gxNoise(vTerrPos.xz * 3.1) * 0.6 + gxNoise(vTerrPos.xz * 11.0) * 0.4;
+        diffuseColor.rgb *= 0.74 + grassBig * 0.42 + (grassFine - 0.5) * 0.16;
+        // Herbe un peu plus jaune sur les zones claires, plus bleue dans les creux (jour)
+        diffuseColor.rgb *= mix(vec3(1.0), mix(vec3(0.92, 0.98, 1.08), vec3(1.08, 1.04, 0.9), grassBig), uDay);`
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        vec2 sporeCell = floor(vTerrPos.xz / 0.8);
+        float sporeH = gxHash(sporeCell);
+        vec2 sporeF = fract(vTerrPos.xz / 0.8) - 0.5;
+        float spore = step(0.985, sporeH) * (1.0 - smoothstep(0.0, 0.22, length(sporeF)));
+        spore *= 0.55 + 0.45 * sin(uTime * (1.0 + sporeH * 3.0) + sporeH * 60.0);
+        spore *= 1.0 - smoothstep(35.0, 80.0, distance(vTerrPos, cameraPosition));
+        vec3 sporeCol = mix(vec3(0.13, 0.89, 1.0), vec3(1.0, 0.3, 0.8), step(0.993, sporeH));
+        totalEmissiveRadiance += sporeCol * spore * 0.9 * (1.0 - uDay);`
       );
   };
-  terrainMesh.material.customProgramCacheKey = () => 'terrain-day-night';
+  terrainMesh.material.customProgramCacheKey = () => 'terrain-day-night-v2';
 
   // Bassins d'eau réfléchissants dans le parc
-  const waterMat = new THREE.MeshStandardMaterial({
-    color: 0x0a1a3a,
+  const waterMat = new THREE.MeshPhysicalMaterial({
+    color: 0x0b2440,
     emissive: 0x0b2a55,
-    emissiveIntensity: 0.6,
-    metalness: 0.9,
-    roughness: 0.12
+    emissiveIntensity: 0.45,
+    metalness: 0.1,
+    roughness: 0.06,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.03,
+    envMapIntensity: 1.6
   });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x8d9099, roughness: 0.9, metalness: 0.0 });
   [
     { x: -46, z: -42, r: 12 },
     { x: 48, z: 44, r: 11 }
@@ -409,6 +451,12 @@ export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
     waterDisc.rotation.x = -Math.PI / 2;
     waterDisc.position.set(pond.x, py, pond.z);
     cityGroup.add(waterDisc);
+    // Margelle en pierre arrondie
+    const rimStone = new THREE.Mesh(new THREE.TorusGeometry(pond.r + 0.35, 0.5, 10, 64), stoneMat);
+    rimStone.rotation.x = Math.PI / 2;
+    rimStone.scale.set(1, 1, 0.45);
+    rimStone.position.set(pond.x, py + 0.05, pond.z);
+    cityGroup.add(rimStone);
   });
 
   // Parvis central sous la tour ESGI
@@ -422,12 +470,47 @@ export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
   cityGroup.add(plazaRing);
 
   // 2. PASSERELLES AÉRIENNES SINUEUSES
+  // Tablier en composite laqué : panneaux avec joints, bandes lumineuses sur
+  // les deux bords et pointillés roses au centre (s'allument la nuit).
+  const bridgeDeckMat = new THREE.MeshStandardMaterial({
+    color: 0x3a4468,
+    metalness: 0.55,
+    roughness: 0.28
+  });
+  bridgeDeckMat.defines = { USE_UV: '' };
+  bridgeDeckMat.onBeforeCompile = (shader) => {
+    shader.uniforms.uDay = DAY_UNIFORM;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vDeckN;')
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvDeckN = normalize(mat3(modelMatrix) * objectNormal);');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vDeckN;\nuniform float uDay;')
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        float panel = fract(vUv.x * 70.0);
+        float seam = smoothstep(0.0, 0.04, panel) * smoothstep(1.0, 0.96, panel);
+        float top = smoothstep(0.55, 0.8, vDeckN.y);
+        diffuseColor.rgb *= mix(1.0, mix(0.55, 1.0, seam), top);
+        diffuseColor.rgb *= 0.92 + 0.08 * fract(sin(floor(vUv.x * 70.0) * 91.7) * 4375.5);`
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        float edgeLine = 1.0 - smoothstep(0.0, 0.07, abs(vDeckN.y - 0.38));
+        float centre = step(0.996, vDeckN.y) * step(0.5, fract(vUv.x * 35.0));
+        float glowOn = mix(1.1, 0.15, uDay);
+        totalEmissiveRadiance += (vec3(0.13, 0.89, 1.0) * edgeLine + vec3(1.0, 0.24, 0.73) * centre) * glowOn;`
+      );
+  };
+  bridgeDeckMat.customProgramCacheKey = () => 'bridge-deck';
+
   function buildSweepingSkybridge(points) {
     const curve = new THREE.CatmullRomCurve3(points);
     const tubeGeo = new THREE.TubeGeometry(curve, 80, 1.35, 8, false);
     tubeGeo.scale(1, 0.26, 1);
 
-    const bridge = new THREE.Mesh(tubeGeo, whiteBridgeMat);
+    const bridge = new THREE.Mesh(tubeGeo, bridgeDeckMat);
     cityGroup.add(bridge);
 
     const rail = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, 0.09, 6, false), softTealMat);
@@ -520,88 +603,199 @@ export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
     }
   }
 
-  // 4. ARBRES HOLOGRAPHIQUES DOUX & ORGANIQUES
-  const holoWireGreen = new THREE.MeshBasicMaterial({
-    color: 0xff3dbb,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.3
-  });
-  const holoWireTeal = new THREE.MeshBasicMaterial({
-    color: 0x22e4ff,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.28
-  });
-  const holoLeafShellGreen = new THREE.MeshStandardMaterial({
-    color: 0x3b1a6b,
-    emissive: 0x5b21b6,
-    emissiveIntensity: 0.5,
-    roughness: 0.65,
-    transparent: true,
-    opacity: 0.6
-  });
-  const holoLeafShellTeal = new THREE.MeshStandardMaterial({
-    color: 0x0e3a5a,
-    emissive: 0x0a6c8c,
-    emissiveIntensity: 0.5,
-    roughness: 0.65,
-    transparent: true,
-    opacity: 0.56
-  });
+  // 4. ARBRES NÉON DU PARC
+  // Une vraie silhouette d'arbre (branches générées par code, qui se divisent
+  // et s'affinent) mais en lumière : branches en néon dégradé du pied vers la
+  // pointe, feuillage fait de milliers de lucioles qui scintillent et ondulent
+  // au vent. Tout le parc tient en 2 appels de dessin.
+  const TREE_STYLES = {
+    cyan: { base: [0.05, 0.25, 0.4], tip: [0.35, 1.7, 2.3], leaves: [[0.3, 1.9, 2.6], [0.55, 1.4, 2.6], [1.0, 2.2, 2.4]] },
+    pink: { base: [0.35, 0.06, 0.3], tip: [2.2, 0.45, 1.6], leaves: [[2.6, 0.5, 1.7], [2.4, 0.9, 2.0], [2.6, 1.6, 2.2]] },
+    violet: { base: [0.18, 0.08, 0.4], tip: [1.2, 0.6, 2.6], leaves: [[1.3, 0.55, 2.8], [0.8, 0.9, 2.8], [2.0, 0.7, 2.4]] }
+  };
 
-  function createHoloTree(x, z, scale = 1, isTeal = false) {
+  const branchGeos = [];
+  const leafPos = [];
+  const leafCol = [];
+  const leafData = []; // phase, taille, balancement
+  const up = new THREE.Vector3(0, 1, 0);
+  const tmpQ = new THREE.Quaternion();
+  const segColor = new THREE.Color();
+
+  function addSegment(a, b, r0, r1, c0, c1) {
+    const len = a.distanceTo(b);
+    const g = new THREE.CylinderGeometry(r1, r0, len, 6, 1, true);
+    const cols = new Float32Array(g.attributes.position.count * 3);
+    for (let i = 0; i < g.attributes.position.count; i++) {
+      const t = g.attributes.position.getY(i) / len + 0.5;
+      segColor.setRGB(...c0).lerp(new THREE.Color(...c1), t);
+      cols.set([segColor.r, segColor.g, segColor.b], i * 3);
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    g.deleteAttribute('uv');
+    tmpQ.setFromUnitVectors(up, b.clone().sub(a).normalize());
+    g.applyQuaternion(tmpQ);
+    g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+    branchGeos.push(g);
+  }
+
+  function mixRGB(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+
+  // Grappe de lucioles au bout d'une branche
+  function addLeaves(center, radius, count, style, sway) {
+    for (let i = 0; i < count; i++) {
+      const u = Math.random() * 2 - 1;
+      const th = Math.random() * Math.PI * 2;
+      const rr = radius * Math.cbrt(Math.random());
+      const s = Math.sqrt(1 - u * u);
+      leafPos.push(center.x + s * Math.cos(th) * rr, center.y + u * rr * 0.75, center.z + s * Math.sin(th) * rr);
+      const c = style.leaves[Math.floor(Math.random() * style.leaves.length)];
+      const k = 0.55 + Math.random() * 0.45;
+      leafCol.push(c[0] * k, c[1] * k, c[2] * k);
+      leafData.push(Math.random(), 0.08 + Math.random() * 0.13, sway);
+    }
+  }
+
+  function growBranch(start, dir, length, radius, depth, maxDepth, style, shape, groundY) {
+    const end = start.clone().addScaledVector(dir, length);
+    const t0 = 1 - depth / maxDepth;
+    const t1 = 1 - (depth - 1) / maxDepth;
+    addSegment(start, end, radius, radius * 0.66, mixRGB(style.base, style.tip, t0 * t0), mixRGB(style.base, style.tip, t1 * t1));
+    if (depth >= maxDepth) {
+      addLeaves(end, 1.0 + Math.random() * 0.4, 26, style, end.y - groundY);
+      return;
+    }
+    // Quelques lucioles aussi le long des branches hautes
+    if (depth >= maxDepth - 1) addLeaves(end, 0.8, 12, style, end.y - groundY);
+    else if (depth >= maxDepth - 2) addLeaves(end, 0.6, 5, style, end.y - groundY);
+    const children = depth === 0 ? 3 : 2 + (Math.random() < 0.45 ? 1 : 0);
+    for (let i = 0; i < children; i++) {
+      const spread = shape === 'tall' ? 0.32 : 0.62;
+      const azimuth = (i / children) * Math.PI * 2 + Math.random() * 1.2;
+      // Direction : écart par rapport à la branche mère, légère poussée vers le haut
+      const side = new THREE.Vector3(Math.cos(azimuth), 0, Math.sin(azimuth));
+      const nd = dir.clone().multiplyScalar(Math.cos(spread)).addScaledVector(side, Math.sin(spread) * (0.8 + Math.random() * 0.4));
+      nd.y += shape === 'tall' ? 0.35 : 0.18;
+      nd.normalize();
+      growBranch(end, nd, length * (shape === 'tall' ? 0.68 : 0.74), radius * 0.55, depth + 1, maxDepth, style, shape, groundY);
+    }
+  }
+
+  function createNeonTree(x, z, scale, styleName, shape) {
     const gndY = getTerrainHeight(x, z);
-    const tree = new THREE.Group();
-    tree.position.set(x, gndY, z);
-    tree.scale.setScalar(scale);
+    const style = TREE_STYLES[styleName];
+    const base = new THREE.Vector3(x, gndY, z);
+    const lean = new THREE.Vector3((Math.random() - 0.5) * 0.12, 1, (Math.random() - 0.5) * 0.12).normalize();
+    const trunkLen = (shape === 'tall' ? 2.4 : 2.1) * scale;
+    // Tronc en deux morceaux un peu tordus
+    const mid = base.clone().addScaledVector(lean, trunkLen * 0.55);
+    mid.x += (Math.random() - 0.5) * 0.15 * scale;
+    mid.z += (Math.random() - 0.5) * 0.15 * scale;
+    addSegment(base, mid, 0.26 * scale, 0.2 * scale, style.base, mixRGB(style.base, style.tip, 0.12));
+    growBranch(mid, lean, trunkLen * 0.6, 0.2 * scale, 0, 4, style, shape, gndY);
 
+    // Bague néon au pied (s'allume la nuit)
     const emitter = new THREE.Mesh(
-      new THREE.TorusGeometry(0.95, 0.04, 8, 24),
-      isTeal ? softTealMat : softEmeraldMat
+      new THREE.TorusGeometry(0.8 * scale, 0.035, 8, 28),
+      styleName === 'pink' ? softEmeraldMat : softTealMat
     );
     emitter.rotation.x = Math.PI / 2;
-    emitter.position.y = 0.06;
-    tree.add(emitter);
-
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.42, 3.8, 8), woodBarkMat);
-    trunk.position.y = 1.9;
-    tree.add(trunk);
-
-    const canopyGroup = new THREE.Group();
-    canopyGroup.position.y = 4.6;
-
-    const mainShell = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(2.05, 1),
-      isTeal ? holoLeafShellTeal : holoLeafShellGreen
-    );
-    const mainWire = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(2.14, 1),
-      isTeal ? holoWireTeal : holoWireGreen
-    );
-    const subShell = new THREE.Mesh(
-      new THREE.DodecahedronGeometry(1.3, 0),
-      isTeal ? holoLeafShellTeal : holoLeafShellGreen
-    );
-    subShell.position.set(1.15, -0.45, 0.75);
-
-    canopyGroup.add(mainShell, mainWire, subShell);
-    tree.add(canopyGroup);
-
-    cityGroup.add(tree);
-    canopyGroup.rotation.y = Math.random() * Math.PI * 2; // arbres fixes (fusionnés) mais orientés au hasard
+    emitter.position.set(x, gndY + 0.06, z);
+    cityGroup.add(emitter);
   }
 
-  for (let i = 0; i < 68; i++) {
-    const angle = (i / 68) * Math.PI * 2 + (Math.random() - 0.5) * 0.14;
-    const dist = 30 + Math.random() * 54;
-    createHoloTree(
-      Math.cos(angle) * dist,
-      Math.sin(angle) * dist,
-      0.85 + Math.random() * 0.85,
-      i % 4 === 0
-    );
+  // Le pied des escaliers de la tour reste dégagé (passage de la caméra)
+  const keepClear = (x, z) => Math.abs(x) < 9 && z > 10 && z < 42;
+
+  for (let i = 0; i < 64; i++) {
+    const angle = (i / 64) * Math.PI * 2 + (Math.random() - 0.5) * 0.14;
+    const dist = 31 + Math.random() * 52;
+    const x = Math.cos(angle) * dist;
+    const z = Math.sin(angle) * dist;
+    if (keepClear(x, z)) continue;
+    const styleName = i % 3 === 0 ? 'pink' : i % 3 === 1 ? 'cyan' : 'violet';
+    createNeonTree(x, z, 0.9 + Math.random() * 0.6, styleName, i % 4 === 2 ? 'tall' : 'round');
   }
+
+  // Petits buissons de lucioles autour des bassins
+  [
+    { x: -46, z: -42, r: 12 },
+    { x: 48, z: 44, r: 11 }
+  ].forEach((pond, p) => {
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2 + Math.random() * 0.2;
+      const d = pond.r + 2 + Math.random() * 1.2;
+      const x = pond.x + Math.cos(a) * d;
+      const z = pond.z + Math.sin(a) * d;
+      const c = new THREE.Vector3(x, getTerrainHeight(x, z) + 0.45, z);
+      addLeaves(c, 0.55, 14, TREE_STYLES[(k + p) % 2 ? 'cyan' : 'pink'], 0.3);
+    }
+  });
+
+  // Branches : un seul mesh, couleurs HDR (le bloom les fait briller)
+  const branchMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+  const branchMesh = new THREE.Mesh(mergeGeometries(branchGeos, false), branchMat);
+  branchGeos.forEach((g) => g.dispose());
+  branchMesh.userData.dynamic = true; // déjà fusionné
+  cityGroup.add(branchMesh);
+
+  // Feuillage : lucioles lumineuses qui scintillent et ondulent au vent
+  const leafGeo = new THREE.BufferGeometry();
+  leafGeo.setAttribute('position', new THREE.Float32BufferAttribute(leafPos, 3));
+  leafGeo.setAttribute('aColor', new THREE.Float32BufferAttribute(leafCol, 3));
+  leafGeo.setAttribute('aData', new THREE.Float32BufferAttribute(leafData, 3));
+  const neonLeafUniforms = {
+    uTime: { value: 0 },
+    uDay: DAY_UNIFORM,
+    uViewportH: { value: 800 }
+  };
+  const neonLeaves = new THREE.Points(
+    leafGeo,
+    new THREE.ShaderMaterial({
+      uniforms: neonLeafUniforms,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexShader: `
+        attribute vec3 aColor;
+        attribute vec3 aData; // phase, taille, hauteur (balancement)
+        uniform float uTime;
+        uniform float uViewportH;
+        varying vec3 vColor;
+        varying float vTwinkle;
+        void main() {
+          vec3 p = position;
+          // Vent : les grappes hautes ondulent davantage
+          float sway = aData.z * 0.035;
+          p.x += sin(uTime * 1.1 + position.z * 0.15 + aData.x * 0.6) * sway;
+          p.z += cos(uTime * 0.9 + position.x * 0.15) * sway * 0.6;
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          gl_Position = projectionMatrix * mv;
+          gl_PointSize = min(aData.y * projectionMatrix[1][1] * uViewportH * 0.5 / -mv.z, 48.0);
+          vTwinkle = 0.6 + 0.4 * sin(uTime * (1.5 + aData.x * 2.5) + aData.x * 40.0);
+          vColor = aColor;
+        }
+      `,
+      fragmentShader: `
+        uniform float uDay;
+        varying vec3 vColor;
+        varying float vTwinkle;
+        void main() {
+          float d = length(gl_PointCoord - 0.5) * 2.0;
+          if (d > 1.0) discard;
+          float core = pow(1.0 - d, 2.5);
+          float halo = (1.0 - d) * 0.35;
+          vec3 col = vColor * (core * 1.3 + halo) * vTwinkle * mix(0.42, 0.75, uDay);
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    })
+  );
+  neonLeaves.frustumCulled = false;
+  neonLeaves.userData.dynamic = true;
+  cityGroup.add(neonLeaves);
 
   // Lampadaires autour du parvis
   for (let l = 0; l < 16; l++) {
@@ -873,8 +1067,11 @@ export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
   const dayNightLooks = [
     ...facadeMats.map((m) => ({ m, color: [C(0x0d1124), C(0x8a96ac)], emissive: [0.75, 0.12] })),
     { m: whiteBridgeMat, color: [C(0x3a4468), C(0xe2e8f0)] },
+    { m: bridgeDeckMat, color: [C(0x2c3454), C(0xd6dde8)] },
     { m: glassCylinderMat, color: [C(0x0b1430), C(0x2a5a8a)] },
     { m: softEmeraldMat, emissive: [0.9, 0.3] },
+    // Branches néon : discrètes la nuit (le feuillage prend le relais), normales le jour
+    { m: branchMat, color: [C(0x4d4d4d), C(0xffffff)] },
     { m: softTealMat, emissive: [0.9, 0.3] },
     { m: maglevWindowMat, emissive: [1.1, 0.15] },
     { m: searchlightMat, opacity: [0.07, 0.0] }
@@ -892,6 +1089,9 @@ export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
 
   function update(delta, elapsed) {
     applyDayNight(DAY_UNIFORM.value);
+    terrainTime.value = elapsed;
+    neonLeafUniforms.uTime.value = elapsed;
+    neonLeafUniforms.uViewportH.value = window.innerHeight * Math.min(window.devicePixelRatio || 1, 2);
     searchlights.forEach((sl) => {
       sl.mesh.rotation.x = Math.sin(elapsed * 0.45 + sl.phase) * 0.22;
       sl.mesh.rotation.z = Math.cos(elapsed * 0.38 + sl.phase) * 0.22;
