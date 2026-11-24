@@ -256,6 +256,7 @@ function steelBackground() {
 // ---------------------------------------------------------------------------
 export function createElevator3D(scene, { say, onExit }) {
   const music = createElevatorMusic();
+  if (import.meta.env.DEV) window.__music = music;
   const group = new THREE.Group();
   group.position.copy(ORIGIN);
   group.visible = false;
@@ -659,12 +660,13 @@ export function createElevator3D(scene, { say, onExit }) {
     const y = 878;
     const items = [
       { act: 'open', x: 110, text: '◀▶', caption: 'PORTES' },
-      { act: 'mute', x: 250, text: music.muted ? '✕' : '♪', caption: 'MUSIQUE' },
+      { act: 'mute', x: 250, text: music.muted ? '✕' : '♪', caption: music.muted ? 'COUPÉE' : 'MUSIQUE' },
       { act: 'exit', x: 390, text: '⇱', caption: 'SORTIR' }
     ];
     items.forEach((b) => {
       const hover = region(b.x - 42, y - 42, 84, 84, b.act);
-      roundButton(b.x, y - 6, 36, b.text, { font: 24, hover, lit: b.act === 'open' && doorTarget > 0.5 });
+      const lit = (b.act === 'open' && doorTarget > 0.5) || (b.act === 'mute' && !music.muted);
+      roundButton(b.x, y - 6, 36, b.text, { font: 24, hover, lit });
       label(b.caption, b.x, y + 44, { size: 13, color: '#3a3f48' });
     });
   }
@@ -742,7 +744,6 @@ export function createElevator3D(scene, { say, onExit }) {
     await wait(400);
     travelDir = 0;
     drawArrowSign(0);
-    music.stop(1.2);
     music.ding();
     travelling = false;
     dirty = true;
@@ -808,6 +809,7 @@ export function createElevator3D(scene, { say, onExit }) {
     landingMat.map = floorTex;
     doorTarget = 1;
     await wait(900);
+    music.stop(1);
     onFloor = true;
     document.body.classList.add('on-floor');
     floorView.classList.add('open');
@@ -824,6 +826,7 @@ export function createElevator3D(scene, { say, onExit }) {
     document.body.classList.remove('on-floor');
     floorView.classList.remove('open');
     floorView.setAttribute('aria-hidden', 'true');
+    if (active && !silent) music.start();
     if (!silent) say('Re ! On va où maintenant ? 🛗', 3500);
   }
 
@@ -904,7 +907,14 @@ export function createElevator3D(scene, { say, onExit }) {
     if (onExit) await onExit();
   }
 
+  // Premier clic ou toucher dans la cabine (ex. retour de la connexion
+  // Discord, page rechargée) : on débloque le son à ce moment-là.
+  window.addEventListener('pointerdown', () => {
+    if (active) music.unlock();
+  });
+
   window.addEventListener('keydown', (e) => {
+    if (active) music.unlock();
     if (!active || e.key !== 'Escape' || travelling) return;
     e.preventDefault();
     if (onFloor) backToCabin();
@@ -931,6 +941,7 @@ export function createElevator3D(scene, { say, onExit }) {
       doorOpen = 0;
       doorTarget = 0;
       // Portes fermées : on voit la porte dorée, et le tableau à droite
+      music.start();
       loadFloors(greeting);
     },
     leave() {
@@ -950,7 +961,15 @@ export function createElevator3D(scene, { say, onExit }) {
       }
       return Boolean(r);
     },
+    /** Débloque le son : à appeler pendant le clic qui fait entrer */
+    unlockAudio() {
+      music.unlock();
+    },
+    get audioState() {
+      return music.state;
+    },
     click(raycaster) {
+      music.unlock();
       const r = regionAt(raycaster);
       if (r) act(r);
     },

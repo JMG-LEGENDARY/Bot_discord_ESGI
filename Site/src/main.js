@@ -1195,6 +1195,8 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   async function enterTower() {
     if (insideTower || isModalOpen) return;
     insideTower = true;
+    // Le clic sur la porte autorise le son (musique d'ascenseur)
+    elevator.unlockAudio();
     cancelMagnet();
     lockPage(true);
     panelPrompt.classList.remove('visible');

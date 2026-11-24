@@ -26,7 +26,9 @@ const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
 export function createElevatorMusic() {
   let ctx = null;
   let master = null;
+  let muteGain = null;
   let timer = null;
+  let stopTimer = null;
   let nextTime = 0;
   let step = 0;
   let muted = false;
@@ -43,11 +45,15 @@ export function createElevatorMusic() {
     ctx = new AC();
     master = ctx.createGain();
     master.gain.value = 0;
+    // Interrupteur « couper la musique » : séparé des fondus, donc immédiat
+    muteGain = ctx.createGain();
+    muteGain.gain.value = muted ? 0 : 1;
     // Son feutré, comme à travers les haut-parleurs de la cabine
     const tone = ctx.createBiquadFilter();
     tone.type = 'lowpass';
     tone.frequency.value = 3200;
-    master.connect(tone);
+    master.connect(muteGain);
+    muteGain.connect(tone);
     tone.connect(ctx.destination);
     return true;
   }
@@ -111,6 +117,14 @@ export function createElevatorMusic() {
 
   // Planifie les notes un peu à l'avance (horloge audio = tempo stable)
   function schedule() {
+    // Musique coupée : on avance dans la partition sans jouer de notes
+    if (muted) {
+      while (nextTime < ctx.currentTime + 0.25) {
+        nextTime += BEAT / 2;
+        step++;
+      }
+      return;
+    }
     while (nextTime < ctx.currentTime + 0.25) {
       const half = step % 32; // 32 demi-temps = 4 mesures
       const chord = CHORDS[Math.floor(half / 8)];
@@ -140,6 +154,22 @@ export function createElevatorMusic() {
     get muted() {
       return muted;
     },
+    /** Pour le débogage : volume réel et état */
+    debug() {
+      return ctx ? { gain: master.gain.value * muteGain.gain.value, playing: Boolean(timer), muted, state: ctx.state } : null;
+    },
+    /** État du son (pour vérifier) : none, suspended ou running */
+    get state() {
+      return ctx ? ctx.state : 'none';
+    },
+    /**
+     * À appeler PENDANT un clic : les navigateurs n'autorisent le son
+     * qu'après une action du visiteur. Les notes déjà prévues se lancent alors.
+     */
+    unlock() {
+      if (!ensure()) return;
+      if (ctx.state === 'suspended') ctx.resume();
+    },
     setMuted(value) {
       muted = value;
       try {
@@ -147,26 +177,36 @@ export function createElevatorMusic() {
       } catch (e) {
         /* sans importance */
       }
-      if (ctx && timer) fadeTo(muted ? 0 : 0.9, 0.3);
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      muteGain.gain.cancelScheduledValues(now);
+      muteGain.gain.setValueAtTime(muted ? 0 : 1, now);
     },
     /** Lance la musique (après un clic : règle des navigateurs) */
     start() {
       if (!ensure()) return;
       if (ctx.state === 'suspended') ctx.resume();
-      if (timer) return;
-      step = 0;
-      nextTime = ctx.currentTime + 0.08;
-      schedule();
-      timer = setInterval(schedule, 90);
-      fadeTo(muted ? 0 : 0.9, 0.8);
+      // Relancée pendant qu'elle s'arrêtait : on annule l'arrêt
+      if (stopTimer) {
+        clearTimeout(stopTimer);
+        stopTimer = null;
+      }
+      if (!timer) {
+        step = 0;
+        nextTime = ctx.currentTime + 0.08;
+        schedule();
+        timer = setInterval(schedule, 90);
+      }
+      fadeTo(0.9, 0.8);
     },
     stop(fadeSeconds = 0.8) {
       if (!ctx || !timer) return;
       fadeTo(0, fadeSeconds);
-      const t = timer;
-      setTimeout(() => {
-        clearInterval(t);
-        if (timer === t) timer = null;
+      clearTimeout(stopTimer);
+      stopTimer = setTimeout(() => {
+        clearInterval(timer);
+        timer = null;
+        stopTimer = null;
       }, fadeSeconds * 1000 + 50);
     },
     /** « Ding » d'arrivée à l'étage (deux notes de carillon) */
