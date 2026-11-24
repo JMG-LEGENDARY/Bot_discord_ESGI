@@ -197,16 +197,48 @@ function buildShip() {
     nozzles.push(new THREE.Vector3(side * 0.11, -0.07, -0.38));
   });
 
+  // Deux petits bras (épaule, coude, main ronde) : coucou, gestes et danse
+  const armMat = new THREE.MeshStandardMaterial({ color: 0xf4f6fb, roughness: 0.35, metalness: 0.05 });
+  const arms = [];
+  [-1, 1].forEach((side) => {
+    const shoulder = new THREE.Group();
+    shoulder.position.set(side * 0.265, -0.06, 0.12);
+    const joint = new THREE.Mesh(new THREE.SphereGeometry(0.034, 16, 12), pastelMat);
+    shoulder.add(joint);
+    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.027, 0.09, 6, 12), armMat);
+    upper.position.y = -0.065;
+    shoulder.add(upper);
+    const elbow = new THREE.Group();
+    elbow.position.y = -0.13;
+    shoulder.add(elbow);
+    const forearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.025, 0.08, 6, 12), armMat);
+    forearm.position.y = -0.055;
+    elbow.add(forearm);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 18, 14), pastelMat);
+    hand.scale.set(1, 1.05, 0.8);
+    hand.position.y = -0.125;
+    elbow.add(hand);
+    const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.021, 12, 10), pinkMat);
+    thumb.position.set(-side * 0.036, -0.11, 0.022);
+    elbow.add(thumb);
+    shoulder.userData.side = side;
+    shoulder.userData.elbow = elbow;
+    ship.add(shoulder);
+    arms.push(shoulder);
+  });
+
   // Toutes les pièces dans un « rig » : il peut rebondir et s'étirer sans déplacer le vaisseau
   const rig = new THREE.Group();
   while (ship.children.length) rig.add(ship.children[0]);
   ship.add(rig);
 
-  return { ship, nozzles, eyes, antenna, wings, heart, rig };
+  return { ship, nozzles, eyes, antenna, wings, heart, rig, arms };
 }
 
 export function createCompanion(scene, camera, glows) {
-  const { ship, nozzles, eyes, antenna, wings, heart, rig } = buildShip();
+  const { ship, nozzles, eyes, antenna, wings, heart, rig, arms } = buildShip();
+  let waveUntil = 0; // fin du « coucou » de la main
+  let dancing = false;
   ship.scale.setScalar(1.05);
   ship.userData.glowScale = true;
   scene.add(ship);
@@ -305,6 +337,7 @@ export function createCompanion(scene, camera, glows) {
   }
 
   function say(text, duration = 4500) {
+    waveUntil = performance.now() + 2600;
     if (!bubble || !bubbleText) return;
     clearInterval(typingTimer);
     clearTimeout(hideTimer);
@@ -457,7 +490,8 @@ export function createCompanion(scene, camera, glows) {
     }
     blinkT = Math.min(1, blinkT + delta * 7);
     const blink = 1 - Math.sin(blinkT * Math.PI) * 0.9;
-    const eyeHeight = (talking ? 0.55 : 1.35) * blink;
+    dancing = Boolean(info.dancing);
+    const eyeHeight = (talking || dancing ? 0.55 : 1.35) * blink;
     eyes.forEach((eye) => {
       eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, eyeHeight, 1 - Math.exp(-delta * 18));
     });
@@ -469,9 +503,42 @@ export function createCompanion(scene, camera, glows) {
     wings.forEach((w) => {
       w.rotation.z = w.userData.side * (0.35 + Math.sin(flapPhase) * 0.28);
     });
-    heart.rotation.y += delta * 1.6;
-    // Petit rebond permanent + s'étire un peu dans le sens de la vitesse
-    rig.position.y = Math.sin(elapsed * 2.4) * 0.025;
+    heart.rotation.y += delta * (dancing ? 5 : 1.6);
+
+    // Bras : danse sur la musique, coucou quand il parle, sinon au repos
+    const beat = elapsed * Math.PI * 2 * 1.05;
+    const waving = performance.now() < waveUntil;
+    const follow = 1 - Math.exp(-delta * 10);
+    arms.forEach((arm) => {
+      const side = arm.userData.side;
+      let raise;
+      let bend;
+      let swing = 0;
+      if (dancing) {
+        const phase = beat + (side > 0 ? 0 : Math.PI);
+        raise = 1.5 + Math.sin(phase) * 1.0;
+        bend = 0.9 + Math.sin(phase * 2) * 0.4;
+        swing = Math.sin(phase) * 0.4;
+      } else if (waving && side > 0) {
+        raise = 2.55; // main levée…
+        bend = 0.5 + Math.sin(elapsed * 14) * 0.55; // …qui fait coucou
+      } else if (talking) {
+        raise = 0.6 + Math.sin(elapsed * 3 + side) * 0.25;
+        bend = 0.75 + Math.sin(elapsed * 4 + side) * 0.3;
+        swing = Math.sin(elapsed * 3 + side) * 0.3;
+      } else {
+        raise = 0.3 + Math.sin(elapsed * 1.6 + side) * 0.07;
+        bend = 0.35;
+      }
+      arm.rotation.z = THREE.MathUtils.lerp(arm.rotation.z, side * raise, follow);
+      arm.rotation.x = THREE.MathUtils.lerp(arm.rotation.x, -swing, follow);
+      const elbow = arm.userData.elbow;
+      elbow.rotation.z = THREE.MathUtils.lerp(elbow.rotation.z, side * bend, follow);
+    });
+
+    // Petit rebond permanent (sautille en rythme quand il danse) + s'étire dans le sens de la vitesse
+    rig.position.y = Math.sin(elapsed * 2.4) * 0.025 + (dancing ? Math.abs(Math.sin(beat)) * 0.07 : 0);
+    rig.rotation.z = THREE.MathUtils.lerp(rig.rotation.z, dancing ? Math.sin(beat) * 0.22 : 0, follow);
     const stretch = THREE.MathUtils.clamp(localSpeed * 0.04, 0, 0.14);
     const sq = THREE.MathUtils.lerp(rig.scale.z, 1 + stretch, 1 - Math.exp(-delta * 6));
     rig.scale.set(1 - (sq - 1) * 0.5, 1 - (sq - 1) * 0.5, sq);

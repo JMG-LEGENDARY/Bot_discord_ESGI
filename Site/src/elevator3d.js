@@ -430,6 +430,7 @@ export function createElevator3D(scene, { say, onExit, renderer }) {
     const show = active && !onFloor && !music.muted && Boolean(currentTrack) && music.source === 'soundcloud';
     nowPlaying.classList.toggle('visible', show);
   }
+  music.onFallback = () => updateNowPlaying();
   music.onTrack = (track) => {
     currentTrack = track;
     nowText.textContent = track.artist ? `${track.title} — ${track.artist}` : track.title;
@@ -1304,6 +1305,10 @@ export function createElevator3D(scene, { say, onExit, renderer }) {
     /** Le tableau de bord (page HTML) couvre l'écran : la 3D peut se mettre en pause */
     get coversScreen() {
       return onFloor;
+    },
+    /** La musique joue dans la cabine : NOVA danse */
+    get musicPlaying() {
+      return active && !onFloor && music.playing;
     },
     cameraPose,
     environment: cabinEnvironment,

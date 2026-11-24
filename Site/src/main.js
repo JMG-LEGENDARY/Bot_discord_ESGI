@@ -1665,7 +1665,8 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       smoothCamTarget.copy(pose.target);
       elevator.update(delta);
       companion.update(delta, elapsed, {
-        progress: 0, idle: 0, portrait: camera.aspect < 1, verticalSpeed: 0, cabin: true, teleport: novaTeleport
+        progress: 0, idle: 0, portrait: camera.aspect < 1, verticalSpeed: 0, cabin: true, teleport: novaTeleport,
+        dancing: elevator.musicPlaying
       });
       novaTeleport = false;
       scene.updateMatrixWorld();
