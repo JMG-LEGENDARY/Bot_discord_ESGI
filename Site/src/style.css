@@ -33,7 +33,7 @@ body {
 .scroll-container {
   position: relative;
   width: 100%;
-  height: 1600vh;
+  height: 5000vh;
   z-index: 2;
   pointer-events: none;
 }
