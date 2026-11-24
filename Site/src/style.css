@@ -1020,3 +1020,146 @@ body.in-underground #panel-prompt {
   word-break: break-all;
   pointer-events: auto;
 }
+
+
+/* ==========================================================================
+   ÉCRAN DE CHARGEMENT
+   ========================================================================== */
+#loader {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 40%, #14123a 0%, var(--night) 70%);
+  z-index: 200;
+  transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+
+#loader.done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.loader-box {
+  width: min(320px, calc(100% - 48px));
+  text-align: center;
+}
+
+.loader-title {
+  font-family: var(--font-sans);
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+  text-shadow: 0 0 18px rgba(34, 228, 255, 0.55);
+  margin-bottom: 18px;
+}
+
+.loader-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+#loader-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--pink));
+  box-shadow: 0 0 10px var(--cyan);
+  transition: width 0.2s ease;
+}
+
+#loader-text {
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+  color: var(--text-soft);
+}
+
+#loader.error #loader-text {
+  color: #ff8ab8;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+}
+
+#loader.error .loader-track {
+  display: none;
+}
+
+/* ==========================================================================
+   LIEN CODE SOURCE
+   ========================================================================== */
+#github-link {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  padding: 7px 12px;
+  background: var(--bg-dark);
+  border: 1px solid rgba(34, 228, 255, 0.35);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  text-decoration: none;
+  backdrop-filter: blur(10px);
+  z-index: 22;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#github-link:hover,
+#github-link:focus-visible {
+  border-color: var(--cyan);
+  box-shadow: 0 0 14px rgba(34, 228, 255, 0.35);
+}
+
+@media (max-width: 640px) {
+  #github-link {
+    top: 60px;
+    bottom: auto;
+    right: 12px;
+    font-size: 0.62rem;
+    padding: 6px 10px;
+  }
+}
+
+
+/* Boutons du pied de fiche (GitHub + fermer) */
+.modal-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.modal-link-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.dropdown-list a {
+  color: var(--modal-accent);
+  text-decoration: underline;
+}
+
+/* Le bouton « Code source » ne doit pas chevaucher l'invite ni la barre des piliers */
+body:has(#panel-prompt.visible) #github-link,
+body.pillars-open #github-link {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .modal-footer-actions {
+    flex-direction: column;
+  }
+
+  .modal-link-btn {
+    justify-content: center;
+  }
+}

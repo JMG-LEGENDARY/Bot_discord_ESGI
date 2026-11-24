@@ -8,6 +8,8 @@
     <meta property="og:title" content="ESGI-Bot" />
     <meta property="og:description" content="Bot Discord en Python pour les étudiants ESGI — Devoirs, évaluations et suivi de classe." />
     <meta property="og:type" content="website" />
+    <meta name="description" content="ESGI-Bot : bot Discord en Python pour les étudiants de l'ESGI Reims — devoirs, évaluations, rappels automatiques et gestion des classes." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="theme-color" content="#060814" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -22,6 +24,20 @@
   </head>
   <body>
     <canvas id="bg"></canvas>
+
+    <!-- Écran de chargement (pendant le téléchargement du modèle 3D) -->
+    <div id="loader" role="status" aria-live="polite">
+      <div class="loader-box">
+        <div class="loader-title">ESGI-BOT</div>
+        <div class="loader-track"><div id="loader-fill"></div></div>
+        <div id="loader-text">CHARGEMENT DE LA TOUR… 0 %</div>
+      </div>
+    </div>
+
+    <!-- Lien vers le code source -->
+    <a id="github-link" href="https://github.com/JMG-LEGENDARY/Bot_discord_ESGI" target="_blank" rel="noopener noreferrer">
+      CODE SOURCE ↗
+    </a>
 
     <!-- HUD Télémétrie Haut -->
     <header id="hud">
@@ -90,7 +106,7 @@
               <button type="button" class="modal-tab" data-idx="0">01 // FEATURES</button>
               <button type="button" class="modal-tab" data-idx="1">02 // INTERFACE</button>
               <button type="button" class="modal-tab" data-idx="2">03 // ARCHITECTURE</button>
-              <button type="button" class="modal-tab" data-idx="3">04 // OPEN-SOURCE</button>
+              <button type="button" class="modal-tab" data-idx="3">04 // INSTALL &amp; RÔLES</button>
             </div>
             <button type="button" id="modal-close-btn" class="modal-close-btn">
               <kbd>ÉCHAP</kbd>
@@ -121,10 +137,15 @@
 
           <!-- Pied de page modal -->
           <div class="modal-footer">
-            <span>ESGI REIMS // PROJET OPEN-SOURCE BOT DISCORD</span>
-            <button type="button" id="modal-footer-close" class="modal-secondary-btn">
-              FERMER ET REPRENDRE LA DESCENTE ↓
-            </button>
+            <span>ESGI REIMS // PROJET ÉTUDIANT — BOT DISCORD</span>
+            <div class="modal-footer-actions">
+              <a class="modal-secondary-btn modal-link-btn" href="https://github.com/JMG-LEGENDARY/Bot_discord_ESGI" target="_blank" rel="noopener noreferrer">
+                VOIR LE CODE SUR GITHUB ↗
+              </a>
+              <button type="button" id="modal-footer-close" class="modal-secondary-btn">
+                FERMER ET REPRENDRE LA DESCENTE ↓
+              </button>
+            </div>
           </div>
         </div>
       </div>
