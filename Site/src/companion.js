@@ -208,6 +208,7 @@ function buildShip() {
 export function createCompanion(scene, camera, glows) {
   const { ship, nozzles, eyes, antenna, wings, heart, rig } = buildShip();
   ship.scale.setScalar(1.05);
+  ship.userData.glowScale = true;
   scene.add(ship);
 
   // Feux : réacteurs (avec scintillement), navigation rouge/vert, flash, phare
@@ -370,11 +371,15 @@ export function createCompanion(scene, camera, glows) {
     // 1) Tracé scripté pendant la visite : ondule selon la position dans la page.
     // Ancré en bas à droite de l'écran (en proportion de la vue, quel que soit
     // le format), pour ne jamais masquer le texte des panneaux au centre.
-    const baseZ = portrait ? -5.6 : -5.2;
+    // Dans la cabine d'ascenseur (petite pièce), il vole tout près de la
+    // caméra, en bas à gauche, en plus petit, pour ne pas cacher le tableau.
+    const cabin = Boolean(info.cabin);
+    const baseZ = cabin ? -1.25 : portrait ? -5.6 : -5.2;
     const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * -baseZ;
     const halfW = halfH * camera.aspect;
-    const baseX = halfW * (portrait ? 0.55 : 0.74);
-    const baseY = -halfH * (portrait ? 0.5 : 0.6);
+    const baseX = cabin ? -halfW * (portrait ? 0.45 : 0.62) : halfW * (portrait ? 0.55 : 0.74);
+    const baseY = -halfH * (cabin ? (portrait ? 0.72 : 0.42) : portrait ? 0.5 : 0.6);
+    ship.scale.setScalar(cabin ? 0.15 : 1.05);
     local.set(
       baseX + Math.sin(p * 41) * halfW * 0.08,
       baseY + Math.sin(p * 27 + 1.2) * halfH * 0.07 + Math.sin(elapsed * 1.4) * 0.05,
@@ -384,7 +389,7 @@ export function createCompanion(scene, camera, glows) {
     local.y += THREE.MathUtils.clamp(-info.verticalSpeed * 0.01, -0.3, 0.25);
 
     // 2) Après 10 s d'inactivité : balade en boucles devant l'écran
-    const wanderMix = THREE.MathUtils.smoothstep(info.idle, 10, 12.5);
+    const wanderMix = cabin ? 0 : THREE.MathUtils.smoothstep(info.idle, 10, 12.5);
     if (wanderMix > 0) {
       wanderPhase += delta;
       const t = wanderPhase;
@@ -412,7 +417,7 @@ export function createCompanion(scene, camera, glows) {
     vel.addScaledVector(target.clone().sub(pos), stiffness * delta);
     vel.multiplyScalar(Math.max(0, 1 - damping * delta));
     pos.addScaledVector(vel, delta);
-    if (pos.distanceTo(target) > 25) pos.copy(target); // téléportation de secours
+    if (pos.distanceTo(target) > 25 || info.teleport) pos.copy(target); // téléportation de secours
 
     // 4) Orientation : il regarde le visiteur de trois quarts (on voit son visage),
     // et se tourne dans le sens de sa balade quand il bouge devant l'écran.
@@ -422,7 +427,7 @@ export function createCompanion(scene, camera, glows) {
     prevLocal.copy(local);
     hasPrevLocal = true;
     const localSpeed = localVel.length();
-    forward.copy(camForward).multiplyScalar(-1).addScaledVector(camRight, info.portrait ? -0.25 : -0.45);
+    forward.copy(camForward).multiplyScalar(-1).addScaledVector(camRight, (info.portrait ? -0.25 : -0.45) * (cabin ? -1 : 1));
     if (localSpeed > 0.15) {
       const travel = localVel.clone().applyQuaternion(camera.quaternion).normalize();
       forward.addScaledVector(travel, Math.min(localSpeed, 2) * 0.9);
@@ -502,7 +507,7 @@ export function createCompanion(scene, camera, glows) {
   const hitSphere = new THREE.Sphere();
   function isHit(raycaster) {
     hitSphere.center.copy(pos);
-    hitSphere.radius = 0.75;
+    hitSphere.radius = 0.7 * ship.scale.x; // suit la taille de NOVA (plus petit dans l'ascenseur)
     return raycaster.ray.intersectsSphere(hitSphere);
   }
 

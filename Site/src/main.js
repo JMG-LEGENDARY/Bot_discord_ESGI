@@ -17,6 +17,9 @@ import { createNightEnvironment, createDayEnvironment } from './environment.js';
 import { DAY_UNIFORM } from './theme.js';
 import { createGlowSystem, GLOW } from './glows.js';
 import { createCompanion } from './companion.js';
+import { createEntranceDoor } from './entrance-door.js';
+import { createElevator3D } from './elevator3d.js';
+import './elevator.css';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -357,6 +360,35 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   });
 
   scene.add(tower);
+
+  // Porte d'entrée du modèle (façade avec les marches) : on mesure son
+  // ouverture pour poser exactement par-dessus notre porte 3D animée.
+  tower.updateMatrixWorld(true);
+  const probe = new THREE.Raycaster();
+  const probeHit = (origin, dir) => {
+    probe.set(origin, dir);
+    const hits = probe.intersectObject(tower, true);
+    return hits.length > 0 ? hits[0] : null;
+  };
+  const doorSpot = { x: 0, z: 11.34, bottom: 3.71, top: 6.9, width: 2.8 };
+  const doorWall = probeHit(new THREE.Vector3(0, 5, 140), new THREE.Vector3(0, 0, -1));
+  if (doorWall) {
+    doorSpot.z = doorWall.point.z;
+    const below = probeHit(new THREE.Vector3(0, 5, doorSpot.z + 0.6), new THREE.Vector3(0, -1, 0));
+    if (below) doorSpot.bottom = below.point.y;
+    const above = probeHit(new THREE.Vector3(0, doorSpot.bottom + 0.5, doorSpot.z + 0.05), new THREE.Vector3(0, 1, 0));
+    if (above) doorSpot.top = above.point.y;
+    // Largeur : jusqu'où s'étend la matière de la porte de chaque côté
+    const doorMaterial = doorWall.object.material.name;
+    let half = 0;
+    for (let x = 0.05; x < 4; x += 0.05) {
+      const h = probeHit(new THREE.Vector3(x, 5, 140), new THREE.Vector3(0, 0, -1));
+      if (!h || h.object.material.name !== doorMaterial) break;
+      half = x;
+    }
+    if (half > 0.5) doorSpot.width = half * 2 + 0.06;
+  }
+  const entranceDoor = createEntranceDoor(scene, glows, { ...doorSpot, z: doorSpot.z + 0.02 });
 
   // Feux d'obstacle aviation : rouges clignotants aux 4 coins du toit + flash blanc
   const roofY = scaledBox.max.y - scaledBox.min.y;
@@ -937,20 +969,26 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     document.body.style.overflow = '';
   }
 
-  promptOpenBtn.addEventListener('click', () => {
-    if (activeDossier) {
-      openDossierModal(activeDossier.type, activeDossier.index);
-    }
-  });
+  const DOOR_PROMPT = { color: '#e8c27a', tag: 'ENTRÉE // ASCENSEUR', title: 'Entrer dans la tour' };
+  const promptActionLabel = promptOpenBtn.querySelector('kbd + span');
+
+  // Le bouton de l'invite ouvre le dossier… ou fait entrer dans la tour
+  function activatePrompt() {
+    if (!activeDossier) return;
+    if (activeDossier.type === 'door') enterTower();
+    else openDossierModal(activeDossier.type, activeDossier.index);
+  }
+
+  promptOpenBtn.addEventListener('click', activatePrompt);
 
   modalCloseBtn.addEventListener('click', closeDossierModal);
   modalFooterClose.addEventListener('click', closeDossierModal);
   modalBackdrop.addEventListener('click', closeDossierModal);
 
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !isModalOpen && activeDossier) {
+    if (e.key === 'Enter' && !isModalOpen && !insideTower && activeDossier) {
       e.preventDefault();
-      openDossierModal(activeDossier.type, activeDossier.index);
+      activatePrompt();
     } else if (e.key === 'Escape' && isModalOpen) {
       e.preventDefault();
       closeDossierModal();
@@ -1070,6 +1108,18 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     duration: 2.0,
     ease: 'power1.inOut'
   })
+  // On s'arrête face à la porte d'entrée, puis la descente continue
+  .to(camState, {
+    angle: Math.PI * 2.0,
+    radius: doorSpot.z + 6.8,
+    camY: doorSpot.bottom + 1.5,
+    targetY: doorSpot.bottom + 1.45,
+    duration: 1.8,
+    ease: 'power1.inOut'
+  })
+  .to(camState, { duration: 0.4 })
+  .addLabel('tower-door')
+  .to(camState, { duration: 0.4 })
   .to(camState, {
     angle: Math.PI * 2.0,
     radius: 12,
@@ -1115,6 +1165,72 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     .to(camState, { duration: 0.35 });
   });
 
+  // =========================================================================
+  // ENTRÉE DANS LA TOUR : la porte s'ouvre, lumière blanche, puis l'ascenseur
+  // =========================================================================
+  let insideTower = false;
+  let novaTeleport = false;
+  const doorAnim = { open: 0, glow: 0, dolly: 0 };
+  const doorFront = new THREE.Vector3();
+  const doorLook = new THREE.Vector3();
+  const flashEl = document.createElement('div');
+  flashEl.id = 'white-flash';
+  document.body.appendChild(flashEl);
+  const flash = (on) => new Promise((resolve) => {
+    flashEl.classList.toggle('on', on);
+    setTimeout(resolve, 650);
+  });
+  const elevator = createElevator3D(scene, {
+    say: (text, duration) => companion.say(text, duration),
+    onExit: exitTower
+  });
+  if (import.meta.env.DEV) window.__tour = { tl, elevator, entranceDoor, doorSpot };
+
+  function lockPage(locked) {
+    document.documentElement.style.overflow = locked ? 'hidden' : '';
+    document.body.style.overflow = locked ? 'hidden' : '';
+    document.body.classList.toggle('in-elevator', locked);
+  }
+
+  async function enterTower() {
+    if (insideTower || isModalOpen) return;
+    insideTower = true;
+    cancelMagnet();
+    lockPage(true);
+    panelPrompt.classList.remove('visible');
+    if (tooltip) tooltip.classList.remove('visible');
+    document.body.style.cursor = 'default';
+    // Les battants s'ouvrent, la lumière blanche jaillit, on avance dedans
+    await new Promise((resolve) => gsap.to(doorAnim, { open: 1, duration: 0.9, ease: 'power2.inOut', onComplete: resolve }));
+    gsap.to(doorAnim, { glow: 1, duration: 0.7, ease: 'power1.out' });
+    gsap.to(doorAnim, { dolly: 1, duration: 1.5, ease: 'power2.in' });
+    await new Promise((resolve) => setTimeout(resolve, 950));
+    await flash(true);
+    elevator.enter();
+    novaTeleport = true;
+    await flash(false);
+  }
+
+  async function exitTower() {
+    await flash(true);
+    elevator.leave();
+    gsap.killTweensOf(doorAnim);
+    doorAnim.open = 0;
+    doorAnim.glow = 0;
+    doorAnim.dolly = 0;
+    novaTeleport = true;
+    lockPage(false);
+    // On ressort devant la porte (même si on est arrivé par la connexion Discord)
+    const st = tl.scrollTrigger;
+    if (st && tl.labels['tower-door'] !== undefined) {
+      window.scrollTo(0, st.start + (tl.labels['tower-door'] / tl.duration()) * (st.end - st.start));
+    }
+    insideTower = false;
+    activeDossier = null;
+    await flash(false);
+    companion.say('De retour dehors ! 🌃', 3000);
+  }
+
   let magnetTimeout = null;
   let magnetTween = null;
   let isProgrammaticScroll = false;
@@ -1139,7 +1255,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       if (!st) return;
 
       const currentProgress = st.progress;
-      const magnetLabels = ['panel-0', 'panel-1', 'panel-2', 'panel-3'];
+      const magnetLabels = ['panel-0', 'panel-1', 'panel-2', 'panel-3', 'tower-door'];
       let nearestProg = null;
       let minDist = 0.022;
 
@@ -1235,7 +1351,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     mouseTarget.x = (e.clientX / window.innerWidth) * 2 - 1;
     mouseTarget.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
-    if (isModalOpen) {
+    if (isModalOpen || (insideTower && !elevator.active) || elevator.coversScreen) {
       document.body.style.cursor = 'default';
       if (tooltip) tooltip.classList.remove('visible');
       return;
@@ -1244,13 +1360,23 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     pointer.set(mouseTarget.x, mouseTarget.y);
     raycaster.setFromCamera(pointer, camera);
 
+    // Dans l'ascenseur : seuls les boutons du tableau réagissent
+    if (elevator.active) {
+      document.body.style.cursor = elevator.pointerMove(raycaster) ? 'pointer' : 'default';
+      if (tooltip) tooltip.classList.remove('visible');
+      return;
+    }
+
     if (camState.mode < 0.35) {
       const onPlanet = isPointerOnPlanet(raycaster);
+      const onDoor = entranceDoor.isHit(raycaster);
+      entranceDoor.setHover(onDoor);
       const panelHits = raycaster.intersectObjects(interactivePanelScreens, true);
-      document.body.style.cursor = onPlanet || panelHits.length > 0 ? 'pointer' : 'default';
+      document.body.style.cursor = onPlanet || onDoor || panelHits.length > 0 ? 'pointer' : 'default';
       if (tooltip) {
-        tooltip.textContent = isDay ? 'CLIQUEZ : PASSER EN MODE NUIT' : 'CLIQUEZ : PASSER EN MODE JOUR';
-        tooltip.classList.toggle('visible', onPlanet);
+        if (onDoor) tooltip.textContent = 'CLIQUEZ POUR ENTRER DANS LA TOUR';
+        else tooltip.textContent = isDay ? 'CLIQUEZ : PASSER EN MODE NUIT' : 'CLIQUEZ : PASSER EN MODE JOUR';
+        tooltip.classList.toggle('visible', onPlanet || onDoor);
       }
       return;
     }
@@ -1281,6 +1407,17 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
 
+    if (elevator.active) {
+      if (elevator.coversScreen) return;
+      if (companion.isHit(raycaster)) {
+        companion.say('Bip ! Choisis ton étage sur le tableau à droite 👉', 3000);
+        return;
+      }
+      elevator.click(raycaster);
+      return;
+    }
+    if (insideTower) return;
+
     // Clic sur NOVA : il répond
     if (companion.isHit(raycaster)) {
       companion.say(NOVA_POKES[Math.floor(Math.random() * NOVA_POKES.length)]);
@@ -1290,6 +1427,10 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     if (camState.mode < 0.35) {
       if (isPointerOnPlanet(raycaster)) {
         toggleDayNight();
+        return;
+      }
+      if (entranceDoor.isHit(raycaster)) {
+        enterTower();
         return;
       }
       const panelHits = raycaster.intersectObjects(interactivePanelScreens, true);
@@ -1323,6 +1464,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     'panel-2': 'Côté technique : Python, SQLite… le cœur du bot ⚙️',
     'panel-3': 'Comment installer le bot, et qui l\'a fabriqué 👀',
     city: 'La ville basse ! Attention aux voitures volantes 🚗',
+    'tower-door': 'La porte de la tour ! Clique dessus pour entrer et prendre l’ascenseur jusqu’à ton étage 🛗',
     descent: 'Accroche-toi, on plonge sous la tour !',
     underground: 'Le sous-sol : l\'équipe derrière le projet 🛠️',
     'pillar-0': 'Bryan alias JMG : le Big Boss 😎',
@@ -1392,6 +1534,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     if (camState.mode > 0.1) return 'descent';
     const panel = arrivedLabel(PANEL_LABELS);
     if (panel) return panel;
+    if (arrivedLabel(['tower-door'])) return 'tower-door';
     if (currentY > 116) return 'top';
     if (currentY < 17) return 'city';
     return null;
@@ -1411,8 +1554,11 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       progress: tl.scrollTrigger ? tl.scrollTrigger.progress : 0,
       idle,
       portrait: camera.aspect < 1,
-      verticalSpeed
+      verticalSpeed,
+      teleport: novaTeleport
     });
+    novaTeleport = false;
+    if (insideTower) return; // pas de commentaires pendant l'entrée dans la tour
 
     // 10 s sans bouger : il part se balader ; 1 min : il demande ce qu'on fait
     if (idle > 10 && !wanderAnnounced) {
@@ -1481,6 +1627,8 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
     // Fiche ouverte : elle couvre tout l'écran, inutile de calculer la 3D derrière
     if (isModalOpen) return;
+    // Page de l'étage ouverte : elle couvre l'écran, la 3D se met en pause
+    if (elevator.coversScreen) return;
 
     if (document.visibilityState === 'visible' && rawDelta < 0.5) adaptQuality(rawDelta);
 
@@ -1495,6 +1643,24 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
     mouseCurrent.x += (mouseTarget.x - mouseCurrent.x) * 0.05;
     mouseCurrent.y += (mouseTarget.y - mouseCurrent.y) * 0.05;
+
+    // Dans la cabine d'ascenseur : caméra fixe face aux portes
+    if (elevator.active) {
+      const pose = elevator.cameraPose(camera.aspect, elapsed, mouseCurrent);
+      camera.position.copy(pose.position);
+      camera.lookAt(pose.target);
+      smoothCamPos.copy(pose.position);
+      smoothCamTarget.copy(pose.target);
+      elevator.update(delta);
+      companion.update(delta, elapsed, {
+        progress: 0, idle: 0, portrait: camera.aspect < 1, verticalSpeed: 0, cabin: true, teleport: novaTeleport
+      });
+      novaTeleport = false;
+      scene.updateMatrixWorld();
+      glows.update(elapsed);
+      composer.render();
+      return;
+    }
 
     const currentY = THREE.MathUtils.lerp(camState.camY, camState.uy, camState.mode);
     atmosphere.update(delta, elapsed, currentY, camState.mode);
@@ -1522,6 +1688,15 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
     const desiredCamPos = orbitalCamVec.lerp(underCamVec, camState.mode);
     const finalTarget = orbitalTargetVec.lerp(underTargetVec, camState.mode);
+    // Porte d'entrée : ouverture, lumière blanche et caméra qui avance dedans
+    entranceDoor.setState(doorAnim.open, doorAnim.glow);
+    entranceDoor.update(elapsed);
+    if (doorAnim.dolly > 0) {
+      doorFront.set(entranceDoor.center.x, entranceDoor.center.y + 0.1, entranceDoor.center.z + 0.4);
+      doorLook.set(entranceDoor.center.x, entranceDoor.center.y, entranceDoor.center.z - 6);
+      desiredCamPos.lerp(doorFront, doorAnim.dolly);
+      finalTarget.lerp(doorLook, doorAnim.dolly);
+    }
     if (!camInitialized) {
       smoothCamPos.copy(desiredCamPos);
       smoothCamTarget.copy(finalTarget);
@@ -1548,6 +1723,10 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
           nextDossier = { type: 'tower', index: idx };
         }
       });
+      // Devant la porte d'entrée, c'est elle qui compte (même si un panneau est proche)
+      if (!insideTower && camera.position.distanceTo(entranceDoor.center) < 9) {
+        nextDossier = { type: 'door', index: 0 };
+      }
     } else if (camState.mode > 0.85) {
       let minPillarDist = 16.5;
       underground.pillarsData.forEach((p, idx) => {
@@ -1568,11 +1747,16 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
     if (changed) {
       activeDossier = nextDossier;
-      if (activeDossier && !isModalOpen) {
+      if (activeDossier && !isModalOpen && !insideTower) {
         const source =
-          activeDossier.type === 'underground'
-            ? undergroundDossiers[activeDossier.index]
-            : towerDossiers[activeDossier.index];
+          activeDossier.type === 'door'
+            ? DOOR_PROMPT
+            : activeDossier.type === 'underground'
+              ? undergroundDossiers[activeDossier.index]
+              : towerDossiers[activeDossier.index];
+        if (promptActionLabel) {
+          promptActionLabel.textContent = activeDossier.type === 'door' ? 'ENTRER' : 'OUVRIR LE DOSSIER';
+        }
         panelPrompt.style.setProperty('--prompt-accent', source.color);
         promptTag.textContent = source.tag;
         promptTitle.textContent = source.title.toUpperCase();
@@ -1594,6 +1778,21 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   }
   animate();
   hideLoader();
+
+  const returnParam = new URLSearchParams(window.location.search).get('ascenseur');
+  if (returnParam) {
+    window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+    const st = tl.scrollTrigger;
+    if (st && tl.labels['tower-door'] !== undefined) {
+      window.scrollTo(0, st.start + (tl.labels['tower-door'] / tl.duration()) * (st.end - st.start));
+    }
+    insideTower = true;
+    lockPage(true);
+    novaTeleport = true;
+    elevator.enter({
+      greeting: returnParam === 'refus' ? 'Connexion annulée… Tu peux réessayer quand tu veux 🙂' : undefined
+    });
+  }
 },
 (event) => {
   // Progression du téléchargement du modèle 3D
