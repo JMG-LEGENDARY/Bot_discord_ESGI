@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Bot Discord ESGI – Spécifications projet</title>
+<style>
+  @page { size: A4; margin: 20mm 20mm 18mm 20mm; }
+  body { font-family: "Segoe UI", Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1d2230; margin: 0; }
+  h1 { font-size: 16pt; color: #3b4cca; margin: 18pt 0 6pt; border-bottom: 2px solid #5865f2; padding-bottom: 3pt; }
+  h2 { font-size: 12pt; color: #3b4cca; margin: 10pt 0 4pt; }
+  p { margin: 0 0 7pt; text-align: justify; }
+  ul { margin: 0 0 7pt; padding-left: 18pt; }
+  li { margin-bottom: 2pt; }
+  table { width: 100%; border-collapse: collapse; margin: 4pt 0 10pt; font-size: 10pt; }
+  th, td { border: 1px solid #d9dce3; padding: 4pt 6pt; text-align: left; vertical-align: top; }
+  th { background: #f0f1fa; color: #3b4cca; }
+  h1, h2 { break-after: avoid; }
+  tr, svg, .keep { break-inside: avoid; }
+  .caption { text-align: center; font-size: 9.5pt; color: #5b6270; font-style: italic; margin: 2pt 0 10pt; }
+  .cover { height: 255mm; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
+  .cover .top { color: #5b6270; font-size: 11pt; letter-spacing: .5px; }
+  .cover .mid { text-align: center; }
+  .cover .badge { display: inline-block; background: #5865f2; color: #fff; padding: 4pt 12pt; border-radius: 20pt; font-size: 10pt; margin-bottom: 14pt; }
+  .cover h1.title { font-size: 34pt; border: 0; color: #1d2230; margin: 0; }
+  .cover .sub { font-size: 14pt; color: #3b4cca; margin-top: 6pt; }
+  .cover .info { border-top: 2px solid #5865f2; padding-top: 10pt; }
+  .cover .info td { border: 0; padding: 2pt 0; font-size: 11pt; }
+  .cover .info td:first-child { color: #5b6270; width: 45mm; }
+  .toc { margin: 22pt auto 0; width: 60%; text-align: left; font-size: 11pt; }
+  .toc li { margin: 2pt 0; }
+  .cover + section h1 { margin-top: 0; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="top">ESGI · Projet annuel 2026-2027 · Bachelor 1</div>
+  <div class="mid">
+    <div class="badge">Livrable 1 · Spécifications projet</div>
+    <h1 class="title">Bot Discord ESGI</h1>
+    <div class="sub">Un assistant Discord pour organiser devoirs, agendas et classes</div>
+    <svg width="120" height="120" viewBox="0 0 120 120" style="margin-top:22pt">
+      <rect x="10" y="22" width="100" height="76" rx="22" fill="#5865f2"/>
+      <circle cx="42" cy="58" r="9" fill="#fff"/><circle cx="78" cy="58" r="9" fill="#fff"/>
+      <rect x="40" y="76" width="40" height="6" rx="3" fill="#fff" opacity=".85"/>
+      <rect x="55" y="6" width="10" height="18" rx="4" fill="#5865f2"/>
+      <circle cx="60" cy="6" r="6" fill="#3b4cca"/>
+    </svg>
+    <ol class="toc">
+      <li>Le projet et le besoin</li>
+      <li>Notre solution</li>
+      <li>Partie technique</li>
+      <li>État de l'art</li>
+      <li>Planning</li>
+    </ol>
+  </div>
+  <div class="info">
+    <table>
+      <tr><td>Équipe</td><td>Bryan · Yanis</td></tr>
+      <tr><td>Formation</td><td>ESGI – Bachelor 1<sup>re</sup> année (B1)</td></tr>
+      <tr><td>Livrable</td><td>Séance 2 – Planification, spécifications techniques et état de l'art</td></tr>
+      <tr><td>Date</td><td>Novembre 2026</td></tr>
+      <tr><td>Dépôt du code</td><td>github.com/JMG-LEGENDARY/Bot_discord_ESGI</td></tr>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h1>1. Le projet et le besoin</h1>
+  <p>Notre projet est un <b>bot Discord pour les élèves de l'ESGI</b>. À l'origine, nous voulions un bot simple, sans intelligence artificielle, pour gérer les devoirs et l'agenda des B1.</p>
+  <p>Le problème est simple : depuis que nous sommes à l'ESGI, nous n'avons plus d'agenda ni de Pronote comme au lycée. Les devoirs et les dates d'évaluation sont donnés à l'oral ou envoyés sur Discord, et ils se perdent vite au milieu des autres messages. Résultat : on oublie des devoirs et tout le monde n'a pas les mêmes informations.</p>
+
+  <h2>Objectifs</h2>
+  <ul>
+    <li>Pouvoir <b>ajouter et voir les devoirs</b> de la classe directement sur Discord.</li>
+    <li>Recevoir des <b>rappels</b> avant les dates importantes.</li>
+    <li>Plus tard, créer des <b>rôles par élève, par classe et par matière</b>, pour toute l'ESGI.</li>
+    <li>Enfin, faire un <b>site web</b> pour gérer le bot plus facilement.</li>
+  </ul>
+
+  <h1>2. Notre solution</h1>
+  <p>Tous les élèves utilisent déjà Discord tous les jours. Plutôt que de créer une nouvelle application, nous mettons l'agenda <b>directement dans Discord</b> : il n'y a rien à installer.</p>
+  <p>Pour ajouter un devoir, l'élève tape la commande <b>/ajouter_un_devoir</b>, choisit la matière dans une liste, puis entre la date et le sujet. Le bot vérifie la date et enregistre le devoir dans une base de données. Les devoirs ne se perdent plus, et le bot pourra prévenir la classe avant la date.</p>
+  <p>Nous avons aussi ajouté un petit easter egg, le « Thomson », un clin d'œil à notre représentant pédagogique : de temps en temps, le bot répond avec une phrase et une image au hasard.</p>
+
+  <h2>Fonctionnalités</h2>
+  <table>
+    <tr><th>Fonctionnalité</th><th style="width:22%">État</th></tr>
+    <tr><td>Commande /ping (vérifier que le bot marche)</td><td>Fait</td></tr>
+    <tr><td>Easter egg Thomson</td><td>Fait</td></tr>
+    <tr><td>Ajouter un devoir (/ajouter_un_devoir)</td><td>Bêta</td></tr>
+    <tr><td>Voir les devoirs, ajouter une évaluation</td><td>En cours</td></tr>
+    <tr><td>Rappels automatiques et suppression des devoirs passés</td><td>En cours</td></tr>
+    <tr><td>Rôles par élève, classe et matière, pour toute l'ESGI</td><td>Prévu</td></tr>
+    <tr><td>Site web</td><td>Prévu</td></tr>
+  </table>
+  <p>Le bot fonctionne déjà sur Discord en version bêta. Nous pensons pouvoir le diffuser aux B1 <b>d'ici un mois</b>.</p>
+
+  <h1>3. Partie technique</h1>
+  <h2>Technologies</h2>
+  <ul>
+    <li><b>Python</b> avec la bibliothèque <b>discord.py</b> pour le bot.</li>
+    <li><b>SQLite</b> pour la base de données (devoirs, membres, configuration).</li>
+    <li><b>VS Code</b> et <b>PyCharm</b> pour coder, <b>Git</b> et <b>GitHub</b> pour travailler à deux.</li>
+  </ul>
+
+  <h2>Fonctionnement</h2>
+  <p>Le code est découpé en plusieurs fichiers (appelés « cogs ») : un pour les commandes, un pour les messages, un pour les rappels et un pour la base de données. Chacun peut travailler sur une partie sans gêner l'autre.</p>
+  <svg viewBox="0 0 640 150" width="100%" style="font-family:Segoe UI,Arial;font-size:12px">
+    <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3b4cca"/></marker></defs>
+    <rect x="5" y="45" width="120" height="56" rx="8" fill="#eef0fb" stroke="#5865f2"/>
+    <text x="65" y="69" text-anchor="middle" font-weight="600">Élèves</text>
+    <text x="65" y="87" text-anchor="middle">sur Discord</text>
+    <rect x="175" y="10" width="270" height="130" rx="10" fill="#fafbff" stroke="#3b4cca" stroke-width="1.5"/>
+    <text x="310" y="30" text-anchor="middle" font-weight="700" fill="#3b4cca">Notre bot (Python)</text>
+    <rect x="190" y="42" width="115" height="36" rx="6" fill="#fff" stroke="#5865f2"/><text x="247" y="65" text-anchor="middle">Commandes</text>
+    <rect x="315" y="42" width="115" height="36" rx="6" fill="#fff" stroke="#5865f2"/><text x="372" y="65" text-anchor="middle">Messages</text>
+    <rect x="190" y="88" width="115" height="36" rx="6" fill="#fff" stroke="#5865f2"/><text x="247" y="111" text-anchor="middle">Rappels</text>
+    <rect x="315" y="88" width="115" height="36" rx="6" fill="#fff" stroke="#5865f2"/><text x="372" y="111" text-anchor="middle">Base de données</text>
+    <path d="M500,52 a45,10 0 0,1 90,0 v46 a45,10 0 0,1 -90,0 z" fill="#e8f5ec" stroke="#1a7f37"/>
+    <ellipse cx="545" cy="52" rx="45" ry="10" fill="#d3eedb" stroke="#1a7f37"/>
+    <text x="545" y="85" text-anchor="middle" font-weight="600">SQLite</text>
+    <line x1="125" y1="73" x2="173" y2="73" stroke="#3b4cca" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
+    <line x1="430" y1="106" x2="498" y2="80" stroke="#3b4cca" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
+  </svg>
+  <div class="caption">Schéma du fonctionnement du bot</div>
+
+  <h1>4. État de l'art</h1>
+  <p>Nous avons regardé ce qui existe déjà :</p>
+  <ul>
+    <li><b>MEE6 et Carl-bot</b> : des bots Discord très connus qui gèrent bien les rôles, mais pas les devoirs.</li>
+    <li><b>Sesh et Apollo</b> : des bots Discord pour les calendriers et les événements, mais sans notion de classe ou de matière.</li>
+    <li><b>Pronote</b> : un cahier de textes complet au lycée, mais pas utilisé à l'ESGI et en dehors de Discord.</li>
+    <li><b>Google Classroom</b> : gère les devoirs, mais seulement si les professeurs l'utilisent.</li>
+  </ul>
+  <table class="keep">
+    <tr><th></th><th>MEE6 / Carl-bot</th><th>Sesh / Apollo</th><th>Pronote</th><th>Classroom</th><th>Notre bot</th></tr>
+    <tr><td>Sur Discord</td><td>Oui</td><td>Oui</td><td>Non</td><td>Non</td><td>Oui</td></tr>
+    <tr><td>Gère les devoirs</td><td>Non</td><td>En partie</td><td>Oui</td><td>Oui</td><td>Oui</td></tr>
+    <tr><td>Rappels</td><td>En partie</td><td>Oui</td><td>Oui</td><td>Oui</td><td>Oui</td></tr>
+    <tr><td>Classes et matières</td><td>Non</td><td>Non</td><td>Oui</td><td>Oui</td><td>Oui</td></tr>
+  </table>
+  <p>Aucun outil ne fait tout à la fois : gérer les devoirs <b>par classe et par matière</b>, <b>directement sur Discord</b>. C'est ce que notre bot apporte.</p>
+
+  <h1>5. Planning</h1>
+  <table class="keep">
+    <tr><th style="width:28%">Période</th><th>Ce qu'on prévoit</th></tr>
+    <tr><td>Novembre 2026</td><td>Rapport de spécifications (ce document), suite de la version bêta.</td></tr>
+    <tr><td>Décembre 2026</td><td>Diffusion du bot aux B1, rappels automatiques, corrections.</td></tr>
+    <tr><td>Janvier – mars 2027</td><td>Rôles par élève, classe et matière ; ouverture à toute l'ESGI.</td></tr>
+    <tr><td>Mars – mai 2027</td><td>Création du site web pour gérer le bot.</td></tr>
+    <tr><td>Mai 2027</td><td>Version alpha et première démonstration.</td></tr>
+    <tr><td>Juin 2027</td><td>Tests, corrections et soutenance blanche.</td></tr>
+    <tr><td>Juillet 2027</td><td>Soutenance finale.</td></tr>
+  </table>
+  <p>Nous travaillons à deux sur le même dépôt GitHub et faisons régulièrement le point sur l'avancement.</p>
+</section>
+
+</body>
+</html>
