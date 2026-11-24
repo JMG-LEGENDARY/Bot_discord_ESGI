@@ -29,7 +29,8 @@ await Promise.race([
   Promise.all([
     document.fonts.load('700 48px "Space Grotesk"'),
     document.fonts.load('400 32px "Space Grotesk"'),
-    document.fonts.load('700 24px "JetBrains Mono"')
+    document.fonts.load('700 24px "JetBrains Mono"'),
+    document.fonts.load('400 24px "Marcellus"')
   ]),
   new Promise((resolve) => setTimeout(resolve, 1500))
 ]).catch(() => {});
@@ -1182,7 +1183,8 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   });
   const elevator = createElevator3D(scene, {
     say: (text, duration) => companion.say(text, duration),
-    onExit: exitTower
+    onExit: exitTower,
+    renderer
   });
   if (import.meta.env.DEV) window.__tour = { tl, elevator, entranceDoor, doorSpot };
 
@@ -1637,6 +1639,8 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     // Jour/nuit : reflets adaptés et halo lumineux plus discret en plein jour
     const day = DAY_UNIFORM.value;
     scene.environment = day > 0.5 ? dayEnvironment : nightEnvironment;
+    scene.environmentIntensity = 1;
+    renderer.toneMappingExposure = 1.0;
     bloomPass.strength = THREE.MathUtils.lerp(0.55, 0.22, day);
     bloomPass.threshold = THREE.MathUtils.lerp(1.05, 1.6, day);
     if (themeHint) {
@@ -1648,6 +1652,12 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
     // Dans la cabine d'ascenseur : caméra fixe face aux portes
     if (elevator.active) {
+      scene.environment = elevator.environment;
+      scene.environmentIntensity = 1;
+      // Même lumière dans la cabine, qu'il fasse jour ou nuit dehors
+      renderer.toneMappingExposure = 1.2;
+      bloomPass.strength = 0.35;
+      bloomPass.threshold = 1.1;
       const pose = elevator.cameraPose(camera.aspect, elapsed, mouseCurrent);
       camera.position.copy(pose.position);
       camera.lookAt(pose.target);

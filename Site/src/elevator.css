@@ -597,3 +597,75 @@ body.in-elevator #panel-prompt {
     gap: 4px;
   }
 }
+
+/* ==========================================================================
+   « EN CE MOMENT » : morceau joué dans l'ascenseur (SoundCloud)
+   ========================================================================== */
+#now-playing {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 175, 106, 0.6);
+  background: rgba(12, 9, 7, 0.78);
+  backdrop-filter: blur(8px);
+  color: #efdcb0;
+  font-family: 'Marcellus', Georgia, serif;
+  font-size: 0.9rem;
+  text-decoration: none;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+#now-playing.visible {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+#now-playing:hover,
+#now-playing:focus-visible {
+  border-color: #f2d79a;
+}
+
+.now-icon {
+  color: #ffbf5e;
+  animation: now-pulse 1.6s ease-in-out infinite;
+}
+
+.now-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.now-source {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: #ff7700;
+}
+
+@keyframes now-pulse {
+  50% { opacity: 0.45; }
+}
+
+@media (max-width: 760px) {
+  #now-playing {
+    left: max(16px, env(safe-area-inset-left, 0px));
+    right: auto;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    bottom: auto;
+    font-size: 0.8rem;
+  }
+}

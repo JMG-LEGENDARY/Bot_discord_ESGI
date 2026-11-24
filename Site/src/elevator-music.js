@@ -1,6 +1,9 @@
 // =========================================================================
-// MUSIQUE D'ASCENSEUR (composée en direct avec Web Audio, aucun fichier)
-// Petite boucle bossa douce : accords de piano électrique, basse, arpèges.
+// MUSIQUE D'ASCENSEUR
+// - Musique principale : deux albums SoundCloud joués à la suite, en boucle,
+//   avec le lecteur officiel de SoundCloud (intégration autorisée).
+// - Musique de secours : une petite boucle bossa composée en direct avec
+//   Web Audio (pendant le chargement, ou si SoundCloud ne répond pas).
 // =========================================================================
 
 const BPM = 104;
@@ -23,7 +26,8 @@ const MELODY = [
 
 const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
 
-export function createElevatorMusic() {
+// Musique de secours, composée en direct
+function createSynth() {
   let ctx = null;
   let master = null;
   let muteGain = null;
@@ -232,6 +236,205 @@ export function createElevatorMusic() {
           o.stop(t + 1.7);
         });
       });
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Lecteur SoundCloud
+// ---------------------------------------------------------------------------
+const PLAYLISTS = [
+  'https://soundcloud.com/bonjourjesuis/sets/bonjourjesuis',
+  'https://soundcloud.com/bonjourjesuis/sets/bonjourjesuistoujours'
+];
+const SC_VOLUME = 55; // volume normal (0 à 100)
+
+function loadSoundCloudApi() {
+  if (window.SC && window.SC.Widget) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://w.soundcloud.com/player/api.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('SoundCloud indisponible'));
+    document.head.appendChild(script);
+  });
+}
+
+function playerUrl(playlist, autoPlay) {
+  const params = new URLSearchParams({
+    url: playlist,
+    auto_play: autoPlay ? 'true' : 'false',
+    visual: 'false',
+    show_artwork: 'false',
+    show_comments: 'false',
+    sharing: 'false',
+    buying: 'false',
+    download: 'false',
+    show_playcount: 'false',
+    show_user: 'true'
+  });
+  return `https://w.soundcloud.com/player/?${params}`;
+}
+
+export function createElevatorMusic() {
+  const synth = createSynth();
+  let widget = null;
+  let ready = false;
+  let failed = false;
+  let wanted = false; // la musique doit-elle jouer en ce moment ?
+  let playlist = 0;
+  let volume = 0;
+  let fadeTimer = null;
+  let onTrack = null;
+  let creating = false;
+
+  function fadeVolume(target, ms, then) {
+    clearInterval(fadeTimer);
+    const start = volume;
+    const t0 = performance.now();
+    fadeTimer = setInterval(() => {
+      const k = Math.min(1, (performance.now() - t0) / ms);
+      volume = start + (target - start) * k;
+      if (widget) widget.setVolume(Math.round(volume));
+      if (k >= 1) {
+        clearInterval(fadeTimer);
+        if (then) then();
+      }
+    }, 50);
+  }
+
+  function useSynth() {
+    if (wanted) synth.start();
+  }
+
+  function playSoundCloud() {
+    if (!widget || !ready || failed) return;
+    // La musique de secours s'efface, SoundCloud prend le relais
+    synth.stop(1);
+    if (synth.muted) return;
+    widget.setVolume(Math.round(volume));
+    widget.play();
+    fadeVolume(SC_VOLUME, 1200);
+  }
+
+  function create() {
+    if (widget || creating || failed) return;
+    creating = true;
+    loadSoundCloudApi()
+      .then(() => {
+        const iframe = document.createElement('iframe');
+        iframe.title = 'Musique de l’ascenseur (SoundCloud)';
+        iframe.allow = 'autoplay; encrypted-media';
+        iframe.src = playerUrl(PLAYLISTS[0], false);
+        // Lecteur invisible : on le pilote avec les boutons de l'ascenseur
+        Object.assign(iframe.style, {
+          position: 'fixed', left: '0', bottom: '0', width: '1px', height: '1px',
+          opacity: '0', pointerEvents: 'none', border: '0'
+        });
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.tabIndex = -1;
+        document.body.appendChild(iframe);
+        widget = window.SC.Widget(iframe);
+        const E = window.SC.Widget.Events;
+        const timeout = setTimeout(() => {
+          if (!ready) {
+            failed = true;
+            useSynth();
+          }
+        }, 10000);
+        widget.bind(E.READY, () => {
+          clearTimeout(timeout);
+          ready = true;
+          if (wanted) playSoundCloud();
+        });
+        widget.bind(E.PLAY, () => {
+          widget.getCurrentSound((sound) => {
+            if (sound && onTrack) {
+              onTrack({
+                title: sound.title,
+                artist: sound.user ? sound.user.username : '',
+                url: sound.permalink_url
+              });
+            }
+          });
+        });
+        // Fin d'un morceau : à la fin du dernier de l'album, on passe à l'autre album
+        widget.bind(E.FINISH, () => {
+          widget.getSounds((sounds) => {
+            widget.getCurrentSoundIndex((index) => {
+              if (index >= sounds.length - 1) {
+                playlist = (playlist + 1) % PLAYLISTS.length;
+                widget.load(PLAYLISTS[playlist], {
+                  auto_play: wanted && !synth.muted,
+                  visual: false, show_artwork: false, show_comments: false, sharing: false, buying: false, download: false,
+                  callback: () => widget.setVolume(Math.round(volume))
+                });
+              }
+            });
+          });
+        });
+        widget.bind(E.ERROR, () => {
+          // Morceau illisible : on essaie le suivant, sinon la musique de secours
+          widget.next();
+        });
+      })
+      .catch(() => {
+        failed = true;
+        useSynth();
+      });
+  }
+
+  return {
+    get muted() {
+      return synth.muted;
+    },
+    get state() {
+      return synth.state;
+    },
+    /** Source utilisée : soundcloud, secours ou chargement */
+    get source() {
+      if (failed) return 'secours';
+      return ready ? 'soundcloud' : 'chargement';
+    },
+    debug() {
+      return { ...synth.debug(), source: failed ? 'secours' : ready ? 'soundcloud' : 'chargement', volume: Math.round(volume), wanted };
+    },
+    /** Appelé à chaque nouveau morceau : { title, artist, url } */
+    set onTrack(cb) {
+      onTrack = cb;
+    },
+    unlock() {
+      synth.unlock();
+      create();
+    },
+    setMuted(value) {
+      synth.setMuted(value);
+      if (!widget || !ready || failed) return;
+      if (value) {
+        clearInterval(fadeTimer);
+        widget.pause();
+      } else if (wanted) {
+        playSoundCloud();
+      }
+    },
+    start() {
+      wanted = true;
+      create();
+      if (ready && !failed) playSoundCloud();
+      else synth.start(); // en attendant SoundCloud (ou s'il ne répond pas)
+    },
+    stop(fadeSeconds = 0.8) {
+      wanted = false;
+      synth.stop(fadeSeconds);
+      if (widget && ready) {
+        fadeVolume(0, fadeSeconds * 1000, () => {
+          if (!wanted) widget.pause();
+        });
+      }
+    },
+    ding() {
+      synth.ding();
     }
   };
 }
