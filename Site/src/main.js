@@ -32,6 +32,33 @@ await Promise.race([
 ]).catch(() => {});
 
 const canvas = document.querySelector('#bg');
+
+// Écran de chargement : progression, puis message clair en cas de problème
+const loaderEl = document.getElementById('loader');
+const loaderFill = document.getElementById('loader-fill');
+const loaderText = document.getElementById('loader-text');
+function showLoadError(message) {
+  if (!loaderEl) return;
+  loaderEl.classList.add('error');
+  loaderText.textContent = message;
+}
+function hideLoader() {
+  if (loaderEl) loaderEl.classList.add('done');
+}
+
+// Navigateur sans 3D (WebGL) : on prévient au lieu d'afficher un écran noir
+const webglOk = (() => {
+  try {
+    const test = document.createElement('canvas');
+    return Boolean(test.getContext('webgl2') || test.getContext('webgl'));
+  } catch (e) {
+    return false;
+  }
+})();
+if (!webglOk) {
+  showLoadError('Ton navigateur ne gère pas la 3D (WebGL). Essaie avec Chrome, Edge ou Firefox à jour.');
+  throw new Error('WebGL indisponible');
+}
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x3a2560, 0.0014);
 
@@ -531,11 +558,14 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
             title: 'Installation et Démarrage du Bot',
             desc: 'Au démarrage, le bot initialise les tables SQLite, charge les cogs, puis synchronise les commandes slash avec Discord.',
             bullets: [
-              'Créer et activer un environnement virtuel : python3 -m venv .venv puis source .venv/bin/activate',
+              'Récupérer le code sur GitHub : <a href="https://github.com/JMG-LEGENDARY/Bot_discord_ESGI" target="_blank" rel="noopener noreferrer">github.com/JMG-LEGENDARY/Bot_discord_ESGI</a>',
+              'Créer un environnement virtuel : python3 -m venv .venv',
+              'L’activer : source .venv/bin/activate (Linux / macOS) ou .venv\\Scripts\\activate (Windows)',
               'Installer les dépendances Python : pip install -r requirements.txt',
+              'Créer le fichier config.py avec le token du bot Discord (fichier ignoré par Git : ne jamais le publier)',
               'Lancer le bot : python main.py'
             ],
-            code: `python3 -m venv .venv\nsource .venv/bin/activate\npip install -r requirements.txt\npython main.py`
+            code: `git clone https://github.com/JMG-LEGENDARY/Bot_discord_ESGI.git\ncd Bot_discord_ESGI\npython3 -m venv .venv\n# Linux / macOS\nsource .venv/bin/activate\n# Windows\n.venv\\Scripts\\activate\npip install -r requirements.txt\n# Créer config.py avec le token du bot (jamais commité)\npython main.py`
           },
           {
             title: 'Lancement et Build du Site',
@@ -553,6 +583,14 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
             bullets: [
               'JMG — développeur principal du bot : porte l’essentiel du développement actuel du bot et de ses différentes briques (architecture Python, démarrage du bot, commandes Discord, modales, gestion des devoirs et évaluations, cogs, notifications programmées, accès SQLite, événements Discord, intégration Thomson et réalisation du site 3D).',
               'Yanis — secrétaire du projet : rédige les comptes rendus et rapports de livrables, suit l’avancement du bot, tient la documentation et s’occupe du site vitrine ; renfort sur le code si besoin (configuration, listes de matières, SQLite).'
+            ]
+          },
+          {
+            title: 'Feuille de Route',
+            desc: 'Prochaines étapes prévues pour le bot, d’après le rapport du livrable 1.',
+            bullets: [
+              'Prévu : rôles par élève, par classe et par matière',
+              'Prévu (janvier – mars 2027) : ouverture du bot à toute l’ESGI'
             ]
           }
         ]
@@ -576,7 +614,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
         metrics: [
           { value: 'ESGI REIMS', label: '1re année de Bachelor Informatique' },
           { value: 'FULL-STACK', label: 'Architecture Python, SQLite & interface 3D' },
-          { value: '24/7 HOSTING', label: 'Déploiement autonome & administration' }
+          { value: '9 COMMANDES', label: 'Commandes slash, modales & rappels programmés' }
         ],
         sections: [
           {
@@ -673,7 +711,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
             desc: 'Mise en pratique des compétences développées en cursus informatique : Python, bases de données relationnelles, API et rendu 3D.',
             bullets: [
               'Développement modulaire en Python avec persistance SQLite',
-              'Intégration d’API asynchrones et déploiement continu'
+              'Intégration d’API asynchrones avec aiohttp (API Thomson)'
             ]
           }
         ]
@@ -968,6 +1006,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
         document.body.classList.toggle('in-underground', isUnderground);
         if (hud) hud.classList.toggle('hidden', currentY < 2);
         if (pillarNav) pillarNav.classList.toggle('visible', isUnderground);
+        document.body.classList.toggle('pillars-open', isUnderground);
 
         if (hudZone && !isUnderground) {
           if (currentY > 116) hudZone.textContent = 'CITADELLE ORBITALE';
@@ -1554,6 +1593,19 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     composer.render();
   }
   animate();
+  hideLoader();
+},
+(event) => {
+  // Progression du téléchargement du modèle 3D
+  if (event.lengthComputable && loaderFill) {
+    const pct = Math.round((event.loaded / event.total) * 100);
+    loaderFill.style.width = `${pct}%`;
+    loaderText.textContent = `CHARGEMENT DE LA TOUR… ${pct} %`;
+  }
+},
+(error) => {
+  console.error('Erreur de chargement du modèle 3D :', error);
+  showLoadError('Impossible de charger la tour 3D. Vérifie ta connexion puis recharge la page.');
 });
 
 window.addEventListener('resize', () => {

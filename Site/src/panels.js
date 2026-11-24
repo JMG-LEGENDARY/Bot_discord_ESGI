@@ -187,7 +187,7 @@ export function buildSkyPlatform(scene, topY) {
 
   ctx.font = '700 32px "JetBrains Mono", monospace';
   ctx.fillStyle = '#a9b3d6';
-  ctx.fillText('MEGASTRUCTURE // REIMS CYBERNETICS', 640, 294);
+  ctx.fillText('BOT DISCORD // ESGI REIMS', 640, 294);
 
   const signTex = new THREE.CanvasTexture(signCvs);
   signTex.colorSpace = THREE.SRGBColorSpace;
