@@ -51,13 +51,15 @@ export function createNightEnvironment(renderer) {
     new THREE.Color(3.4, 0.4, 2.2),
     new THREE.Color(1.6, 0.8, 3.4)
   ];
-  for (let i = 0; i < 14; i++) {
-    const a = (i / 14) * Math.PI * 2;
+  // Plus nombreuses et plus vives : elles créent les petits reflets sur le métal
+  for (let i = 0; i < 26; i++) {
+    const a = (i / 26) * Math.PI * 2;
+    const tall = i % 3 === 0;
     const panel = new THREE.Mesh(
-      new THREE.PlaneGeometry(2 + (i % 3), 0.35 + (i % 2) * 0.5),
-      new THREE.MeshBasicMaterial({ color: neonColors[i % 3], side: THREE.DoubleSide })
+      new THREE.PlaneGeometry(tall ? 0.6 : 2 + (i % 3), tall ? 6 : 0.35 + (i % 2) * 0.5),
+      new THREE.MeshBasicMaterial({ color: neonColors[i % 3].clone().multiplyScalar(1.6), side: THREE.DoubleSide })
     );
-    panel.position.set(Math.cos(a) * 40, 1 + (i % 4) * 2.5, Math.sin(a) * 40);
+    panel.position.set(Math.cos(a) * 40, (tall ? 4 : 1) + (i % 5) * 3, Math.sin(a) * 40);
     panel.lookAt(0, panel.position.y, 0);
     envScene.add(panel);
   }

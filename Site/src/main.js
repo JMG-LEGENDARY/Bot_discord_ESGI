@@ -16,6 +16,7 @@ import { buildUndergroundMasterclass } from './underground.js';
 import { createNightEnvironment, createDayEnvironment } from './environment.js';
 import { DAY_UNIFORM } from './theme.js';
 import { createGlowSystem, GLOW } from './glows.js';
+import { createCompanion } from './companion.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -90,10 +91,14 @@ if (import.meta.env.DEV) window.__three = { renderer, scene, camera, DAY_UNIFORM
 
 const targetHeight = 130;
 const glows = createGlowSystem(scene);
+// NOVA, le petit vaisseau compagnon qui suit le visiteur
+const companion = createCompanion(scene, camera, glows);
+if (import.meta.env.DEV) window.__nova = companion;
 const bufferSize = new THREE.Vector2();
 function resizeGlows() {
   renderer.getDrawingBufferSize(bufferSize);
   glows.resize(bufferSize.y, camera.fov);
+  companion.resize(bufferSize.y, camera.fov);
 }
 resizeGlows();
 
@@ -132,6 +137,7 @@ function toggleDayNight() {
   document.documentElement.dataset.theme = isDay ? 'day' : 'night';
   updateThemeHintText();
   gsap.to(DAY_UNIFORM, { value: isDay ? 1 : 0, duration: 2.4, ease: 'power2.inOut', overwrite: true });
+  companion.say(isDay ? 'Il fait jour ! ☀️ Tout est plus clair d\'un coup.' : 'Retour de la nuit 🌙 Les néons se rallument !');
 }
 
 // L'indication elle-même est aussi un bouton (plus simple au doigt)
@@ -176,14 +182,14 @@ function applyWindowPattern(material) {
 
 // Matières de la tour, par nom de matériau du modèle 3D
 const TOWER_MATERIALS = {
-  // Façade : pierre claire légèrement chaude, mate
-  Marble: { color: 0x8c8880, metalness: 0.05, roughness: 0.72, env: 0.7, pattern: 'stone' },
+  // Façade : panneaux de pierre à revêtement métallisé (petits reflets du ciel et des néons)
+  Marble: { color: 0xa29e98, metalness: 0.65, roughness: 0.24, env: 1.8, pattern: 'stone' },
   // Cadres et socle : acier anthracite
-  M_0133_Gray: { color: 0x2c2f38, metalness: 0.7, roughness: 0.38, env: 1.0 },
+  M_0133_Gray: { color: 0x3a3e4a, metalness: 0.85, roughness: 0.25, env: 1.3 },
   // Couronne du sommet : acier brossé
-  Steel: { color: 0xa4aab6, metalness: 1.0, roughness: 0.3, env: 1.2 },
+  Steel: { color: 0xb4bac6, metalness: 1.0, roughness: 0.18, env: 1.5 },
   // Ailettes verticales : bronze anodisé
-  Metal_Embossed: { color: 0x5a4632, metalness: 0.9, roughness: 0.34, env: 1.1 },
+  Metal_Embossed: { color: 0x6a523a, metalness: 0.95, roughness: 0.22, env: 1.4 },
   // Sol / parvis de la tour : dallage de granit sombre
   FloorCover: { color: 0x5a5a64, metalness: 0.1, roughness: 0.55, env: 0.8, pattern: 'tiles' },
   // Petite enseigne
@@ -226,9 +232,16 @@ function applySurfacePattern(material, pattern) {
         float crownWash = exp(-abs(vSurfPos.y - 124.0) / 5.0);
         totalEmissiveRadiance += vec3(1.0, 0.76, 0.5) * 0.55 * footWash * diffuseColor.rgb * (1.0 - uDay);
         totalEmissiveRadiance += vec3(0.4, 0.85, 1.0) * 0.45 * crownWash * diffuseColor.rgb * (1.0 - uDay);`;
+    // Petits reflets métalliques : chaque panneau de façade a son propre brillant
+    // (certains très lisses, d'autres satinés), les reflets scintillent en bougeant.
+    const shine = pattern === 'stone'
+      ? `
+        roughnessFactor = mix(0.08, 0.42, sHash * sHash);`
+      : '';
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vSurfPos;\nuniform float uDay;')
       .replace('#include <color_fragment>', `#include <color_fragment>${body}`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>${shine}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>${light}`);
   };
   material.customProgramCacheKey = () => `tower-${pattern}`;
@@ -872,6 +885,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     panelModal.classList.add('open');
     panelModal.setAttribute('aria-hidden', 'false');
     panelPrompt.classList.remove('visible');
+    companion.hide();
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
   }
@@ -1220,13 +1234,19 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   window.addEventListener('pointerup', (e) => {
     if (isModalOpen) return;
     // Clic sur un bouton de l'interface : ne pas le traiter aussi comme un clic dans la 3D
-    if (e.target.closest && e.target.closest('button, nav')) return;
+    if (e.target.closest && e.target.closest('button, nav, a, #companion-bubble')) return;
     const moveDist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
     if (moveDist > 6) return;
 
     pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
+
+    // Clic sur NOVA : il répond
+    if (companion.isHit(raycaster)) {
+      companion.say(NOVA_POKES[Math.floor(Math.random() * NOVA_POKES.length)]);
+      return;
+    }
 
     if (camState.mode < 0.35) {
       if (isPointerOnPlanet(raycaster)) {
@@ -1252,6 +1272,133 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       }
     }
   });
+
+  // =========================================================================
+  // NOVA : INACTIVITÉ ET MESSAGES SELON CE QUE L'ON REGARDE
+  // =========================================================================
+  const openHint = IS_TOUCH ? 'Touche « Ouvrir le dossier »' : 'Appuie sur Entrée';
+  const NOVA_MESSAGES = {
+    top: 'Salut, moi c\'est NOVA ! 🛰️ Fais défiler pour descendre la tour, je te suis.',
+    'panel-0': `Les fonctionnalités du bot sont ici. ${openHint} pour en savoir plus !`,
+    'panel-1': 'Toutes les commandes slash du bot, à découvrir dans ce dossier.',
+    'panel-2': 'Côté technique : Python, SQLite… le cœur du bot ⚙️',
+    'panel-3': 'Comment installer le bot, et qui l\'a fabriqué 👀',
+    city: 'La ville basse ! Attention aux voitures volantes 🚗',
+    descent: 'Accroche-toi, on plonge sous la tour !',
+    underground: 'Le sous-sol : l\'équipe derrière le projet 🛠️',
+    'pillar-0': 'Bryan alias JMG : le Big Boss 😎',
+    'pillar-1': "Yanis, c'est mon Papa 👨‍👦 Ma Maman ? C'est Claude 🤖💜",
+    'pillar-2': 'L\'ESGI Reims, l\'école où tout a commencé 🎓',
+    'pillar-3': 'Gemini et Maman Claude, les assistants IA… un peu comme moi 🤖',
+    'pillar-4': 'Pense à aller voir ce site : https://thomsonpic-v2.grgoire.fr'
+  };
+  const NOVA_IDLE = [
+    'Tu fais quoi ? 👀',
+    'Hé ! Tu t\'es endormi ? 😴',
+    'Tu es toujours là ? On continue la visite ?'
+  ];
+  const NOVA_POKES = [
+    'Hé, ça chatouille ! 😆',
+    'Je suis NOVA, ton guide de la tour 🛰️',
+    'Bip boup ! Tout va bien ici.',
+    'Tu veux que je te montre le sous-sol ? Fais défiler !'
+  ];
+
+  // Inactivité : défilement, touches, toucher et clics comptent comme une activité
+  let lastActivity = performance.now();
+  let wanderAnnounced = false;
+  let idleAsked = false;
+  const markActivity = () => {
+    lastActivity = performance.now();
+    wanderAnnounced = false;
+    idleAsked = false;
+  };
+  ['scroll', 'wheel', 'touchstart', 'touchmove', 'keydown', 'pointerdown'].forEach((evt) =>
+    window.addEventListener(evt, markActivity, { passive: true })
+  );
+
+  let lastContextKey = null;
+  let contextSince = 0;
+  let spokenKey = null;
+  let prevCamY = null;
+  let verticalSpeed = 0;
+
+  // Repère de la visite sur lequel la caméra est arrivée (pilier, panneau…).
+  // On se base sur la timeline, comme la barre des piliers : pas sur la distance,
+  // sinon la caméra « frôle » d'autres piliers en passant et NOVA se trompe.
+  function arrivedLabel(names) {
+    const t = tl.time();
+    let best = null;
+    let bestGap = Infinity;
+    names.forEach((name) => {
+      const at = tl.labels[name];
+      if (at === undefined) return;
+      const gap = Math.abs(at - t);
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = name;
+      }
+    });
+    return bestGap < 0.45 ? best : null;
+  }
+  const PILLAR_LABELS = ['underground-overview', 'pillar-0', 'pillar-1', 'pillar-2', 'pillar-3', 'pillar-4'];
+  const PANEL_LABELS = ['panel-0', 'panel-1', 'panel-2', 'panel-3'];
+
+  function currentContextKey(currentY) {
+    if (camState.mode > 0.85) {
+      const label = arrivedLabel(PILLAR_LABELS);
+      if (label === 'underground-overview') return 'underground';
+      return label; // null pendant le trajet entre deux piliers : NOVA attend
+    }
+    if (camState.mode > 0.1) return 'descent';
+    const panel = arrivedLabel(PANEL_LABELS);
+    if (panel) return panel;
+    if (currentY > 116) return 'top';
+    if (currentY < 17) return 'city';
+    return null;
+  }
+
+  function updateCompanion(delta, elapsed, currentY) {
+    const idle = (performance.now() - lastActivity) / 1000;
+
+    // Vitesse verticale lissée (monte / descend)
+    if (prevCamY !== null && delta > 0) {
+      const vy = (currentY - prevCamY) / delta;
+      verticalSpeed = THREE.MathUtils.lerp(verticalSpeed, vy, 1 - Math.exp(-delta * 4));
+    }
+    prevCamY = currentY;
+
+    companion.update(delta, elapsed, {
+      progress: tl.scrollTrigger ? tl.scrollTrigger.progress : 0,
+      idle,
+      portrait: camera.aspect < 1,
+      verticalSpeed
+    });
+
+    // 10 s sans bouger : il part se balader ; 1 min : il demande ce qu'on fait
+    if (idle > 10 && !wanderAnnounced) {
+      wanderAnnounced = true;
+      companion.say('Je fais un petit tour en attendant… 🌀', 3000);
+    }
+    if (idle > 60 && !idleAsked) {
+      idleAsked = true;
+      companion.say(NOVA_IDLE[Math.floor(Math.random() * NOVA_IDLE.length)], 6000);
+    }
+
+    // Message selon ce que l'on regarde
+    const key = currentContextKey(currentY);
+    if (key !== lastContextKey) {
+      lastContextKey = key;
+      contextSince = elapsed;
+    }
+    // Il parle une fois arrivé (vue stable 0,5 s), et seulement si l'endroit
+    // a changé depuis son dernier message (il reparle si on revient plus tard).
+    if (key && key !== spokenKey && elapsed - contextSince > 0.5 && NOVA_MESSAGES[key]) {
+      const msg = NOVA_MESSAGES[key];
+      companion.say(msg, msg.includes('http') ? 9000 : 4500);
+      spokenKey = key;
+    }
+  }
 
   const clock = new THREE.Clock();
   const orbitalCamVec = new THREE.Vector3();
@@ -1397,6 +1544,8 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
         panelPrompt.setAttribute('aria-hidden', 'true');
       }
     }
+
+    updateCompanion(delta, elapsed, currentY);
 
     // Positions des halos lumineux mises à jour juste avant le rendu
     scene.updateMatrixWorld();

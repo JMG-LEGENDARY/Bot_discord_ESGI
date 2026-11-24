@@ -933,3 +933,90 @@ body.in-underground #panel-prompt {
     text-align: center;
   }
 }
+
+
+/* ==========================================================================
+   BULLE DE BD DE NOVA
+   ========================================================================== */
+#companion-bubble {
+  --tail-x: 40px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  max-width: 270px;
+  padding: 10px 14px 12px;
+  background: #ffffff;
+  color: #141827;
+  border: 3px solid #141827;
+  border-radius: 18px;
+  box-shadow: 4px 4px 0 #141827;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  z-index: 26;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  will-change: transform;
+}
+
+#companion-bubble.visible {
+  opacity: 1;
+}
+
+/* Pointe de la bulle (contour noir puis remplissage blanc) */
+#companion-bubble::before,
+#companion-bubble::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-color: transparent;
+}
+
+#companion-bubble::before {
+  bottom: -19px;
+  left: calc(var(--tail-x) - 11px);
+  border-width: 18px 11px 0 11px;
+  border-top-color: #141827;
+}
+
+#companion-bubble::after {
+  bottom: -12px;
+  left: calc(var(--tail-x) - 7px);
+  border-width: 12px 7px 0 7px;
+  border-top-color: #ffffff;
+}
+
+.companion-name {
+  display: block;
+  margin-bottom: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #d6269a;
+}
+
+.companion-text {
+  margin: 0;
+  min-height: 1.3em;
+}
+
+@media (max-width: 640px) {
+  #companion-bubble {
+    max-width: 220px;
+    font-size: 0.84rem;
+  }
+}
+
+
+/* Lien dans la bulle de NOVA : cliquable même si la bulle laisse passer les clics */
+.companion-text a {
+  color: #0a7ea4;
+  text-decoration: underline;
+  word-break: break-all;
+  pointer-events: auto;
+}
