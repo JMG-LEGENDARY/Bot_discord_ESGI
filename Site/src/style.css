@@ -681,7 +681,7 @@ body {
   box-shadow: 0 0 18px color-mix(in srgb, var(--modal-accent) 40%, transparent);
 }
 
-/* Empêche le chevauchement entre la navigation souterraine et l'invite d'ouverture de fiche */
+/* Dégagement net entre la navigation souterraine et l'invite d'ouverture de fiche */
 #pillar-nav {
   bottom: 20px;
   z-index: 22;
@@ -693,11 +693,11 @@ body {
 }
 
 body.in-underground #panel-prompt {
-  bottom: 92px;
+  bottom: 135px;
 }
 
 @media (max-width: 768px) {
   body.in-underground #panel-prompt {
-    bottom: 118px;
+    bottom: 165px;
   }
 }
