@@ -318,7 +318,7 @@ class CommandsCog(commands.Cog):
                         topic_list = sorted(topics, key=lambda x: x["date"])  # Trie les devoirs par date
                         for topic in topic_list:
                             embed.add_field(
-                                name=f"{topic['matiere']} - {topic['date'].strftime('%d/%m/%Y')}",
+                                name=f"{topic['matiere']} - {topic['date'].date().strftime('%d/%m/%Y')}",
                                 value=topic['sujet'],
                                 inline=False
                             )
