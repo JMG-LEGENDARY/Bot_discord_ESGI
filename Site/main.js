@@ -70,7 +70,7 @@ function setupScrollAnimation() {
             trigger: '.scroll-container',
             start: 'top top',
             end: 'bottom bottom',
-            scrub: 1.5, // Lissage fluide du scroll (1.5s d'inertie)
+            scrub: 2, // Lissage fluide du scroll (1.5s d'inertie)
         },
     });
 

@@ -33,7 +33,7 @@ body {
 .scroll-container {
   position: relative;
   width: 100%;
-  height: 920vh;
+  height: 1600vh;
   z-index: 2;
   pointer-events: none;
 }
@@ -679,4 +679,25 @@ body {
 .modal-secondary-btn:hover {
   background: color-mix(in srgb, var(--modal-accent) 30%, transparent);
   box-shadow: 0 0 18px color-mix(in srgb, var(--modal-accent) 40%, transparent);
+}
+
+/* Empêche le chevauchement entre la navigation souterraine et l'invite d'ouverture de fiche */
+#pillar-nav {
+  bottom: 20px;
+  z-index: 22;
+}
+
+#panel-prompt {
+  z-index: 24;
+  transition: opacity 0.25s ease, transform 0.25s ease, bottom 0.25s ease;
+}
+
+body.in-underground #panel-prompt {
+  bottom: 92px;
+}
+
+@media (max-width: 768px) {
+  body.in-underground #panel-prompt {
+    bottom: 118px;
+  }
 }

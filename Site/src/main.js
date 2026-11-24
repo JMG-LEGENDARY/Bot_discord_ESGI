@@ -670,7 +670,7 @@ const camState = {
       trigger: '.scroll-container',
       start: 'top top',
       end: 'bottom bottom',
-      scrub: 0.6,
+      scrub: 1.1,
       onUpdate: (self) => {
         const hud = document.getElementById('hud');
         const hudAlt = document.getElementById('hud-alt');
@@ -687,6 +687,7 @@ const camState = {
         if (hudAlt) hudAlt.textContent = `ALT ${meters}M`;
 
         const isUnderground = camState.mode > 0.72;
+        document.body.classList.toggle('in-underground', isUnderground);
         if (hud) hud.classList.toggle('hidden', currentY < 2);
         if (pillarNav) pillarNav.classList.toggle('visible', isUnderground);
 
@@ -823,7 +824,7 @@ const camState = {
       const currentProgress = st.progress;
       const magnetLabels = ['panel-0', 'panel-1', 'panel-2', 'panel-3'];
       let nearestProg = null;
-      let minDist = 0.036;
+      let minDist = 0.022;
 
       magnetLabels.forEach((lbl) => {
         if (tl.labels[lbl] !== undefined) {
