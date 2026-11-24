@@ -29,6 +29,7 @@ class NotificationsCog(commands.Cog):
             for classe in classes:
                 nom_de_classe = guild.get_role(int(classe))
                 devoirs = sql_cog.recup_tous_devoirs(guild.id, classe)
+                evals = sql_cog.recup_tous_evals(guild.id, classe)
                 possible_channel = []
 
                 for channel in guild.text_channels:
@@ -103,6 +104,50 @@ class NotificationsCog(commands.Cog):
                     # Compare avec la date du jour
                     if date < datetime.now().date():
                         sql_cog.supprimer_devoir(guild_id=guild.id, classe_name=classe, devoir=devoir)
+
+                for eval in evals:
+                    logger.info(f"Itération sur {eval}")
+                    # Convertit la date texte de SQLite (format ex: "2026-10-31") en objet date
+                    date = datetime.strptime(
+                        eval["date"], "%Y-%m-%d"
+                    ).date()
+
+                    if date == date.today() + timedelta(days=7):
+                        embed = discord.Embed(
+                            title=f"Évaluation prévue pour dans {(date - date.today()).days} jours !",
+                            description=f'En {eval["matiere"]}, {eval["sujet"]}',
+                            color=discord.Color.yellow()
+                        )
+
+                        if channel_to_post:
+                            await channel_to_post.send(content=f"{nom_de_classe.mention}", embed=embed)
+                            logger.info(f"Notification de évaluation envoyée")
+
+                    if date == date.today() + timedelta(days=1):
+                        embed = discord.Embed(
+                            title=f"Évaluation prévue pour demain !",
+                            description=f'En {eval["matiere"]}, {eval["sujet"]}',
+                            color=discord.Color.orange()
+                        )
+                        if channel:
+                            await channel.send(content=f"{nom_de_classe.mention}", embed=embed)
+                            logger.info(f"Notification de évaluation envoyée")
+
+                    if date == date.today():
+                        embed = discord.Embed(
+                            title=f"Évaluation prévue pour Aujourd'hui",
+                            description=f'En {eval["matiere"]}, {eval["sujet"]}',
+                            color=discord.Color.red()
+                        )
+                        if channel:
+                            await channel.send(content=f"{nom_de_classe.mention}", embed=embed)
+                            logger.info(f"Notification de évaluation envoyée")
+
+
+
+                    # Compare avec la date du jour
+                    if date < datetime.now().date():
+                        sql_cog.supprimer_eval(guild_id=guild.id, classe_name=classe, eval=eval)
 
 
 
