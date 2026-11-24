@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -14,6 +13,9 @@ import { buildEcoCyberCity } from './city.js';
 import { buildSpaceFleet } from './ships.js';
 import { createHoloPanel, buildSkyPlatform } from './panels.js';
 import { buildUndergroundMasterclass } from './underground.js';
+import { createNightEnvironment, createDayEnvironment } from './environment.js';
+import { DAY_UNIFORM } from './theme.js';
+import { createGlowSystem, GLOW } from './glows.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -34,9 +36,22 @@ scene.fog = new THREE.FogExp2(0x3a2560, 0.0014);
 
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
 
+// Téléphone en portrait : l'écran est étroit, on élargit l'angle de vue
+// pour que les panneaux 3D tiennent en largeur (sans dépasser 75°).
+function fitCameraToScreen() {
+  const aspect = window.innerWidth / window.innerHeight;
+  camera.aspect = aspect;
+  const wanted = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(22)) / aspect));
+  camera.fov = THREE.MathUtils.clamp(wanted, 50, 75);
+  camera.updateProjectionMatrix();
+}
+fitCameraToScreen();
+
 // Résolution plafonnée à 1.5x : au-delà, l'œil ne voit presque pas la différence
 // mais la carte graphique travaille jusqu'à 2x plus.
-const MAX_PIXEL_RATIO = Math.min(window.devicePixelRatio, 1.5);
+// Écran tactile (téléphone, tablette) : résolution un peu plus basse pour la batterie
+const IS_TOUCH = window.matchMedia('(hover: none)').matches;
+const MAX_PIXEL_RATIO = Math.min(window.devicePixelRatio, IS_TOUCH ? 1.25 : 1.5);
 let currentPixelRatio = MAX_PIXEL_RATIO;
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
@@ -46,8 +61,10 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 
-const pmremGenerator = new THREE.PMREMGenerator(renderer);
-scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+// Reflets de nuit (ciel indigo, lueur de la ville, néons) au lieu d'un studio blanc
+const nightEnvironment = createNightEnvironment(renderer);
+const dayEnvironment = createDayEnvironment(renderer);
+scene.environment = nightEnvironment;
 
 const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
   type: THREE.HalfFloatType,
@@ -69,14 +86,153 @@ composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
 
 // Accès debug (uniquement en développement) pour mesurer les performances
-if (import.meta.env.DEV) window.__three = { renderer, scene, camera };
+if (import.meta.env.DEV) window.__three = { renderer, scene, camera, DAY_UNIFORM };
 
 const targetHeight = 130;
+const glows = createGlowSystem(scene);
+const bufferSize = new THREE.Vector2();
+function resizeGlows() {
+  renderer.getDrawingBufferSize(bufferSize);
+  glows.resize(bufferSize.y, camera.fov);
+}
+resizeGlows();
+
 const atmosphere = createAtmosphere(scene, targetHeight);
-const ecoCity = buildEcoCyberCity(scene, targetHeight);
-const spaceFleet = buildSpaceFleet(scene, targetHeight);
+atmosphere.setPlanetLayout(camera.aspect < 1);
+
+// =========================================================================
+// MODE JOUR / NUIT (clic sur la planète en haut de la tour)
+// =========================================================================
+let isDay = false;
+try {
+  isDay = localStorage.getItem('esgi-theme') === 'day';
+} catch (e) {
+  // stockage indisponible (navigation privée) : on reste en nuit
+}
+DAY_UNIFORM.value = isDay ? 1 : 0;
+document.documentElement.dataset.theme = isDay ? 'day' : 'night';
+
+const themeHint = document.getElementById('theme-hint');
+function updateThemeHintText() {
+  if (themeHint) {
+    themeHint.textContent = isDay
+      ? '☾ TOUCHEZ LA PLANÈTE POUR PASSER EN MODE NUIT'
+      : '☀ TOUCHEZ LA PLANÈTE POUR PASSER EN MODE JOUR';
+  }
+}
+updateThemeHintText();
+
+function toggleDayNight() {
+  isDay = !isDay;
+  try {
+    localStorage.setItem('esgi-theme', isDay ? 'day' : 'night');
+  } catch (e) {
+    // pas grave si le choix n'est pas mémorisé
+  }
+  document.documentElement.dataset.theme = isDay ? 'day' : 'night';
+  updateThemeHintText();
+  gsap.to(DAY_UNIFORM, { value: isDay ? 1 : 0, duration: 2.4, ease: 'power2.inOut', overwrite: true });
+}
+
+// L'indication elle-même est aussi un bouton (plus simple au doigt)
+if (themeHint) themeHint.addEventListener('click', toggleDayNight);
+
+const planetSphere = new THREE.Sphere();
+function isPointerOnPlanet(raycaster) {
+  if (!atmosphere.isPlanetVisible()) return false;
+  const activePlanet = atmosphere.getActivePlanet();
+  activePlanet.getWorldPosition(planetSphere.center);
+  planetSphere.radius = 54 * 1.5; // zone de clic plus large que la planète (pratique au doigt)
+  return raycaster.ray.intersectsSphere(planetSphere);
+}
+const ecoCity = buildEcoCyberCity(scene, targetHeight, glows);
+const spaceFleet = buildSpaceFleet(scene, targetHeight, glows);
 const underground = buildUndergroundMasterclass(scene);
 const skyPlatform = buildSkyPlatform(scene, targetHeight);
+
+// Vitres de la tour : verre sombre qui reflète surtout le ciel, avec une lueur
+// intérieure douce qui varie légèrement d'un étage à l'autre (pas de motif
+// aléatoire fenêtre par fenêtre). Le jour, la lueur s'éteint : on ne voit que le reflet.
+function applyWindowPattern(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uDay = DAY_UNIFORM;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWinPos;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvWinPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWinPos;\nuniform float uDay;')
+      // Le jour, verre teinté bleu acier (comme un vrai mur-rideau sous le ciel)
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb += vec3(0.12, 0.2, 0.32) * uDay;')
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        float floorId = floor(vWinPos.y / 3.4);
+        float floorVar = fract(sin(floorId * 91.7) * 43758.5453);
+        totalEmissiveRadiance *= (0.8 + floorVar * 0.4) * (1.0 - uDay);`
+      );
+  };
+  material.customProgramCacheKey = () => 'tower-windows';
+}
+
+// Matières de la tour, par nom de matériau du modèle 3D
+const TOWER_MATERIALS = {
+  // Façade : pierre claire légèrement chaude, mate
+  Marble: { color: 0x8c8880, metalness: 0.05, roughness: 0.72, env: 0.7, pattern: 'stone' },
+  // Cadres et socle : acier anthracite
+  M_0133_Gray: { color: 0x2c2f38, metalness: 0.7, roughness: 0.38, env: 1.0 },
+  // Couronne du sommet : acier brossé
+  Steel: { color: 0xa4aab6, metalness: 1.0, roughness: 0.3, env: 1.2 },
+  // Ailettes verticales : bronze anodisé
+  Metal_Embossed: { color: 0x5a4632, metalness: 0.9, roughness: 0.34, env: 1.1 },
+  // Sol / parvis de la tour : dallage de granit sombre
+  FloorCover: { color: 0x5a5a64, metalness: 0.1, roughness: 0.55, env: 0.8, pattern: 'tiles' },
+  // Petite enseigne
+  FrontColor: { color: 0x0a1020, metalness: 0.3, roughness: 0.3, env: 0.6, emissive: 0x22e4ff, emissiveIntensity: 1.6 },
+  default: { color: 0x55565e, metalness: 0.4, roughness: 0.5, env: 0.9 }
+};
+
+// Détails réalistes sans texture, calculés à partir de la position dans le monde :
+// - 'stone' : chaque étage et chaque panneau de pierre a une teinte un peu différente
+// - 'tiles' : dallage avec joints et dalles de teintes variées
+function applySurfacePattern(material, pattern) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uDay = DAY_UNIFORM;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vSurfPos;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvSurfPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    const body = pattern === 'tiles'
+      ? `
+        vec2 tileUv = vSurfPos.xz / 2.2;
+        vec2 tileId = floor(tileUv);
+        vec2 tileF = fract(tileUv);
+        float tHash = fract(sin(dot(tileId, vec2(127.1, 311.7))) * 43758.5453);
+        float joint = step(0.04, tileF.x) * step(0.04, tileF.y);
+        diffuseColor.rgb *= mix(0.35, 0.85 + tHash * 0.3, joint);`
+      : `
+        vec3 panelId = floor(vSurfPos / vec3(3.9, 3.4, 3.9));
+        float sHash = fract(sin(dot(panelId, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+        float grain = fract(sin(dot(floor(vSurfPos * 6.0), vec3(7.1, 3.7, 5.3))) * 9751.31);
+        diffuseColor.rgb *= 0.86 + sHash * 0.22 + (grain - 0.5) * 0.05;
+        // Traces de ruissellement plus sombres vers le bas de chaque panneau
+        diffuseColor.rgb *= 0.92 + 0.08 * fract(vSurfPos.y / 3.4);`;
+    // Éclairage d'architecte : projecteurs chauds au pied de la façade,
+    // couronne éclairée au sommet, flaque de lumière sur le parvis.
+    const light = pattern === 'tiles'
+      ? `
+        float plazaGlow = exp(-length(vSurfPos.xz) / 22.0);
+        totalEmissiveRadiance += vec3(1.0, 0.74, 0.46) * 0.66 * plazaGlow * diffuseColor.rgb * (1.0 - uDay);`
+      : `
+        float footWash = exp(-max(vSurfPos.y, 0.0) / 9.0);
+        float crownWash = exp(-abs(vSurfPos.y - 124.0) / 5.0);
+        totalEmissiveRadiance += vec3(1.0, 0.76, 0.5) * 0.55 * footWash * diffuseColor.rgb * (1.0 - uDay);
+        totalEmissiveRadiance += vec3(0.4, 0.85, 1.0) * 0.45 * crownWash * diffuseColor.rgb * (1.0 - uDay);`;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vSurfPos;\nuniform float uDay;')
+      .replace('#include <color_fragment>', `#include <color_fragment>${body}`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>${light}`);
+  };
+  material.customProgramCacheKey = () => `tower-${pattern}`;
+}
 
 function getFacadeRadiusAtY(tower, y, fallbackRadius) {
   tower.updateMatrixWorld(true);
@@ -124,8 +280,8 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     scaledBox.max.z - scaledBox.min.z
   ) / 2;
 
-  // Habillage « nuit néon » de la tour : structure en acier sombre,
-  // vitres qui brillent comme des fenêtres allumées (bleu, avec une touche magenta).
+  // Habillage de la tour : une matière réaliste par partie du modèle,
+  // vitres sombres et réfléchissantes.
   tower.traverse((child) => {
     if (!child.isMesh || !child.material) return;
     const mat = child.material;
@@ -133,23 +289,52 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
     if (name.includes('glass')) {
       const accent = name.includes('green');
-      mat.color.set(0x0a1030);
-      mat.emissive.set(accent ? 0x7a1a78 : 0x1f3f9a);
-      mat.emissiveIntensity = accent ? 0.85 : 0.7;
-      mat.metalness = 0.9;
-      mat.roughness = 0.18;
-      mat.envMapIntensity = 0.5;
+      mat.color.set(0x070b1c);
+      mat.metalness = 0.92;
+      mat.roughness = 0.12;
+      mat.envMapIntensity = 0.9;
+      if (accent) {
+        mat.emissive.set(0x7a1a78);
+        mat.emissiveIntensity = 0.85;
+      } else {
+        // Lueur intérieure douce, légèrement froide
+        mat.emissive.set(0x5a6a96);
+        mat.emissiveIntensity = 0.55;
+        applyWindowPattern(mat);
+      }
     } else {
-      mat.color.set(name.includes('gray') ? 0x10142a : 0x1a2040);
-      mat.emissiveIntensity = 0;
-      mat.metalness = 0.65;
-      mat.roughness = 0.42;
-      mat.envMapIntensity = 0.25;
+      // Chaque matériau du modèle reçoit sa propre matière réaliste
+      const look = TOWER_MATERIALS[mat.name] || TOWER_MATERIALS.default;
+      mat.color.set(look.color);
+      mat.metalness = look.metalness;
+      mat.roughness = look.roughness;
+      mat.envMapIntensity = look.env;
+      mat.emissive.set(look.emissive || 0x000000);
+      mat.emissiveIntensity = look.emissiveIntensity || 0;
+      if (look.pattern) applySurfacePattern(mat, look.pattern);
     }
     mat.needsUpdate = true;
   });
 
   scene.add(tower);
+
+  // Feux d'obstacle aviation : rouges clignotants aux 4 coins du toit + flash blanc
+  const roofY = scaledBox.max.y - scaledBox.min.y;
+  const halfX = (scaledBox.max.x - scaledBox.min.x) / 2;
+  const halfZ = (scaledBox.max.z - scaledBox.min.z) / 2;
+  const roofAnchor = new THREE.Object3D();
+  scene.add(roofAnchor);
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz], k) => {
+    glows.add(roofAnchor, new THREE.Vector3(sx * halfX * 0.92, roofY + 0.4, sz * halfZ * 0.92), GLOW.aviation, 1.6,
+      { speed: 0.5, phase: k * 0.03, duty: 0.45 });
+  });
+  glows.add(roofAnchor, new THREE.Vector3(0, roofY + 6.5, 0), GLOW.strobe, 2.4, { speed: 0.8, phase: 0, duty: 0.08 });
+  // Feux rouges fixes tous les ~20 m sur les arêtes, comme sur les vrais gratte-ciel
+  for (let y = 20; y < roofY - 5; y += 20) {
+    [[-1, -1], [1, 1]].forEach(([sx, sz]) => {
+      glows.add(roofAnchor, new THREE.Vector3(sx * halfX * 0.95, y, sz * halfZ * 0.95), [1.6, 0.08, 0.05], 0.9);
+    });
+  }
 
   // =========================================================================
   // 4 PANNEAUX DE LA TOUR (STRICTEMENT BASÉS SUR LE README)
@@ -1007,9 +1192,13 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     raycaster.setFromCamera(pointer, camera);
 
     if (camState.mode < 0.35) {
+      const onPlanet = isPointerOnPlanet(raycaster);
       const panelHits = raycaster.intersectObjects(interactivePanelScreens, true);
-      document.body.style.cursor = panelHits.length > 0 ? 'pointer' : 'default';
-      if (tooltip) tooltip.classList.remove('visible');
+      document.body.style.cursor = onPlanet || panelHits.length > 0 ? 'pointer' : 'default';
+      if (tooltip) {
+        tooltip.textContent = isDay ? 'CLIQUEZ : PASSER EN MODE NUIT' : 'CLIQUEZ : PASSER EN MODE JOUR';
+        tooltip.classList.toggle('visible', onPlanet);
+      }
       return;
     }
 
@@ -1022,11 +1211,16 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     const hits = raycaster.intersectObjects(underground.interactivePillarObjects, true);
     const hoveredLabel = hits.length > 0 ? resolveUndergroundLabel(hits[0].object) : null;
     document.body.style.cursor = hoveredLabel ? 'pointer' : 'default';
-    if (tooltip) tooltip.classList.toggle('visible', Boolean(hoveredLabel));
+    if (tooltip) {
+      tooltip.textContent = 'CLIQUEZ POUR INSPECTER LE PILIER';
+      tooltip.classList.toggle('visible', Boolean(hoveredLabel));
+    }
   });
 
   window.addEventListener('pointerup', (e) => {
     if (isModalOpen) return;
+    // Clic sur un bouton de l'interface : ne pas le traiter aussi comme un clic dans la 3D
+    if (e.target.closest && e.target.closest('button, nav')) return;
     const moveDist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
     if (moveDist > 6) return;
 
@@ -1035,6 +1229,10 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     raycaster.setFromCamera(pointer, camera);
 
     if (camState.mode < 0.35) {
+      if (isPointerOnPlanet(raycaster)) {
+        toggleDayNight();
+        return;
+      }
       const panelHits = raycaster.intersectObjects(interactivePanelScreens, true);
       if (panelHits.length > 0 && panelHits[0].object.userData.dossierIndex !== undefined) {
         openDossierModal('tower', panelHits[0].object.userData.dossierIndex);
@@ -1083,6 +1281,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       currentPixelRatio = Math.max(1, currentPixelRatio - 0.25);
       renderer.setPixelRatio(currentPixelRatio);
       composer.setPixelRatio(currentPixelRatio);
+      resizeGlows();
     } else if (bloomPass.enabled && fps < 30) {
       bloomPass.enabled = false;
     }
@@ -1098,6 +1297,15 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     if (isModalOpen) return;
 
     if (document.visibilityState === 'visible' && rawDelta < 0.5) adaptQuality(rawDelta);
+
+    // Jour/nuit : reflets adaptés et halo lumineux plus discret en plein jour
+    const day = DAY_UNIFORM.value;
+    scene.environment = day > 0.5 ? dayEnvironment : nightEnvironment;
+    bloomPass.strength = THREE.MathUtils.lerp(0.55, 0.22, day);
+    bloomPass.threshold = THREE.MathUtils.lerp(1.05, 1.6, day);
+    if (themeHint) {
+      themeHint.classList.toggle('visible', atmosphere.isPlanetVisible() && camState.mode < 0.1 && camState.camY > 112);
+    }
 
     mouseCurrent.x += (mouseTarget.x - mouseCurrent.x) * 0.05;
     mouseCurrent.y += (mouseTarget.y - mouseCurrent.y) * 0.05;
@@ -1190,14 +1398,19 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       }
     }
 
+    // Positions des halos lumineux mises à jour juste avant le rendu
+    scene.updateMatrixWorld();
+    glows.update(elapsed);
+
     composer.render();
   }
   animate();
 });
 
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+  fitCameraToScreen();
+  atmosphere.setPlanetLayout(camera.aspect < 1);
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
+  resizeGlows();
 });

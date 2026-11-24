@@ -1,4 +1,40 @@
 import * as THREE from 'three';
+import { GLOW } from './glows.js';
+
+// Texture de coque : plaques de blindage, joints et trappes, pour que le métal
+// ne soit pas uniforme. Sert de couleur et de rugosité (les joints brillent moins).
+function createHullPlatingTexture() {
+  const size = 512;
+  const cvs = document.createElement('canvas');
+  cvs.width = size;
+  cvs.height = size;
+  const ctx = cvs.getContext('2d');
+  ctx.fillStyle = '#8a8f9c';
+  ctx.fillRect(0, 0, size, size);
+  for (let i = 0; i < 90; i++) {
+    const w = 40 + Math.random() * 120;
+    const h = 30 + Math.random() * 90;
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const v = 120 + Math.floor(Math.random() * 40);
+    ctx.fillStyle = `rgb(${v}, ${v + 3}, ${v + 10})`;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(20, 22, 30, 0.85)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+  }
+  for (let i = 0; i < 400; i++) {
+    ctx.fillStyle = 'rgba(25, 28, 36, 0.7)';
+    ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2);
+  }
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 2);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
 
 function createFlagshipCruiser(hullMat, darkMat, cyanGlow, pinkGlow) {
   const cruiser = new THREE.Group();
@@ -54,7 +90,7 @@ function createFlagshipCruiser(hullMat, darkMat, cyanGlow, pinkGlow) {
 function createStarfighter(hullMat, darkMat, engineMat) {
   const ship = new THREE.Group();
 
-  const body = new THREE.Mesh(new THREE.ConeGeometry(0.55, 4.6, 6), hullMat);
+  const body = new THREE.Mesh(new THREE.ConeGeometry(0.55, 4.6, 12), hullMat);
   body.rotation.x = Math.PI / 2;
   body.scale.set(1.1, 1.0, 0.55);
   ship.add(body);
@@ -113,21 +149,29 @@ function createOrbitalShuttle(hullMat, darkMat, accentMat) {
   return shuttle;
 }
 
-export function buildSpaceFleet(scene, mainTowerHeight) {
+export function buildSpaceFleet(scene, mainTowerHeight, glows) {
   const fleetGroup = new THREE.Group();
 
   // Matériaux satinés calibrés pour éviter toute surexposition sous l'éclairage orbital
+  const plating = createHullPlatingTexture();
   const hullMat = new THREE.MeshStandardMaterial({
-    color: 0x5c708a,
-    metalness: 0.42,
-    roughness: 0.44,
-    envMapIntensity: 0.32
+    color: 0x9aa3b8,
+    map: plating,
+    roughnessMap: plating,
+    bumpMap: plating,
+    bumpScale: 0.6,
+    metalness: 0.7,
+    roughness: 0.55,
+    envMapIntensity: 1.1
   });
   const darkHullMat = new THREE.MeshStandardMaterial({
-    color: 0x162032,
-    metalness: 0.48,
-    roughness: 0.48,
-    envMapIntensity: 0.28
+    color: 0x2a3044,
+    map: plating,
+    bumpMap: plating,
+    bumpScale: 0.5,
+    metalness: 0.6,
+    roughness: 0.5,
+    envMapIntensity: 0.9
   });
 
   // Intensités HDR maîtrisées pour un halo néon propre sans éblouissement
@@ -146,6 +190,16 @@ export function buildSpaceFleet(scene, mainTowerHeight) {
 
   const flagship = createFlagshipCruiser(hullMat, darkHullMat, cyanGlow, pinkGlow);
   fleetGroup.add(flagship);
+  if (glows) {
+    glows.add(flagship, new THREE.Vector3(0, 0, -15.2), GLOW.engineCyan, 6.5);
+    glows.add(flagship, new THREE.Vector3(-4.37, 0.1, -13.6), GLOW.engineCyan, 4.2);
+    glows.add(flagship, new THREE.Vector3(4.37, 0.1, -13.6), GLOW.engineCyan, 4.2);
+    // Convention aéronautique : rouge à gauche (bâbord), vert à droite (tribord)
+    glows.add(flagship, new THREE.Vector3(5.9, -0.5, -3.5), GLOW.navRed, 1.2);
+    glows.add(flagship, new THREE.Vector3(-5.9, -0.5, -3.5), GLOW.navGreen, 1.2);
+    glows.add(flagship, new THREE.Vector3(0, 2.6, -2.5), GLOW.strobe, 1.8, { speed: 0.9, phase: 0.2, duty: 0.07 });
+    glows.add(flagship, new THREE.Vector3(0, -1.2, 6), GLOW.navRed, 1.0, { speed: 0.6, phase: 0.5, duty: 0.5 });
+  }
 
   const flightPaths = [
     new THREE.CatmullRomCurve3(
@@ -188,6 +242,14 @@ export function buildSpaceFleet(scene, mainTowerHeight) {
     const fighter = createStarfighter(hullMat, darkHullMat, isCyan ? cyanGlow : pinkGlow);
     const curve = flightPaths[i % flightPaths.length];
     fleetGroup.add(fighter);
+    if (glows) {
+      const engine = isCyan ? GLOW.engineCyan : GLOW.engineMagenta;
+      glows.add(fighter, new THREE.Vector3(-0.38, 0, -3.6), engine, 1.5);
+      glows.add(fighter, new THREE.Vector3(0.38, 0, -3.6), engine, 1.5);
+      glows.add(fighter, new THREE.Vector3(1.75, 0, -0.85), GLOW.navRed, 0.45);
+      glows.add(fighter, new THREE.Vector3(-1.75, 0, -0.85), GLOW.navGreen, 0.45);
+      glows.add(fighter, new THREE.Vector3(0, 0.35, -1.3), GLOW.strobe, 0.8, { speed: 1.1, phase: i * 0.13, duty: 0.06 });
+    }
 
     ships.push({
       mesh: fighter,
@@ -206,6 +268,16 @@ export function buildSpaceFleet(scene, mainTowerHeight) {
     );
     const curve = flightPaths[(s + 1) % flightPaths.length];
     fleetGroup.add(shuttle);
+    if (glows) {
+      const engine = s % 2 === 0 ? GLOW.engineCyan : GLOW.engineMagenta;
+      [[-1.45, 2.0], [1.45, 2.0], [-1.45, -2.2], [1.45, -2.2]].forEach(([px, pz]) => {
+        glows.add(shuttle, new THREE.Vector3(px, -0.1, pz - 2.0), engine, 1.2);
+      });
+      glows.add(shuttle, new THREE.Vector3(0, 0.9, 0), GLOW.strobe, 0.9, { speed: 0.7, phase: s * 0.21, duty: 0.06 });
+      // Phares d'atterrissage à l'avant
+      glows.add(shuttle, new THREE.Vector3(-0.5, -0.4, 4.85), GLOW.headlight, 0.8);
+      glows.add(shuttle, new THREE.Vector3(0.5, -0.4, 4.85), GLOW.headlight, 0.8);
+    }
 
     ships.push({
       mesh: shuttle,

@@ -721,3 +721,215 @@ body.in-underground #panel-prompt {
     bottom: 165px;
   }
 }
+
+/* ==========================================================================
+   INDICATION JOUR / NUIT
+   ========================================================================== */
+#theme-hint {
+  position: fixed;
+  top: 84px;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  padding: 8px 16px;
+  background: var(--bg-dark);
+  border: 1px solid rgba(34, 228, 255, 0.45);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+  z-index: 24;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+#theme-hint.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+#theme-hint.visible:hover {
+  border-color: var(--cyan);
+  box-shadow: 0 0 14px rgba(34, 228, 255, 0.35);
+}
+
+/* En mode jour, les cadres sont un peu plus opaques pour rester lisibles sur le ciel clair */
+:root[data-theme='day'] {
+  --bg-dark: rgba(10, 14, 34, 0.86);
+}
+
+/* ==========================================================================
+   TÉLÉPHONE ET PETITS ÉCRANS
+   ========================================================================== */
+
+/* Sur écran tactile, pas de touche Entrée/Échap : on masque ces repères */
+@media (hover: none) {
+  #prompt-open-btn kbd,
+  .modal-close-btn kbd {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  #hud {
+    top: 10px;
+    height: 40px;
+    padding: 0 14px;
+    gap: 10px;
+  }
+
+  .hud-left,
+  .hud-right {
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+  }
+
+  #hud-zone {
+    max-width: 52vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hud-center {
+    display: none;
+  }
+
+  #scroll-hint {
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-align: center;
+    width: calc(100% - 32px);
+  }
+
+  #theme-hint {
+    top: 60px;
+    font-size: 0.62rem;
+    max-width: calc(100% - 32px);
+    white-space: normal;
+    text-align: center;
+  }
+
+  #pillar-tooltip {
+    top: 60px;
+  }
+
+  /* Invite d'ouverture : en colonne, pleine largeur */
+  #panel-prompt {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    transform: translateY(24px);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  #panel-prompt.visible {
+    transform: translateY(0);
+  }
+
+  #prompt-open-btn {
+    justify-content: center;
+    padding: 12px 16px;
+  }
+
+  /* Barre des piliers : une seule ligne qui défile au doigt */
+  #pillar-nav {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    transform: translateY(20px);
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #pillar-nav.visible {
+    transform: translateY(0);
+  }
+
+  #pillar-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pillar-btn {
+    flex: 0 0 auto;
+    padding: 9px 12px;
+  }
+
+  /* Fiche plein écran */
+  .modal-scroll-area {
+    padding: 14px 12px 48px;
+  }
+
+  .modal-container {
+    gap: 18px;
+  }
+
+  .modal-topbar {
+    padding: 10px;
+  }
+
+  .modal-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    width: 100%;
+  }
+
+  .modal-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .modal-tab {
+    flex: 0 0 auto;
+  }
+
+  .modal-close-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .modal-hero {
+    padding: 22px 18px;
+  }
+
+  .modal-subtitle {
+    font-size: 0.96rem;
+  }
+
+  .modal-metrics {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .dropdown-trigger {
+    padding: 14px 14px;
+  }
+
+  .dropdown-heading {
+    font-size: 0.98rem;
+  }
+
+  .dropdown-body {
+    padding: 0 14px 16px;
+  }
+
+  .dropdown-code {
+    font-size: 0.74rem;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+}

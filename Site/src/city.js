@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { NEON_HDR } from './theme.js';
+import { NEON_HDR, DAY_UNIFORM } from './theme.js';
+import { GLOW } from './glows.js';
 
 // Fusionne tous les objets fixes qui partagent le même matériau en un seul mesh.
 // Des centaines d'appels de dessin deviennent une vingtaine : gros gain de fluidité.
@@ -63,7 +64,34 @@ export function getTerrainHeight(x, z) {
   return Math.max(-0.4, localParkRelief + outerHills);
 }
 
-function createHighDetailGroundTextures() {
+const GROUND_NIGHT = {
+  base: '#0a0f1f',
+  patches: ['#0e1630', '#120f2e', '#0b1228', '#101a36', '#121a3a', '#170f33', '#0e1a30'],
+  fade: 'rgba(10, 15, 31, 0)',
+  specks: ['#1a2647', '#121b36', '#070b18', '#1b1440'],
+  road: '#05070f',
+  roadLine: '#22e4ff',
+  pathOuter: '#8b2a7a',
+  pathInner: '#1c2344',
+  plaza: '#141b33',
+  plazaRings: ['#22e4ff', '#ff3dbb']
+};
+
+// Jour : parc urbain sobre (pelouse, allées claires, asphalte)
+const GROUND_DAY = {
+  base: '#3f5a45',
+  patches: ['#46684c', '#3e5f45', '#4a6b4f', '#40624a', '#527456', '#5b6b45', '#456a4e'],
+  fade: 'rgba(63, 90, 69, 0)',
+  specks: ['#5f8a5f', '#3f6a48', '#2f4a36', '#6b7a4a'],
+  road: '#2b3038',
+  roadLine: '#e2e8f0',
+  pathOuter: '#94a3b8',
+  pathInner: '#e2e8f0',
+  plaza: '#64748b',
+  plazaRings: ['#38bdf8', '#22c55e']
+};
+
+function createHighDetailGroundTextures(pal = GROUND_NIGHT) {
   const size = 2048;
   const diffCvs = document.createElement('canvas');
   diffCvs.width = size;
@@ -75,25 +103,25 @@ function createHighDetailGroundTextures() {
   bumpCvs.height = 1024;
   const bCtx = bumpCvs.getContext('2d');
 
-  ctx.fillStyle = '#0a0f1f';
+  ctx.fillStyle = pal.base;
   ctx.fillRect(0, 0, size, size);
 
   bCtx.fillStyle = '#707070';
   bCtx.fillRect(0, 0, 1024, 1024);
 
   const patches = [
-    { x: 420, y: 420, r: 380, c: '#0e1630' },
-    { x: 1620, y: 440, r: 400, c: '#120f2e' },
-    { x: 440, y: 1620, r: 390, c: '#0b1228' },
-    { x: 1600, y: 1600, r: 410, c: '#101a36' },
-    { x: 1024, y: 1024, r: 500, c: '#121a3a' },
-    { x: 750, y: 1320, r: 220, c: '#170f33' },
-    { x: 1320, y: 740, r: 240, c: '#0e1a30' }
+    { x: 420, y: 420, r: 380, c: pal.patches[0] },
+    { x: 1620, y: 440, r: 400, c: pal.patches[1] },
+    { x: 440, y: 1620, r: 390, c: pal.patches[2] },
+    { x: 1600, y: 1600, r: 410, c: pal.patches[3] },
+    { x: 1024, y: 1024, r: 500, c: pal.patches[4] },
+    { x: 750, y: 1320, r: 220, c: pal.patches[5] },
+    { x: 1320, y: 740, r: 240, c: pal.patches[6] }
   ];
   patches.forEach((p) => {
     const g = ctx.createRadialGradient(p.x, p.y, 30, p.x, p.y, p.r);
     g.addColorStop(0, p.c);
-    g.addColorStop(1, 'rgba(10, 15, 31, 0)');
+    g.addColorStop(1, pal.fade);
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
@@ -104,7 +132,7 @@ function createHighDetailGroundTextures() {
     const x = Math.random() * size;
     const y = Math.random() * size;
     const r = Math.random();
-    ctx.fillStyle = r > 0.68 ? '#1a2647' : r > 0.35 ? '#121b36' : r > 0.12 ? '#070b18' : '#1b1440';
+    ctx.fillStyle = r > 0.68 ? pal.specks[0] : r > 0.35 ? pal.specks[1] : r > 0.12 ? pal.specks[2] : pal.specks[3];
     ctx.fillRect(x, y, 2, 4);
 
     if (i % 2 === 0) {
@@ -113,7 +141,7 @@ function createHighDetailGroundTextures() {
     }
   }
 
-  ctx.fillStyle = '#05070f';
+  ctx.fillStyle = pal.road;
   ctx.fillRect(0, 0, size, 96);
   ctx.fillRect(0, 1952, size, 96);
   ctx.fillRect(0, 0, 96, size);
@@ -125,7 +153,7 @@ function createHighDetailGroundTextures() {
   bCtx.fillRect(0, 0, 48, 1024);
   bCtx.fillRect(976, 0, 48, 1024);
 
-  ctx.strokeStyle = '#22e4ff';
+  ctx.strokeStyle = pal.roadLine;
   ctx.lineWidth = 4;
   ctx.setLineDash([42, 28]);
   ctx.beginPath();
@@ -145,7 +173,7 @@ function createHighDetailGroundTextures() {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    ctx.strokeStyle = '#8b2a7a';
+    ctx.strokeStyle = pal.pathOuter;
     ctx.lineWidth = w + 10;
     ctx.beginPath();
     ctx.moveTo(pts[0][0], pts[0][1]);
@@ -156,7 +184,7 @@ function createHighDetailGroundTextures() {
     }
     ctx.stroke();
 
-    ctx.strokeStyle = '#1c2344';
+    ctx.strokeStyle = pal.pathInner;
     ctx.lineWidth = w;
     ctx.stroke();
 
@@ -188,12 +216,12 @@ function createHighDetailGroundTextures() {
     [1024, 1024]
   ].forEach(([px, py], idx) => {
     const rad = idx === 4 ? 195 : 112;
-    ctx.fillStyle = '#141b33';
+    ctx.fillStyle = pal.plaza;
     ctx.beginPath();
     ctx.arc(px, py, rad, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = idx === 4 ? '#22e4ff' : '#ff3dbb';
+    ctx.strokeStyle = idx === 4 ? pal.plazaRings[0] : pal.plazaRings[1];
     ctx.lineWidth = 6;
     ctx.stroke();
   });
@@ -286,7 +314,7 @@ function createBuildingFacadeTexture(paletteIndex) {
   return tex;
 }
 
-export function buildEcoCyberCity(scene, mainTowerHeight) {
+export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
   const cityGroup = new THREE.Group();
 
   const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(...NEON_HDR.cyan), toneMapped: false });
@@ -324,7 +352,8 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
   });
 
   // 1. SOL 3D AVEC RELIEF NATUREL & TEXTURES HD
-  const { diffTex, bumpTex } = createHighDetailGroundTextures();
+  const { diffTex, bumpTex } = createHighDetailGroundTextures(GROUND_NIGHT);
+  const { diffTex: dayDiffTex } = createHighDetailGroundTextures(GROUND_DAY);
   const groundGeo = new THREE.PlaneGeometry(2800, 2800, 220, 220);
   groundGeo.rotateX(-Math.PI / 2);
 
@@ -348,6 +377,20 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     })
   );
   cityGroup.add(terrainMesh);
+  terrainMesh.material.onBeforeCompile = (shader) => {
+    shader.uniforms.uDayMap = { value: dayDiffTex };
+    shader.uniforms.uDay = DAY_UNIFORM;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uDayMap;\nuniform float uDay;')
+      .replace(
+        '#include <map_fragment>',
+        `#ifdef USE_MAP
+          vec4 sampledDiffuseColor = mix(texture2D(map, vMapUv), texture2D(uDayMap, vMapUv), uDay);
+          diffuseColor *= sampledDiffuseColor;
+        #endif`
+      );
+  };
+  terrainMesh.material.customProgramCacheKey = () => 'terrain-day-night';
 
   // Bassins d'eau réfléchissants dans le parc
   const waterMat = new THREE.MeshStandardMaterial({
@@ -444,6 +487,13 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
   }
 
   const maglevCars = [];
+  const maglevWindowMat = new THREE.MeshStandardMaterial({
+    color: 0x05070f,
+    emissive: 0xffc98a,
+    emissiveIntensity: 1.1,
+    roughness: 0.2,
+    metalness: 0.5
+  });
   for (let w = 0; w < 5; w++) {
     const wagon = new THREE.Group();
     wagon.userData.dynamic = true;
@@ -452,9 +502,22 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
       new THREE.BoxGeometry(1.66, 0.18, 4.45),
       w === 0 ? pinkHdr : cyanHdr
     );
-    wagon.add(body, stripe);
+    // Rangée de fenêtres éclairées de chaque côté
+    const windows = new THREE.Mesh(new THREE.BoxGeometry(1.64, 0.38, 3.6), maglevWindowMat);
+    windows.position.y = 0.2;
+    wagon.add(body, stripe, windows);
     cityGroup.add(wagon);
     maglevCars.push({ mesh: wagon, offset: w * 0.062 });
+    if (glows) {
+      if (w === 0) {
+        glows.add(wagon, new THREE.Vector3(-0.5, -0.2, -2.3), GLOW.headlight, 0.9);
+        glows.add(wagon, new THREE.Vector3(0.5, -0.2, -2.3), GLOW.headlight, 0.9);
+      }
+      if (w === 4) {
+        glows.add(wagon, new THREE.Vector3(-0.5, -0.2, 2.3), GLOW.taillight, 0.6);
+        glows.add(wagon, new THREE.Vector3(0.5, -0.2, 2.3), GLOW.taillight, 0.6);
+      }
+    }
   }
 
   // 4. ARBRES HOLOGRAPHIQUES DOUX & ORGANIQUES
@@ -554,40 +617,116 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     cityGroup.add(pole, bulb);
   }
 
-  // 5. VOITURES FUTURISTES SUR LES AVENUES
+  // 5. VOITURES VOLANTES SUR LES AVENUES
+  // Silhouette dessinée de profil puis extrudée (capot, pare-brise, toit, coffre),
+  // vitres teintées, peinture métallisée. Les 28 voitures sont « instanciées » :
+  // 4 appels GPU au total au lieu d'un par pièce de chaque voiture.
   const hoverCars = [];
-  const carBodyMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.9, roughness: 0.2 });
 
-  function createCyberCar(isCyan) {
-    const car = new THREE.Group();
+  function extrudeProfile(points, depth) {
+    const shape = new THREE.Shape();
+    shape.moveTo(points[0][0], points[0][1]);
+    for (let i = 1; i < points.length; i++) {
+      const pt = points[i];
+      if (pt.length === 4) shape.quadraticCurveTo(pt[0], pt[1], pt[2], pt[3]);
+      else shape.lineTo(pt[0], pt[1]);
+    }
+    shape.closePath();
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth,
+      bevelEnabled: true,
+      bevelThickness: 0.08,
+      bevelSize: 0.07,
+      bevelSegments: 2,
+      curveSegments: 6
+    });
+    geo.translate(0, 0, -depth / 2);
+    geo.rotateY(-Math.PI / 2); // la longueur du profil (x) devient l'axe avant (z)
+    return geo;
+  }
+
+  const carBodyGeo = extrudeProfile([
+    [-1.8, 0.22],
+    [1.65, 0.2],
+    [1.92, 0.24, 1.88, 0.42],
+    [1.2, 0.58],
+    [0.35, 0.95],
+    [-0.7, 0.98],
+    [-1.55, 0.88, -1.82, 0.6]
+  ], 1.42);
+  const carGlassGeo = extrudeProfile([
+    [1.12, 0.6],
+    [0.36, 0.93],
+    [-0.68, 0.96],
+    [-1.38, 0.74],
+    [-1.3, 0.6]
+  ], 1.5);
+  const headStripGeo = new THREE.BoxGeometry(1.2, 0.07, 0.06).translate(0, 0.42, 1.93);
+  const tailStripGeo = new THREE.BoxGeometry(1.36, 0.08, 0.06).translate(0, 0.6, -1.9);
+
+  const carPaintMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    metalness: 0.75,
+    roughness: 0.26,
+    envMapIntensity: 1.1
+  });
+  const carGlassMat = new THREE.MeshStandardMaterial({
+    color: 0x03050c,
+    metalness: 1.0,
+    roughness: 0.05,
+    envMapIntensity: 1.4
+  });
+  const headLightMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(...GLOW.headlight), toneMapped: false });
+  const tailLightMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(...GLOW.taillight), toneMapped: false });
+
+  const paintColors = [0x0c0e14, 0x1c2a4a, 0xb9bfcc, 0x3a0d2e, 0x161a22, 0x5a6070];
+  const CAR_COUNT = 28;
+  const carBodies = new THREE.InstancedMesh(carBodyGeo, carPaintMat, CAR_COUNT);
+  const carGlass = new THREE.InstancedMesh(carGlassGeo, carGlassMat, CAR_COUNT);
+  const carHeads = new THREE.InstancedMesh(headStripGeo, headLightMat, CAR_COUNT);
+  const carTails = new THREE.InstancedMesh(tailStripGeo, tailLightMat, CAR_COUNT);
+  [carBodies, carGlass, carHeads, carTails].forEach((m) => {
+    m.frustumCulled = false;
+    m.userData.dynamic = true;
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    cityGroup.add(m);
+  });
+
+  function createCyberCar(index) {
+    // Repère invisible : il porte la position, les instances et les halos le suivent
+    const car = new THREE.Object3D();
     car.userData.dynamic = true;
-    const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.42, 3.4), carBodyMat);
-    chassis.position.y = 0.45;
-    const head = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.1, 0.12), isCyan ? cyanHdr : amberHdr);
-    head.position.set(0, 0.46, 1.72);
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.1, 0.12), pinkHdr);
-    tail.position.set(0, 0.48, -1.72);
-    car.add(chassis, head, tail);
+    carBodies.setColorAt(index, new THREE.Color(paintColors[index % paintColors.length]));
+    if (glows) {
+      glows.add(car, new THREE.Vector3(-0.52, 0.42, 1.98), GLOW.headlight, 0.75);
+      glows.add(car, new THREE.Vector3(0.52, 0.42, 1.98), GLOW.headlight, 0.75);
+      glows.add(car, new THREE.Vector3(-0.6, 0.6, -1.95), GLOW.taillight, 0.5);
+      glows.add(car, new THREE.Vector3(0.6, 0.6, -1.95), GLOW.taillight, 0.5);
+      // Lueur du coussin de sustentation sous la voiture
+      glows.add(car, new THREE.Vector3(0, 0.05, 0), index % 2 ? [0.12, 0.7, 0.9] : [0.8, 0.1, 0.55], 2.2);
+    }
     return car;
   }
 
+  let carIndex = 0;
   [-98, 98].forEach((roadCoord, rIdx) => {
     for (let c = 0; c < 7; c++) {
-      const carZ = createCyberCar((rIdx + c) % 2 === 0);
+      const carZ = createCyberCar(carIndex++);
       const dirZ = rIdx === 0 ? 1 : -1;
-      carZ.position.set(roadCoord, 0.1, -260 + c * 85);
+      carZ.position.set(roadCoord + dirZ * 2.2, 0.35, -260 + c * 85);
       carZ.rotation.y = dirZ > 0 ? 0 : Math.PI;
       cityGroup.add(carZ);
-      hoverCars.push({ mesh: carZ, axis: 'z', speed: (24 + Math.random() * 14) * dirZ, limit: 290 });
+      hoverCars.push({ mesh: carZ, axis: 'z', speed: (24 + Math.random() * 14) * dirZ, limit: 290, phase: Math.random() * 6 });
 
-      const carX = createCyberCar((rIdx + c) % 2 !== 0);
+      const carX = createCyberCar(carIndex++);
       const dirX = rIdx === 0 ? -1 : 1;
-      carX.position.set(-260 + c * 85, 0.1, roadCoord);
+      carX.position.set(-260 + c * 85, 0.35, roadCoord - dirX * 2.2);
       carX.rotation.y = dirX > 0 ? Math.PI / 2 : -Math.PI / 2;
       cityGroup.add(carX);
-      hoverCars.push({ mesh: carX, axis: 'x', speed: (24 + Math.random() * 14) * dirX, limit: 290 });
+      hoverCars.push({ mesh: carX, axis: 'x', speed: (24 + Math.random() * 14) * dirX, limit: 290, phase: Math.random() * 6 });
     }
   });
+  if (carBodies.instanceColor) carBodies.instanceColor.needsUpdate = true;
 
   // 6. 180 GRATTE-CIELS VARIÉS + PROJECTEURS CÉLESTES
   const facadeMats = [0, 1, 2, 3, 4].map((idx) => {
@@ -730,7 +869,29 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
   mergeStaticMeshes(cityGroup);
   scene.add(cityGroup);
 
+  const C = (hex) => new THREE.Color(hex);
+  const dayNightLooks = [
+    ...facadeMats.map((m) => ({ m, color: [C(0x0d1124), C(0x8a96ac)], emissive: [0.75, 0.12] })),
+    { m: whiteBridgeMat, color: [C(0x3a4468), C(0xe2e8f0)] },
+    { m: glassCylinderMat, color: [C(0x0b1430), C(0x2a5a8a)] },
+    { m: softEmeraldMat, emissive: [0.9, 0.3] },
+    { m: softTealMat, emissive: [0.9, 0.3] },
+    { m: maglevWindowMat, emissive: [1.1, 0.15] },
+    { m: searchlightMat, opacity: [0.07, 0.0] }
+  ];
+  let lastDay = -1;
+  function applyDayNight(day) {
+    if (Math.abs(day - lastDay) < 0.002) return;
+    lastDay = day;
+    dayNightLooks.forEach((look) => {
+      if (look.color) look.m.color.copy(look.color[0]).lerp(look.color[1], day);
+      if (look.emissive) look.m.emissiveIntensity = THREE.MathUtils.lerp(look.emissive[0], look.emissive[1], day);
+      if (look.opacity) look.m.opacity = THREE.MathUtils.lerp(look.opacity[0], look.opacity[1], day);
+    });
+  }
+
   function update(delta, elapsed) {
+    applyDayNight(DAY_UNIFORM.value);
     searchlights.forEach((sl) => {
       sl.mesh.rotation.x = Math.sin(elapsed * 0.45 + sl.phase) * 0.22;
       sl.mesh.rotation.z = Math.cos(elapsed * 0.38 + sl.phase) * 0.22;
@@ -747,7 +908,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
       car.mesh.rotation.y = -a;
     });
 
-    hoverCars.forEach((car) => {
+    hoverCars.forEach((car, i) => {
       if (car.axis === 'z') {
         car.mesh.position.z += car.speed * delta;
         if (car.mesh.position.z > car.limit) car.mesh.position.z = -car.limit;
@@ -757,7 +918,18 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
         if (car.mesh.position.x > car.limit) car.mesh.position.x = -car.limit;
         if (car.mesh.position.x < -car.limit) car.mesh.position.x = car.limit;
       }
+      // Flottement du coussin d'air
+      car.mesh.position.y = 0.35 + Math.sin(elapsed * 2.1 + car.phase) * 0.05;
+      car.mesh.updateMatrix();
+      carBodies.setMatrixAt(i, car.mesh.matrix);
+      carGlass.setMatrixAt(i, car.mesh.matrix);
+      carHeads.setMatrixAt(i, car.mesh.matrix);
+      carTails.setMatrixAt(i, car.mesh.matrix);
     });
+    carBodies.instanceMatrix.needsUpdate = true;
+    carGlass.instanceMatrix.needsUpdate = true;
+    carHeads.instanceMatrix.needsUpdate = true;
+    carTails.instanceMatrix.needsUpdate = true;
   }
 
   return { update };

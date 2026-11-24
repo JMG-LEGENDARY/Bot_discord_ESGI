@@ -39,3 +39,14 @@ export const SKY = {
   spaceHorizon: 0x0b0f2a,
   cavernFog: 0x04060f
 };
+
+// Couleurs du ciel en mode JOUR (ville sous un ciel bleu)
+export const SKY_DAY = {
+  cityTop: 0x0284c7,
+  cityMid: 0x38bdf8,
+  cityHorizon: 0xbae6fd
+};
+
+// Mode jour/nuit : 0 = nuit, 1 = jour. Partagé par tous les shaders
+// (même objet « uniform »), et animé en douceur lors du changement.
+export const DAY_UNIFORM = { value: 0 };

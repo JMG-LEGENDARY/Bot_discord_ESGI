@@ -103,6 +103,87 @@ function createCircuitWallTexture() {
   return tex;
 }
 
+// Plaques d'acier : joints horizontaux et verticaux, rivets, usure,
+// bande de sécurité en bas. Sert de couleur, de rugosité et de relief.
+function createPillarPanelTexture() {
+  const w = 256;
+  const h = 1024;
+  const cvs = document.createElement('canvas');
+  cvs.width = w;
+  cvs.height = h;
+  const ctx = cvs.getContext('2d');
+  ctx.fillStyle = '#4a5068';
+  ctx.fillRect(0, 0, w, h);
+
+  // Plaques de teintes légèrement différentes
+  for (let y = 0; y < h; y += 128) {
+    for (let x = 0; x < w; x += 64) {
+      const v = 64 + Math.floor(Math.random() * 22);
+      ctx.fillStyle = `rgb(${v}, ${v + 4}, ${v + 18})`;
+      ctx.fillRect(x + 2, y + 2, 60, 124);
+      // Rivets aux coins
+      ctx.fillStyle = '#9aa2b8';
+      [[8, 8], [54, 8], [8, 118], [54, 118]].forEach(([rx, ry]) => {
+        ctx.beginPath();
+        ctx.arc(x + rx, y + ry, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+  }
+  // Joints sombres
+  ctx.fillStyle = '#12141c';
+  for (let y = 0; y < h; y += 128) ctx.fillRect(0, y, w, 3);
+  for (let x = 0; x < w; x += 64) ctx.fillRect(x, 0, 3, h);
+  // Traces d'usure
+  for (let i = 0; i < 260; i++) {
+    ctx.fillStyle = `rgba(20, 22, 30, ${0.15 + Math.random() * 0.25})`;
+    ctx.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 3, 4 + Math.random() * 20);
+  }
+  // Bande de sécurité jaune et noire à la base
+  for (let x = -40; x < w + 40; x += 28) {
+    ctx.fillStyle = '#c99a1a';
+    ctx.beginPath();
+    ctx.moveTo(x, h - 50);
+    ctx.lineTo(x + 14, h - 50);
+    ctx.lineTo(x + 34, h - 4);
+    ctx.lineTo(x + 20, h - 4);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+// Masque des fentes lumineuses (blanc = lumière) : 4 bandes verticales
+// interrompues à chaque joint de plaque.
+function createPillarLightSlitTexture() {
+  const w = 256;
+  const h = 1024;
+  const cvs = document.createElement('canvas');
+  cvs.width = w;
+  cvs.height = h;
+  const ctx = cvs.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, w, h);
+  for (let k = 0; k < 4; k++) {
+    const x = (k + 0.5) * (w / 4) - 3;
+    for (let y = 0; y < h - 64; y += 128) {
+      const g = ctx.createLinearGradient(x - 6, 0, x + 12, 0);
+      g.addColorStop(0, 'rgba(255,255,255,0)');
+      g.addColorStop(0.5, 'rgba(255,255,255,1)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - 6, y + 14, 18, 100);
+    }
+  }
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.anisotropy = 8;
+  return tex;
+}
+
 export function buildUndergroundMasterclass(scene) {
   const underGroup = new THREE.Group();
   const floorY = -48;
@@ -392,27 +473,48 @@ export function buildUndergroundMasterclass(scene) {
   const interactivePillarObjects = [];
   const pillarAnimItems = [];
 
+  const pillarPanelTex = createPillarPanelTexture();
+  const pillarSlitTex = createPillarLightSlitTexture();
+  const pedestalMat = new THREE.MeshStandardMaterial({
+    color: 0x9aa0b4,
+    map: pillarPanelTex,
+    roughnessMap: pillarPanelTex,
+    bumpMap: pillarPanelTex,
+    bumpScale: 0.04,
+    metalness: 0.8,
+    roughness: 0.55,
+    envMapIntensity: 1.0
+  });
+  const chromeMat = new THREE.MeshStandardMaterial({
+    color: 0xc0c6d4,
+    metalness: 1.0,
+    roughness: 0.16,
+    envMapIntensity: 1.3
+  });
+
   pillarsData.forEach((p) => {
     const pGroup = new THREE.Group();
+    // Colonne propre à chaque pilier : mêmes plaques, fentes de sa couleur
+    const columnMat = pedestalMat.clone();
+    columnMat.emissiveMap = pillarSlitTex;
+    columnMat.emissive = new THREE.Color(p.color);
+    columnMat.emissiveIntensity = 1.8;
     pGroup.position.copy(p.pos);
 
     const isCyan = p.color === '#22e4ff';
     const ringMat = isCyan ? cyanHdr : pinkHdr;
 
-    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.5, 1.8, 8), darkSteelMat);
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.5, 1.8, 24), pedestalMat);
     pedestal.position.y = 0.9;
     pGroup.add(pedestal);
 
-    const column = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.55, 30, 8), darkSteelMat);
+    const column = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.55, 30, 32), columnMat);
     column.position.y = 15;
     pGroup.add(column);
 
     for (let k = 0; k < 4; k++) {
       const ka = (k / 4) * Math.PI * 2 + Math.PI / 4;
-      const piston = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.18, 0.24, 29, 8),
-        new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9, roughness: 0.2 })
-      );
+      const piston = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 29, 12), chromeMat);
       piston.position.set(Math.cos(ka) * 1.65, 14.5, Math.sin(ka) * 1.65);
       pGroup.add(piston);
     }

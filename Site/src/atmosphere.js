@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SKY } from './theme.js';
+import { SKY, SKY_DAY, DAY_UNIFORM } from './theme.js';
 
 function buildCottonCandyCloudGeometry(lobes) {
   const geos = lobes.map((l) => {
@@ -87,6 +87,42 @@ function createPlanetTexture() {
   return tex;
 }
 
+// Planète du jour : géante rouge à bandes, tempêtes plus sombres
+function createRedPlanetTexture() {
+  const cvs = document.createElement('canvas');
+  cvs.width = 512;
+  cvs.height = 256;
+  const ctx = cvs.getContext('2d');
+
+  const grad = ctx.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, '#2a0606');
+  grad.addColorStop(0.2, '#8a1a12');
+  grad.addColorStop(0.45, '#d4452a');
+  grad.addColorStop(0.6, '#b8301c');
+  grad.addColorStop(0.8, '#6e140e');
+  grad.addColorStop(1, '#1e0404');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 512, 256);
+
+  for (let y = 8; y < 250; y += 7) {
+    ctx.fillStyle = y % 21 === 0 ? 'rgba(255, 140, 90, 0.22)' : 'rgba(60, 8, 6, 0.25)';
+    ctx.fillRect(0, y, 512, 3 + (y % 3));
+  }
+  // Grande tempête ovale
+  ctx.fillStyle = 'rgba(70, 10, 8, 0.7)';
+  ctx.beginPath();
+  ctx.ellipse(330, 150, 46, 18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255, 170, 120, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(330, 150, 26, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export function createAtmosphere(scene, mainTowerHeight) {
   const atmoGroup = new THREE.Group();
 
@@ -98,7 +134,8 @@ export function createAtmosphere(scene, mainTowerHeight) {
     uSunDir: { value: new THREE.Vector3(0.45, 0.72, 0.52).normalize() },
     uSunIntensity: { value: 1.0 },
     uSpaceFactor: { value: 0.0 },
-    uTime: { value: 0.0 }
+    uTime: { value: 0.0 },
+    uDay: DAY_UNIFORM
   };
 
   const skyGeo = new THREE.SphereGeometry(1480, 64, 48);
@@ -122,6 +159,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
       uniform float uSunIntensity;
       uniform float uSpaceFactor;
       uniform float uTime;
+      uniform float uDay;
       varying vec3 vWorldPos;
 
       float hash(vec3 p) {
@@ -168,9 +206,13 @@ export function createAtmosphere(scene, mainTowerHeight) {
         }
 
         float sunAmt = max(dot(dir, uSunDir), 0.0);
-        // Lune froide : halo large discret + disque net
-        col += vec3(0.55, 0.65, 1.0) * pow(sunAmt, 24.0) * 0.18 * uSunIntensity;
-        col += vec3(0.92, 0.95, 1.0) * pow(sunAmt, 900.0) * 1.4 * uSunIntensity;
+        // Nuit : lune froide (halo discret + disque net)
+        vec3 moon = vec3(0.55, 0.65, 1.0) * pow(sunAmt, 24.0) * 0.18
+                  + vec3(0.92, 0.95, 1.0) * pow(sunAmt, 900.0) * 1.4;
+        // Jour : soleil chaud (large halo + disque éblouissant)
+        vec3 sun = vec3(1.0, 0.95, 0.88) * pow(sunAmt, 16.0) * 0.25
+                 + vec3(1.0, 0.98, 0.92) * pow(sunAmt, 180.0) * 0.65;
+        col += mix(moon, sun, uDay) * uSunIntensity;
 
         if (uSpaceFactor > 0.02) {
           // Limbe lumineux bleu-violet à l'horizon vu depuis le sommet
@@ -222,7 +264,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
   atmoGroup.add(new THREE.Mesh(skyGeo, skyMat));
 
   // 2. ÉCLAIRAGE DYNAMIQUE
-  const hemiLight = new THREE.HemisphereLight(0x5a64b8, 0x140a24, 0.9);
+  const hemiLight = new THREE.HemisphereLight(0x7d86b0, 0x2a2433, 0.9);
   scene.add(hemiLight);
 
   // Lumière lunaire froide (même direction que la lune du ciel)
@@ -238,7 +280,8 @@ export function createAtmosphere(scene, mainTowerHeight) {
   const cloudBandY = mainTowerHeight * 0.52; // ~67.6m
   const cloudSeaUniforms = {
     uTime: { value: 0.0 },
-    uOpacity: { value: 0.86 }
+    uOpacity: { value: 0.86 },
+    uDay: DAY_UNIFORM
   };
 
   const cloudSeaGeo = new THREE.RingGeometry(34, 1440, 96, 1);
@@ -260,6 +303,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
     fragmentShader: `
       uniform float uTime;
       uniform float uOpacity;
+      uniform float uDay;
       varying vec3 vWorldPos;
 
       float hash21(vec2 p) {
@@ -308,6 +352,12 @@ export function createAtmosphere(scene, mainTowerHeight) {
 
         vec3 col = mix(shadowBlue, cottonPink, smoothstep(0.2, 0.65, n2));
         col = mix(col, creamTop, billow);
+        // Trouées : la ville éclaire la brume par en dessous près de la tour
+        col += vec3(0.18, 0.04, 0.16) * (1.0 - billow) * (1.0 - innerMask * 0.7);
+
+        // Jour : nuages blancs ensoleillés
+        vec3 dayCol = mix(vec3(0.62, 0.72, 0.88), vec3(0.95, 0.96, 0.99), billow);
+        col = mix(col, dayCol, uDay);
 
         // Densité progressive : trouées nuageuses proches, mer coton continue au loin
         float density = mix(billow * 0.55, 0.45 + billow * 0.55, innerMask);
@@ -350,7 +400,8 @@ export function createAtmosphere(scene, mainTowerHeight) {
 
   const cottonCloudUniforms = {
     uSunDir: { value: new THREE.Vector3(0.45, 0.78, 0.42).normalize() },
-    uOpacity: { value: 0.85 }
+    uOpacity: { value: 0.85 },
+    uDay: DAY_UNIFORM
   };
 
   const cottonCloudMat = new THREE.ShaderMaterial({
@@ -362,6 +413,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
       varying vec3 vViewDir;
       varying vec3 vLocalPos;
       varying vec3 vTint;
+      varying vec3 vWorldPos;
 
       void main() {
         vLocalPos = position;
@@ -380,6 +432,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
         #endif
 
         vec4 worldPos = modelMatrix * localPosition;
+        vWorldPos = worldPos.xyz;
         vNormalWorld = normalize(mat3(modelMatrix) * localNormal);
         vViewDir = normalize(cameraPosition - worldPos.xyz);
         gl_Position = projectionMatrix * viewMatrix * worldPos;
@@ -388,34 +441,67 @@ export function createAtmosphere(scene, mainTowerHeight) {
     fragmentShader: `
       uniform vec3 uSunDir;
       uniform float uOpacity;
+      uniform float uDay;
       varying vec3 vNormalWorld;
       varying vec3 vViewDir;
       varying vec3 vLocalPos;
       varying vec3 vTint;
+      varying vec3 vWorldPos;
+
+      float hash3(vec3 p) {
+        p = fract(p * 0.3183099 + 0.1);
+        p *= 17.0;
+        return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+      }
+
+      float vnoise(vec3 x) {
+        vec3 i = floor(x);
+        vec3 f = fract(x);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(
+          mix(mix(hash3(i), hash3(i + vec3(1, 0, 0)), f.x),
+              mix(hash3(i + vec3(0, 1, 0)), hash3(i + vec3(1, 1, 0)), f.x), f.y),
+          mix(mix(hash3(i + vec3(0, 0, 1)), hash3(i + vec3(1, 0, 1)), f.x),
+              mix(hash3(i + vec3(0, 1, 1)), hash3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+      }
 
       void main() {
         vec3 N = normalize(vNormalWorld);
         vec3 V = normalize(vViewDir);
 
-        float wrapLight = clamp(dot(N, uSunDir) * 0.5 + 0.55, 0.0, 1.0);
+        // Bourgeonnement : bruit 3D qui casse l'aspect « boules lisses »
+        float n = vnoise(vWorldPos * 0.09) * 0.6 + vnoise(vWorldPos * 0.23) * 0.4;
+
+        float wrapLight = clamp(dot(N, uSunDir) * 0.5 + 0.5, 0.0, 1.0);
         float heightGrad = clamp(vLocalPos.y * 0.1 + 0.55, 0.0, 1.0);
-        float shade = clamp(wrapLight * 0.6 + heightGrad * 0.4, 0.0, 1.0);
+        float shade = clamp(wrapLight * 0.55 + heightGrad * 0.3 + (n - 0.5) * 0.55, 0.0, 1.0);
 
-        vec3 bellyColor = vec3(0.17, 0.05, 0.21);
-        vec3 cottonPink = vec3(0.09, 0.09, 0.23);
-        vec3 creamTop   = vec3(0.24, 0.28, 0.46);
+        vec3 bellyColor = vec3(0.10, 0.04, 0.14);
+        vec3 midColor   = vec3(0.09, 0.09, 0.22);
+        vec3 topColor   = vec3(0.26, 0.30, 0.48);
 
-        vec3 col = mix(bellyColor, cottonPink, smoothstep(0.15, 0.62, shade));
-        col = mix(col, creamTop, smoothstep(0.55, 0.95, shade));
+        vec3 col = mix(bellyColor, midColor, smoothstep(0.1, 0.55, shade));
+        col = mix(col, topColor, smoothstep(0.5, 0.95, shade));
         col *= vTint;
 
-        float ndotv = clamp(abs(dot(N, V)), 0.0, 1.0);
-        float rimBase = max(1.0 - ndotv, 0.0);
-        float rimGlow = pow(rimBase, 1.8);
-        col += vec3(0.04, 0.20, 0.28) * rimGlow;
+        // Jour : cumulus blancs, ventre gris-bleu, sommet éclatant
+        vec3 dayCol = mix(vec3(0.58, 0.66, 0.80), vec3(0.86, 0.88, 0.93), smoothstep(0.1, 0.55, shade));
+        dayCol = mix(dayCol, vec3(1.0, 0.99, 0.97), smoothstep(0.5, 0.95, shade));
+        col = mix(col, dayCol * vTint, uDay);
 
-        float edgeAlpha = smoothstep(0.08, 0.68, ndotv);
-        gl_FragColor = vec4(max(col, vec3(0.0)), clamp(edgeAlpha * uOpacity, 0.0, 1.0));
+        // Nuit : lueur des néons de la ville qui éclaire le dessous des nuages
+        float under = clamp(-N.y * 0.7 + 0.3, 0.0, 1.0) * (1.0 - heightGrad);
+        col += vec3(0.24, 0.05, 0.21) * under * (0.6 + n * 0.8) * (1.0 - uDay);
+
+        // Liseré lumineux sur les bords (argenté la nuit, doré le jour)
+        float ndotv = clamp(abs(dot(N, V)), 0.0, 1.0);
+        float rim = pow(1.0 - ndotv, 3.0) * wrapLight;
+        col += mix(vec3(0.30, 0.36, 0.56), vec3(0.35, 0.30, 0.22), uDay) * rim;
+
+        // Bords déchirés et vaporeux au lieu de contours nets
+        float edge = smoothstep(0.05, 0.75, ndotv);
+        float alpha = edge * smoothstep(0.18, 0.6, n + edge * 0.45);
+        gl_FragColor = vec4(max(col, vec3(0.0)), clamp(alpha * uOpacity, 0.0, 1.0));
       }
     `
   });
@@ -537,7 +623,9 @@ export function createAtmosphere(scene, mainTowerHeight) {
 
   // 6. PLANÈTE AUX ANNEAUX DANS L'ESPACE
   const planetGroup = new THREE.Group();
-  planetGroup.position.set(320, 340, -620);
+  // Position de base : au fond à droite sur PC (changée pour le téléphone, voir setPlanetLayout)
+  const planetBasePos = new THREE.Vector3(320, 340, -620);
+  planetGroup.position.copy(planetBasePos);
 
   const planetMat = new THREE.MeshStandardMaterial({
     map: createPlanetTexture(),
@@ -561,31 +649,89 @@ export function createAtmosphere(scene, mainTowerHeight) {
   planetGroup.add(planetRing);
 
   atmoGroup.add(planetGroup);
+
+  // Planète du JOUR : rouge, anneau bleu incliné dans l'autre sens
+  const dayPlanetGroup = new THREE.Group();
+  const dayPlanetMat = new THREE.MeshStandardMaterial({
+    map: createRedPlanetTexture(),
+    roughness: 0.75,
+    metalness: 0.1,
+    transparent: true,
+    opacity: 0
+  });
+  const dayPlanetMesh = new THREE.Mesh(new THREE.SphereGeometry(48, 36, 36), dayPlanetMat);
+  dayPlanetGroup.add(dayPlanetMesh);
+  const dayRingMat = new THREE.MeshBasicMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0,
+    side: THREE.DoubleSide
+  });
+  const dayRing = new THREE.Mesh(new THREE.RingGeometry(62, 96, 64), dayRingMat);
+  dayRing.rotation.x = Math.PI / 2.4;
+  dayRing.rotation.y = -0.5; // inclinaison inverse de celle de la planète de nuit
+  dayPlanetGroup.add(dayRing);
+  dayPlanetGroup.position.copy(planetBasePos);
+  atmoGroup.add(dayPlanetGroup);
+
+  // Téléphone en portrait : planètes plus centrées pour rester visibles
+  function setPlanetLayout(isPortrait) {
+    if (isPortrait) planetBasePos.set(150, 330, -640);
+    else planetBasePos.set(320, 340, -620);
+  }
   scene.add(atmoGroup);
 
-  const dayTop = new THREE.Color(SKY.cityTop);
-  const dayMid = new THREE.Color(SKY.cityMid);
-  const dayHor = new THREE.Color(SKY.cityHorizon);
+  const nightTop = new THREE.Color(SKY.cityTop);
+  const nightMid = new THREE.Color(SKY.cityMid);
+  const nightHor = new THREE.Color(SKY.cityHorizon);
+  const sunTop = new THREE.Color(SKY_DAY.cityTop);
+  const sunMid = new THREE.Color(SKY_DAY.cityMid);
+  const sunHor = new THREE.Color(SKY_DAY.cityHorizon);
+  const dayTop = new THREE.Color();
+  const dayMid = new THREE.Color();
+  const dayHor = new THREE.Color();
+  const nightHemiSky = new THREE.Color(0x7d86b0);
+  const nightHemiGnd = new THREE.Color(0x2a2433);
+  const sunHemiSky = new THREE.Color(0xbae6fd);
+  const sunHemiGnd = new THREE.Color(0x4a5a62);
+  const moonColor = new THREE.Color(0xaab8ff);
+  const sunColor = new THREE.Color(0xffffff);
+  const nightRim = new THREE.Color(0xff3dbb);
+  const dayRim = new THREE.Color(0x38bdf8);
 
   const spaceTop = new THREE.Color(SKY.spaceTop);
   const spaceMid = new THREE.Color(SKY.spaceMid);
   const spaceHor = new THREE.Color(SKY.spaceHorizon);
   const cavernFog = new THREE.Color(SKY.cavernFog);
 
-  const dayHemiSky = new THREE.Color(0x5a64b8);
-  const dayHemiGnd = new THREE.Color(0x140a24);
+  const dayHemiSky = new THREE.Color();
+  const dayHemiGnd = new THREE.Color();
   const spaceHemiSky = new THREE.Color(0x6d7fd8);
   const spaceHemiGnd = new THREE.Color(0x090d1a);
+
+  const swapOut = new THREE.Vector3();
+  const swapIn = new THREE.Vector3();
 
   function update(delta, elapsed, camY, undergroundMode) {
     const spaceFactor = THREE.MathUtils.smoothstep(camY, 34, 114);
     skyUniforms.uSpaceFactor.value = spaceFactor;
     skyUniforms.uTime.value = elapsed;
 
+    // Mélange nuit/jour, puis passage vers l'espace en altitude
+    const day = DAY_UNIFORM.value;
+    dayTop.copy(nightTop).lerp(sunTop, day);
+    dayMid.copy(nightMid).lerp(sunMid, day);
+    dayHor.copy(nightHor).lerp(sunHor, day);
+    dayHemiSky.copy(nightHemiSky).lerp(sunHemiSky, day);
+    dayHemiGnd.copy(nightHemiGnd).lerp(sunHemiGnd, day);
+    sunLight.color.copy(moonColor).lerp(sunColor, day);
+    rimLight.color.copy(nightRim).lerp(dayRim, day);
+    rimLight.intensity = THREE.MathUtils.lerp(0.45, 0.5, day);
+
     skyUniforms.uTopColor.value.copy(dayTop).lerp(spaceTop, spaceFactor);
     skyUniforms.uMidColor.value.copy(dayMid).lerp(spaceMid, spaceFactor);
     skyUniforms.uHorizonColor.value.copy(dayHor).lerp(spaceHor, spaceFactor);
-    skyUniforms.uSunIntensity.value = 1.0 - spaceFactor * 0.4;
+    skyUniforms.uSunIntensity.value = 1.0 - spaceFactor * THREE.MathUtils.lerp(0.4, 0.85, day);
 
     if (scene.fog) {
       scene.fog.color.copy(skyUniforms.uHorizonColor.value).lerp(cavernFog, undergroundMode);
@@ -595,21 +741,36 @@ export function createAtmosphere(scene, mainTowerHeight) {
 
     hemiLight.color.copy(dayHemiSky).lerp(spaceHemiSky, spaceFactor);
     hemiLight.groundColor.copy(dayHemiGnd).lerp(spaceHemiGnd, spaceFactor);
-    hemiLight.intensity = THREE.MathUtils.lerp(0.95, 0.75, spaceFactor);
-    sunLight.intensity = THREE.MathUtils.lerp(0.9, 1.1, spaceFactor);
+    hemiLight.intensity = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.95, 1.4, day), 0.75, spaceFactor);
+    sunLight.intensity = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.9, 1.75, day), 1.1, spaceFactor);
 
     // De nuit, quelques étoiles restent visibles même au niveau de la ville
     const highSky = THREE.MathUtils.smoothstep(camY, 76, 108);
-    const starVis = THREE.MathUtils.lerp(0.35, 1.0, highSky) * (1 - undergroundMode);
+    // Le jour, les étoiles n'apparaissent qu'en altitude (dans l'espace)
+    const starVis = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.35, 0.0, day), 1.0, highSky) * (1 - undergroundMode);
     const planetVis = highSky * (1 - undergroundMode);
     fineStars.mat.opacity = starVis * fineStars.baseOpacity;
     brightStars.mat.opacity = starVis * brightStars.baseOpacity;
     fineStars.points.rotation.y = elapsed * 0.003;
     brightStars.points.rotation.y = elapsed * 0.0045;
 
-    planetMat.opacity = planetVis * 0.94;
-    planetRingMat.opacity = planetVis * 0.38;
+    // Échange des planètes : la bleue (nuit) s'en va vers le bas à droite,
+    // la rouge (jour) arrive d'en haut à gauche et prend sa place.
+    const leave = THREE.MathUtils.smoothstep(day, 0.0, 0.55);
+    const arrive = THREE.MathUtils.smoothstep(day, 0.45, 1.0);
+    planetGroup.position.copy(planetBasePos).add(swapOut.set(leave * 260, -leave * 220, 0));
+    planetGroup.scale.setScalar(1 - leave * 0.35);
+    dayPlanetGroup.position.copy(planetBasePos).add(swapIn.set(-(1 - arrive) * 300, (1 - arrive) * 240, 0));
+    dayPlanetGroup.scale.setScalar(0.65 + arrive * 0.35);
+
+    planetMat.opacity = planetVis * 0.94 * (1 - leave);
+    planetRingMat.opacity = planetVis * 0.38 * (1 - leave);
+    dayPlanetMat.opacity = planetVis * 0.96 * arrive;
+    dayRingMat.opacity = planetVis * 0.45 * arrive;
+    planetGroup.visible = leave < 0.999;
+    dayPlanetGroup.visible = arrive > 0.001;
     planetMesh.rotation.y = elapsed * 0.04;
+    dayPlanetMesh.rotation.y = -elapsed * 0.05;
 
     shootingStars.forEach((st) => {
       st.timer += delta;
@@ -638,5 +799,11 @@ export function createAtmosphere(scene, mainTowerHeight) {
     cloudSpin.rotation.y = elapsed * 0.0025;
   }
 
-  return { update };
+  return {
+    update,
+    setPlanetLayout,
+    // La planète cliquable est celle du mode affiché
+    getActivePlanet: () => (DAY_UNIFORM.value > 0.5 ? dayPlanetMesh : planetMesh),
+    isPlanetVisible: () => Math.max(planetMat.opacity, dayPlanetMat.opacity) > 0.3
+  };
 }
