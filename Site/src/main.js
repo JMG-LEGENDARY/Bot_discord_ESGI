@@ -116,56 +116,59 @@ loader.load('/skyscraper.glb', (gltf) => {
 
   scene.add(tower);
 
-  // Dossiers des 4 panneaux de la tour
+  // =========================================================================
+  // 4 PANNEAUX DE LA TOUR (STRICTEMENT BASÉS SUR LE README)
+  // =========================================================================
   const towerDossiers = [
     {
       y: 104,
       angle: Math.PI * 0.5,
       color: '#00f3ff',
-      tag: 'SYS.01 // FEATURES',
-      tabLabel: '01 // FEATURES',
-      title: 'Fonctionnalités Clés',
+      tag: 'SYS.01 // FONCTIONNALITÉS',
+      tabLabel: '01 // FONCTIONNALITÉS',
+      title: 'Fonctionnalités',
       zoneName: 'NIVEAU 01 — FONCTIONNALITÉS',
       lines: [
-        'Rappels automatiques devoirs & examens',
-        'Gestion dynamique des rôles par classe',
-        'Boutique virtuelle & économie serveur'
+        'Devoirs & évaluations par classe',
+        'Rappels quotidiens à 7 h 30',
+        'Intégration API Thomson & logs'
       ],
       detail: {
         subtitle:
-          "Un écosystème complet pensé pour centraliser la vie étudiante sur Discord : planification des rendus, attribution instantanée des promos et mini-économie communautaire.",
+          "Bot Discord en Python conçu pour accompagner les étudiants ESGI sur leurs devoirs, évaluations et activités de serveur.",
         metrics: [
-          { value: '100% AUTO', label: 'Alertes J-7, J-3 et J-1 avant chaque rendu' },
-          { value: 'MULTI-PROMO', label: 'Isolation complète des classes & filières' },
-          { value: '24/7 ACTIF', label: 'Tâches planifiées asynchrones sans latence' }
+          { value: '7 H 30', label: 'Messages programmés tous les jours (Europe/Paris)' },
+          { value: 'J-7 / J-1 / J0', label: 'Échéances prévues dans 7 jours, 1 jour ou le jour même' },
+          { value: '0,1 %', label: 'Réponse aléatoire avec image issue de l’API Thomson' }
         ],
         sections: [
           {
-            title: 'Système de Rappels Devoirs & Examens',
-            desc: 'Chaque délégué ou étudiant autorisé peut enregistrer une échéance directement depuis Discord. Le bot planifie des notifications ciblées uniquement vers le rôle de la classe concernée.',
+            title: 'Devoirs, Évaluations & Détection de Classe',
+            desc: 'Suivi scolaire automatisé en fonction des rôles Discord attribués à chaque étudiant sur le serveur.',
             bullets: [
-              'Création via formulaire natif Discord (matière, titre, date limite, description)',
-              'Rappels automatiques intelligents à 7 jours, 48 heures et le matin même',
-              'Tableau récapitulatif filtrable par semaine ou par matière (/devoirs)'
-            ],
-            code: `/devoir ajouter matiere:"Maths" titre:"TD Congruences" date:"28/11 18:00"`
-          },
-          {
-            title: 'Attribution Dynamique des Rôles & Classes',
-            desc: 'Un panneau interactif paginé permet aux étudiants de rejoindre leur campus, année et spécialisation en un clic.',
-            bullets: [
-              'Menus déroulants paginés supportant toutes les filières (AL, SRC, SI, IABD...)',
-              'Synchronisation immédiate des salons textuels et vocaux privés',
-              'Protection anti-doublon et mise à jour instantanée lors d’un changement de groupe'
+              'Détection automatique de la classe de l’utilisateur à partir de ses rôles Discord',
+              'Ajout et modification des devoirs avec matière, date et sujet',
+              'Ajout et modification des évaluations, et affichage des devoirs et évaluations à venir',
+              'Suppression automatique des devoirs dont la date est dépassée'
             ]
           },
           {
-            title: 'Boutique Virtuelle & Économie Étudiante',
-            desc: 'Les membres accumulent des crédits au fil de leur activité sur le serveur pour débloquer des récompenses cosmétiques ou bonus communautaires.',
+            title: 'Rappels Programmés & Administration',
+            desc: 'Planification quotidienne des notifications et gestion des rôles administratifs du serveur.',
             bullets: [
-              'Solde persistant stocké en base relationnelle avec historique des transactions',
-              'Catalogue configurable par serveur avec stock limité ou objets permanents',
-              'Classement hebdomadaire des membres les plus actifs'
+              'Messages programmés tous les jours à 7 h 30 pour les échéances prévues dans 7 jours, dans 1 jour ou le jour même',
+              'Configuration des rôles correspondant aux classes du serveur',
+              'Attribution d’un rang administratif à un membre'
+            ]
+          },
+          {
+            title: 'API Thomson, Journalisation & Persistance',
+            desc: 'Fonctionnalités communautaires liées à l’API Thomson, suivi console et stockage local.',
+            bullets: [
+              'Réponse aléatoire à environ 0,1 % des messages avec une image issue de l’API Thomson',
+              'Commande spéciale utilisant l’API Thomson pour générer une bannière événementielle',
+              'Journalisation des événements et des actions importantes dans la console',
+              'Base SQLite locale pour les devoirs, évaluations, membres, rôles, projets, compétences, notifications et configurations'
             ]
           }
         ]
@@ -175,49 +178,49 @@ loader.load('/skyscraper.glb', (gltf) => {
       y: 78,
       angle: Math.PI * 1.0,
       color: '#ff007f',
-      tag: 'SYS.02 // INTERFACE',
-      tabLabel: '02 // INTERFACE',
-      title: 'Expérience Étudiante',
-      zoneName: 'NIVEAU 02 — EXPÉRIENCE',
+      tag: 'SYS.02 // COMMANDES',
+      tabLabel: '02 // COMMANDES',
+      title: 'Commandes Discord',
+      zoneName: 'NIVEAU 02 — COMMANDES SLASH',
       lines: [
-        'Modales interactives Discord',
-        'Notifications ciblées par filière',
-        'Commandes slash ultra-rapides'
+        'Devoirs & évaluations (/ajouter_*, /lister_*)',
+        'Classes & admin (/configurer_*, /admin_*)',
+        'Thomson, ping & suppression (/implorer_*, /ping)'
       ],
       detail: {
         subtitle:
-          "Une ergonomie zéro friction reposant exclusivement sur les composants natifs modernes de Discord : modales, boutons persistants, embeds riches et autocomplétion.",
+          "Ensemble des 9 commandes slash du bot Discord pour la gestion des devoirs, des évaluations, des classes et des interactions serveur.",
         metrics: [
-          { value: '< 50 MS', label: 'Temps de réponse moyen des interactions' },
-          { value: 'ZERO SPAM', label: 'Réponses éphémères visibles uniquement par l’auteur' },
-          { value: '100% SLASH', label: 'Autocomplétion intégrée sur chaque paramètre' }
+          { value: '9 COMMANDES', label: 'Commandes slash synchronisées avec Discord' },
+          { value: 'MENUS & MODALES', label: 'Sélection de matières et formulaires interactifs' },
+          { value: 'PAR CLASSE', label: 'Filtrage selon la classe de l’utilisateur' }
         ],
         sections: [
           {
-            title: 'Modales Interactives & Formulaires Natifs',
-            desc: 'Plutôt que de taper des commandes longues avec une syntaxe complexe, l’utilisateur remplit une fenêtre modale claire directement dans Discord.',
+            title: 'Devoirs & Évaluations',
+            desc: 'Ajout via menus de matières et formulaires, et consultation des échéances de la classe.',
             bullets: [
-              'Validation côté bot des formats de dates et des champs obligatoires',
-              'Messages d’erreur pédagogiques en éphémère sans polluer le salon',
-              'Pré-remplissage intelligent lors de l’édition d’un devoir existant'
+              '/ajouter_un_devoir : Ouvre un menu de matières puis un formulaire pour ajouter un devoir.',
+              '/ajouter_une_évaluation : Ouvre un menu de matières puis un formulaire pour ajouter une évaluation.',
+              '/lister_les_devoirs : Liste les devoirs de la classe de l’utilisateur.',
+              '/lister_les_évaluations : Liste les évaluations de la classe de l’utilisateur.'
             ]
           },
           {
-            title: 'Vues Paginées & Navigation par Boutons',
-            desc: 'Les listes longues (devoirs à venir, catalogue boutique, annuaire des rôles) sont découpées en pages fluides contrôlées par boutons.',
+            title: 'Configuration & Permissions',
+            desc: 'Commandes réservées au paramétrage des rôles de classes et des droits administrateur.',
             bullets: [
-              'Navigation Précédent / Suivant avec compteur de page dynamique',
-              'Verrouillage par utilisateur pour éviter toute interférence entre membres',
-              'Expiration propre des composants après inactivité'
+              '/configurer_les_classes : Permet à un administrateur de choisir les rôles Discord utilisés comme classes.',
+              '/admin_permission : Attribue le rang administrateur à un membre.'
             ]
           },
           {
-            title: 'Notifications Ciblées & Embeds Structurés',
-            desc: 'Chaque annonce adopte un code couleur cohérent selon son niveau d’urgence (information, devoir standard, partiel critique).',
+            title: 'Diagnostic, Thomson & Gestion des Messages',
+            desc: 'Commandes utilitaires et créations aléatoires liées à l’API Thomson.',
             bullets: [
-              'Mentions chirurgicales uniquement sur les rôles abonnés',
-              'Horodatage dynamique Discord (<t:timestamp:R>) adapté au fuseau horaire',
-              'Mode silencieux configurable pendant les vacances'
+              '/ping : Affiche la latence du bot.',
+              '/implorer_le_tout_puissant : Affiche une création aléatoire avec une image issue de l’API Thomson.',
+              '/nouvelle_identité : Interface prévue pour supprimer les messages envoyés par l’utilisateur.'
             ]
           }
         ]
@@ -229,50 +232,42 @@ loader.load('/skyscraper.glb', (gltf) => {
       color: '#00f3ff',
       tag: 'SYS.03 // ARCHITECTURE',
       tabLabel: '03 // ARCHITECTURE',
-      title: 'Architecture & Code',
-      zoneName: 'NIVEAU 03 — STACK TECHNIQUE',
+      title: 'Technologies & Structure',
+      zoneName: 'NIVEAU 03 — STACK & STRUCTURE',
       lines: [
-        'Développé en Python & portage Rust',
-        'Base de données SQLite optimisée',
-        'Hébergement autonome 24/7 sur Raspberry Pi'
+        'Python 3, discord.py, aiohttp & Zoneinfo',
+        'Base de données SQLite locale (bot.db)',
+        '5 cogs modulaires, files/ & dossier Site/'
       ],
       detail: {
         subtitle:
-          "Une double implémentation combinant la rapidité de prototypage de Python (disnake / discord.py) et les performances bas-niveau d'un portage complet en Rust (poise / serenity / sqlx).",
+          "Architecture modulaire en Python 3 articulée autour de 5 cogs spécialisés, d'une base SQLite locale et du dossier Site Three.js.",
         metrics: [
-          { value: 'PYTHON + RUST', label: 'Architecture hybride & portage haute performance' },
-          { value: 'SQLITE WAL', label: 'Persistance locale ultra-rapide sans serveur lourd' },
-          { value: '< 35 MO RAM', label: 'Empreinte mémoire optimisée pour SBC' }
+          { value: 'PYTHON 3', label: 'discord.py, aiohttp & Zoneinfo (Europe/Paris)' },
+          { value: '5 COGS', label: 'commands, configSQL, sql, notifications, events' },
+          { value: 'BOT.DB', label: 'Persistance locale SQLite' }
         ],
         sections: [
           {
-            title: 'Cœur Python Modulaire (Cogs & Services)',
-            desc: 'Séparation stricte entre les commandes Discord (Cogs), la logique métier et la couche d’accès aux données.',
+            title: 'Technologies',
+            desc: 'Bibliothèques et modules utilisés pour exécuter le bot et ses tâches planifiées.',
             bullets: [
-              'Chargement dynamique des modules (devoirs, rôles, boutique, utilitaires)',
-              'Boucles asynchrones asyncio pour la vérification périodique des échéances',
-              'Gestion centralisée des exceptions et journalisation structurée'
-            ],
-            code: `Bot_discord_ESGI/\n├── cogs/          # Commandes slash & vues interactives\n├── database/      # Requêtes SQLite & migrations\n├── services/      # Planificateur de rappels & logique métier\n└── main.py        # Point d'entrée & orchestration`
-          },
-          {
-            title: 'Portage Natif en Rust (Serenity + Poise + SQLx)',
-            desc: 'Réécriture complète pensée pour la sûreté mémoire, la concurrence sans GIL et une consommation minimale sur matériel embarqué.',
-            bullets: [
-              'Vérification des requêtes SQL à la compilation grâce aux macros sqlx',
-              'Binaire statique léger déployable sans environnement virtuel Python',
-              'Typage fort sur l’ensemble des états partagés et modales Discord'
-            ],
-            code: `#[poise::command(slash_command, guild_only)]\npub async fn rappels(ctx: Context<'_>) -> Result<(), Error> {\n    // Requête SQLx asynchrone compilée & vérifiée\n    Ok(())\n}`
-          },
-          {
-            title: 'Hébergement Autonome 24/7 sur Raspberry Pi Zero 2 W',
-            desc: 'Le bot tourne en continu sur un nano-ordinateur dédié relié par réseau privé Tailscale, garantissant une disponibilité constante.',
-            bullets: [
-              'Exécution en arrière-plan via service systemd avec redémarrage automatique',
-              'Mode WAL (Write-Ahead Logging) sur SQLite pour préserver la carte SD',
-              'Administration sécurisée à distance via SSH sur mesh Tailscale'
+              'Python 3',
+              'discord.py pour les commandes slash, les événements, les boutons et les modales',
+              'SQLite pour la persistance locale',
+              'aiohttp pour les appels API',
+              'Zoneinfo pour la gestion du fuseau Europe/Paris'
             ]
+          },
+          {
+            title: 'Structure du Projet',
+            desc: 'Répartition des fichiers racines, des cogs Discord, des données Thomson et du site 3D.',
+            bullets: [
+              'Racine : main.py, config.py, utils.py, LOGS.py et bot.db',
+              'cogs/ : commands.py, configSQL.py, sql.py, notifications.py et events.py',
+              'files/Thomson_names.json & Site/ (src/, public/, package.json)'
+            ],
+            code: `.\n├── main.py                  # Point d'entrée et initialisation du bot\n├── config.py                # Configuration Discord et API\n├── utils.py                 # Matières et catégories proposées\n├── LOGS.py                  # Logger console\n├── bot.db                   # Base SQLite locale\n├── cogs/\n│   ├── commands.py          # Commandes slash et modales\n│   ├── configSQL.py         # Configuration des classes et permissions\n│   ├── sql.py               # Création et accès à la base SQLite\n│   ├── notifications.py     # Tâche quotidienne de rappel\n│   └── events.py            # Événements Discord et API Thomson\n├── files/\n│   └── Thomson_names.json   # Données utilisées pour générer les messages\n└── Site/\n    ├── src/                 # Scène Three.js, panneaux et animations\n    ├── public/              # Ressources 3D et fichiers publics\n    └── package.json         # Scripts et dépendances du site`
           }
         ]
       }
@@ -281,50 +276,50 @@ loader.load('/skyscraper.glb', (gltf) => {
       y: 24,
       angle: Math.PI * 2.0,
       color: '#a855f7',
-      tag: 'SYS.04 // DEPLOYMENT',
-      tabLabel: '04 // OPEN-SOURCE',
-      title: 'Open-Source ESGI',
-      zoneName: 'NIVEAU 04 — OPEN-SOURCE',
+      tag: 'SYS.04 // INSTALLATION & RÔLES',
+      tabLabel: '04 // INSTALL & RÔLES',
+      title: 'Installation & Équipe',
+      zoneName: 'NIVEAU 04 — INSTALLATION & ÉQUIPE',
       lines: [
-        'Code modulaire & maintenable',
-        'Déploiement continu via systemd',
-        'Conçu par et pour les étudiants ESGI'
+        'Environnement .venv & lancement main.py',
+        'Site 3D : npm install, npm run dev & build',
+        'Rôles : JMG (principal) & Yanis (socle)'
       ],
       detail: {
         subtitle:
-          "Un projet collaboratif développé par des étudiants en informatique de l'ESGI Reims, ouvert aux contributions et reproductible sur n'importe quel serveur Discord.",
+          "Procédure d'installation du bot Python, commandes de lancement du site 3D et présentation des contributions de JMG et Yanis.",
         metrics: [
-          { value: 'OPEN-SOURCE', label: 'Code transparent, documenté et extensible' },
-          { value: 'MULTI-SERVEUR', label: 'Isolation des données par guild_id Discord' },
-          { value: 'SYSTEMD CI', label: 'Mise à jour et relance propre en une commande' }
+          { value: 'MAIN.PY', label: 'Init tables SQLite, cogs & sync slash' },
+          { value: 'SITE/', label: 'npm install, npm run dev & npm run build' },
+          { value: 'JMG & YANIS', label: 'Développement principal & socle du projet' }
         ],
         sections: [
           {
-            title: 'Architecture Multi-Serveur Prête à l’Emploi',
-            desc: 'Chaque serveur Discord dispose de sa propre configuration isolée (salons d’annonces, rôles, catalogue boutique).',
+            title: 'Installation et Démarrage du Bot',
+            desc: 'Au démarrage, le bot initialise les tables SQLite, charge les cogs, puis synchronise les commandes slash avec Discord.',
             bullets: [
-              'Initialisation guidée via commande /setup réservée aux administrateurs',
-              'Aucune donnée partagée entre différents campus ou serveurs',
-              'Variables d’environnement sécurisées (.env) pour les tokens API'
-            ]
-          },
-          {
-            title: 'Déploiement & Supervision Systemd',
-            desc: 'Intégration native Linux permettant au bot de démarrer automatiquement avec la machine et de récupérer instantanément en cas de coupure.',
-            bullets: [
-              'Unité systemd dédiée avec politique Restart=always',
-              'Consultation des logs en temps réel via journalctl -u esgi-bot -f',
-              'Sauvegardes automatisées de la base SQLite'
+              'Créer et activer un environnement virtuel : python3 -m venv .venv puis source .venv/bin/activate',
+              'Installer les dépendances Python : pip install -r requirements.txt',
+              'Lancer le bot : python main.py'
             ],
-            code: `[Unit]\nDescription=ESGI Discord Bot Service\nAfter=network-online.target\n\n[Service]\nWorkingDirectory=/home/jmg/Bot_discord_ESGI\nExecStart=/usr/bin/python3 main.py\nRestart=always\nRestartSec=5`
+            code: `python3 -m venv .venv\nsource .venv/bin/activate\npip install -r requirements.txt\npython main.py`
           },
           {
-            title: 'Collaborer & Contribuer au Projet',
-            desc: 'Pensé comme un terrain d’apprentissage réel autour du génie logiciel, des bases de données, du réseau et de Rust.',
+            title: 'Lancement et Build du Site',
+            desc: 'Commandes exécutées dans le répertoire Site/ pour le développement et la version prête à être déployée.',
             bullets: [
-              'Structure claire facilitant l’ajout de nouveaux cogs ou commandes',
-              'Conventions de nommage strictes et séparation logique/présentation',
-              'Idéal pour tester en conditions réelles le développement asynchrone'
+              'Se placer dans le dossier Site et installer les dépendances avec npm install',
+              'Lancer le serveur de développement avec npm run dev',
+              'Créer une version prête à être déployée avec npm run build'
+            ],
+            code: `cd Site\nnpm install\nnpm run dev\nnpm run build`
+          },
+          {
+            title: 'Rôles dans le Projet',
+            desc: 'Répartition des contributions autour du bot Discord et du site 3D.',
+            bullets: [
+              'JMG — développeur principal du bot : porte l’essentiel du développement actuel du bot et de ses différentes briques (architecture Python, démarrage du bot, commandes Discord, modales, gestion des devoirs et évaluations, cogs, notifications programmées, accès SQLite, événements Discord, intégration Thomson et réalisation du site 3D).',
+              'Yanis — participation au socle du projet : a contribué notamment aux éléments fondateurs du projet, avec ses premiers travaux visibles sur la configuration générale et les listes de matières, ainsi qu’à des évolutions du README.'
             ]
           }
         ]
@@ -332,39 +327,41 @@ loader.load('/skyscraper.glb', (gltf) => {
     }
   ];
 
-  // Dossiers des 5 piliers techniques souterrains
+  // =========================================================================
+  // 5 PILIERS SOUTERRAINS (COLLABORATIONS, ÉCOLE, IA & REMERCIEMENTS)
+  // =========================================================================
   const undergroundDossiers = [
     {
       label: 'pillar-0',
       color: '#00f3ff',
-      tag: 'PILIER 01 // CORE ENGINE',
-      tabLabel: '01 // PYTHON & RUST',
-      title: 'Cœur Python & Portage Rust',
+      tag: 'COLLAB 01 // DÉVELOPPEUR PRINCIPAL',
+      tabLabel: '01 // JMG',
+      title: 'JMG — Développeur Principal',
       detail: {
         subtitle:
-          "Double moteur logiciel : souplesse d'évolution en Python (discord.py / disnake) et exécution native ultra-sobre en Rust (serenity + poise).",
+          "Bryan (JMG), étudiant en 2e année de Bachelor Informatique en alternance à l'ESGI Reims, porte l'essentiel du développement du bot Discord et de cette expérience web 3D.",
         metrics: [
-          { value: 'ASYNCIO / TOKIO', label: 'Concurrence événementielle non-bloquante' },
-          { value: 'ZERO PANIC', label: 'Gestion stricte des erreurs Result<T, E>' },
-          { value: 'MODULAIRE', label: 'Découpage par domaines fonctionnels' }
+          { value: 'ESGI REIMS', label: '2e année de Bachelor Informatique (alternance)' },
+          { value: 'FULL-STACK', label: 'Architecture Python, SQLite & interface 3D' },
+          { value: '24/7 HOSTING', label: 'Déploiement autonome & administration' }
         ],
         sections: [
           {
-            title: 'Architecture Événementielle Asynchrone',
-            desc: 'Chaque interaction Discord est traitée de manière non-bloquante afin de maintenir une réactivité immédiate même lors des pics de connexion.',
+            title: 'Développement du Cœur du Bot (Python & SQLite)',
+            desc: "Conception de l'architecture modulaire du bot, du démarrage dans main.py jusqu'à la persistance locale dans bot.db.",
             bullets: [
-              'Séparation nette entre la couche Gateway Discord et la logique métier',
-              'Gestion propre des cooldowns et permissions par rôle',
-              'Rechargement à chaud des extensions en environnement de développement'
+              'Architecture Python complète, initialisation des tables SQLite et chargement des cogs',
+              'Commandes slash, menus de sélection de matières et formulaires modaux Discord',
+              'Gestion des devoirs et évaluations avec détection automatique de la classe via les rôles',
+              'Tâche quotidienne de notifications programmées à 7 h 30 (Europe/Paris)'
             ]
           },
           {
-            title: 'Optimisation Mémoire & Binaire Natif',
-            desc: 'Le portage Rust réduit drastiquement l’empreinte RAM et CPU pour une exécution fluide sur carte ARM basse consommation.',
+            title: 'Intégration Thomson & Réalisation du Site 3D',
+            desc: "Connexion aux événements Discord, intégration de l'API Thomson et création de la vitrine interactive Three.js.",
             bullets: [
-              'Compilation statique sans dépendances runtime lourdes',
-              'Structures de données fortement typées pour les événements Discord',
-              'Tests unitaires intégrés sur le parseur de dates et rappels'
+              'Gestion des événements Discord, journalisation console (LOGS.py) et intégration de l’API Thomson',
+              'Conception et réalisation complète du site 3D interactif (Three.js, shaders GLSL, GSAP)'
             ]
           }
         ]
@@ -373,27 +370,34 @@ loader.load('/skyscraper.glb', (gltf) => {
     {
       label: 'pillar-1',
       color: '#38bdf8',
-      tag: 'PILIER 02 // DATABASE',
-      tabLabel: '02 // SQLITE',
-      title: 'Base de Données SQLite & SQLx',
+      tag: 'COLLAB 02 // SOCLE DU PROJET',
+      tabLabel: '02 // YANIS',
+      title: 'Yanis — Socle du Projet',
       detail: {
         subtitle:
-          "Stockage relationnel embarqué sans serveur externe, configuré en mode WAL pour garantir intégrité des données et lectures simultanées.",
+          "Yanis a contribué aux éléments fondateurs du projet, posant une base structurante reprise et étendue par la suite du développement.",
         metrics: [
-          { value: 'MODE WAL', label: 'Lectures concurrentes sans verrouillage' },
-          { value: 'ACID', label: 'Transactions atomiques sécurisées' },
-          { value: 'SQLX CHECK', label: 'Validation SQL dès la compilation Rust' }
+          { value: 'FONDATIONS', label: 'Éléments initiaux de structure du dépôt' },
+          { value: 'CONFIG & MATIÈRES', label: 'Configuration générale & référentiel matières' },
+          { value: 'DOCUMENTATION', label: 'Évolutions et structuration du README' }
         ],
         sections: [
           {
-            title: 'Schéma Relationnel Multi-Serveur',
-            desc: 'Toutes les tables sont indexées par identifiant de serveur (guild_id) et de classe pour des requêtes instantanées.',
+            title: 'Travaux Fondateurs & Configuration',
+            desc: 'Mise en place des premiers paramètres et référentiels utilisés par les commandes du bot.',
             bullets: [
-              'Tables dédiées : guilds, classes, homeworks, users_economy, shop_items',
-              'Clés étrangères activées (PRAGMA foreign_keys = ON)',
-              'Migrations versionnées pour faire évoluer le schéma sans perte'
-            ],
-            code: `CREATE TABLE IF NOT EXISTS homeworks (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  guild_id INTEGER NOT NULL,\n  role_id INTEGER NOT NULL,\n  subject TEXT NOT NULL,\n  due_at INTEGER NOT NULL\n);`
+              'Contribution aux éléments fondateurs de l’architecture initiale du projet',
+              'Premiers travaux visibles sur la configuration générale du bot',
+              'Définition des listes de matières et catégories proposées aux étudiants'
+            ]
+          },
+          {
+            title: 'Documentation & Base Collaborative',
+            desc: 'Participation à la clarté du projet et à la transmission des bases techniques.',
+            bullets: [
+              'Contribution aux évolutions du README et à la présentation du projet',
+              'Base technique utilisée ensuite par le reste du développement'
+            ]
           }
         ]
       }
@@ -401,25 +405,33 @@ loader.load('/skyscraper.glb', (gltf) => {
     {
       label: 'pillar-2',
       color: '#10b981',
-      tag: 'PILIER 03 // HARDWARE SBC',
-      tabLabel: '03 // RASPBERRY PI',
-      title: 'Hébergement Raspberry Pi Zero 2 W',
+      tag: 'COLLAB 03 // ÉCOLE & CAMPUS',
+      tabLabel: '03 // ESGI',
+      title: 'ESGI — Campus de Reims',
       detail: {
         subtitle:
-          "Infrastructure auto-hébergée fonctionnant 24h/24 sur un Raspberry Pi Zero 2 W connecté via un réseau maillé sécurisé Tailscale.",
+          "L'École Supérieure de Génie Informatique (ESGI) offre le cadre académique et collaboratif au sein duquel ce projet est né pour accompagner le quotidien des promotions.",
         metrics: [
-          { value: '< 1.5 W', label: 'Consommation électrique moyenne en continu' },
-          { value: 'TAILSCALE VPN', label: 'Accès SSH chiffré sans ouvrir de port public' },
-          { value: '24/7 UPTIME', label: 'Disponibilité permanente autonome' }
+          { value: 'ESGI REIMS', label: 'École Supérieure de Génie Informatique' },
+          { value: 'ENTRAIDE', label: 'Centralisation des devoirs & évaluations' },
+          { value: 'PRATIQUE', label: 'Application concrète du génie logiciel' }
         ],
         sections: [
           {
-            title: 'Optimisation Système sur SBC ARM',
-            desc: 'Chaque service Linux inutile est désactivé afin de réserver la mémoire vive aux processus critiques du bot.',
+            title: 'Un Outil Pensé pour la Vie Étudiante',
+            desc: "Répondre à un besoin concret d'organisation sur les serveurs Discord des étudiants de l'école.",
             bullets: [
-              'Journalisation en mémoire (volatile) pour limiter les écritures sur carte SD',
-              'Supervision thermique et charge CPU accessible à distance',
-              'Connexion réseau résiliente avec reconnexion automatique'
+              'Suivi partagé des devoirs et évaluations par classe et par matière',
+              'Rappels automatiques quotidiens avant chaque échéance importante',
+              'Adaptation multi-classes via les rôles Discord du campus'
+            ]
+          },
+          {
+            title: 'Terrain d’Expérimentation Technique',
+            desc: 'Mise en pratique des compétences développées en cursus informatique : Python, bases de données relationnelles, API et rendu 3D.',
+            bullets: [
+              'Développement modulaire en Python avec persistance SQLite',
+              'Intégration d’API asynchrones et déploiement continu'
             ]
           }
         ]
@@ -428,25 +440,34 @@ loader.load('/skyscraper.glb', (gltf) => {
     {
       label: 'pillar-3',
       color: '#ff007f',
-      tag: 'PILIER 04 // DISCORD UI',
-      tabLabel: '04 // MODALES UI',
-      title: 'Modales & Composants Interactifs',
+      tag: 'COLLAB 04 // ASSISTANT IA',
+      tabLabel: '04 // GEMINI',
+      title: 'Gemini — Assistance IA',
       detail: {
         subtitle:
-          "Interface utilisateur moderne intégrée directement dans Discord via les composants V2 : Modales, Select Menus, Boutons persistants et Embeds.",
+          "Collaboration technique avec Gemini tout au long de la conception de l'expérience web 3D, du rendu graphique jusqu'à l'interface interactive.",
         metrics: [
-          { value: 'MODALS', label: 'Saisie structurée multi-champs' },
-          { value: 'PAGINATION', label: 'Navigation fluide dans les catalogues' },
-          { value: 'PERSISTENT', label: 'Boutons actifs même après redémarrage' }
+          { value: 'THREE.JS & GLSL', label: 'Shaders ciel, nuages et post-traitement' },
+          { value: 'GSAP SCROLL', label: 'Chorégraphie caméra & transitions fluides' },
+          { value: 'DEBUG & UI', label: 'Optimisation GPU & modales interactives' }
         ],
         sections: [
           {
-            title: 'Vues Persistantes & Callbacks Sécurisés',
-            desc: 'Les panneaux de sélection de rôles restent fonctionnels indéfiniment grâce aux custom_id déterministes enregistrés au démarrage.',
+            title: 'Conception de l’Environnement 3D & Shaders',
+            desc: 'Assistance dans le développement de la scène WebGL et des effets atmosphériques.',
             bullets: [
-              'Filtrage par auteur d’interaction (interaction_check)',
-              'Retours visuels immédiats avec embeds dynamiques',
-              'Autocomplétion des matières et commandes slash'
+              'Création des shaders personnalisés (Voie Lactée, mer de nuages et nuages barbe à papa)',
+              'Génération procédurale de la mégalopole futuriste, de l’éco-parc et de la flotte spatiale',
+              'Calibration du post-traitement (ACES Filmic, UnrealBloomPass) et instanciation GPU'
+            ]
+          },
+          {
+            title: 'Navigation Interactive & Résolution de Bugs',
+            desc: "Aide au pilotage de la caméra au défilement et à l'intégration des fiches de documentation.",
+            bullets: [
+              'Synchronisation des trajectoires de caméra avec GSAP ScrollTrigger',
+              'Mise en place du raycasting 3D et de l’interface modale néon plein écran',
+              'Diagnostic et correction des erreurs WebGL et d’ergonomie'
             ]
           }
         ]
@@ -455,27 +476,33 @@ loader.load('/skyscraper.glb', (gltf) => {
     {
       label: 'pillar-4',
       color: '#a855f7',
-      tag: 'PILIER 05 // AUTOMATION',
-      tabLabel: '05 // SYSTEMD',
-      title: 'Orchestration & Déploiement Systemd',
+      tag: 'COLLAB 05 // REMERCIEMENTS',
+      tabLabel: '05 // MERCI',
+      title: 'Remerciements Généraux',
       detail: {
         subtitle:
-          "Cycle de vie entièrement automatisé sous Linux via systemd : démarrage au boot, relance en cas d'erreur et suivi centralisé des journaux.",
+          "Un merci particulier à toutes les personnes qui ont rendu ce projet possible, inspiré ses fonctionnalités ou contribué à son évolution au quotidien.",
         metrics: [
-          { value: 'AUTO-HEAL', label: 'Redémarrage automatique en 5 secondes' },
-          { value: 'JOURNALD', label: 'Logs horodatés centralisés' },
-          { value: 'GIT DEPLOY', label: 'Mise à jour rapide depuis le dépôt' }
+          { value: 'THOMAS PIERSON', label: 'Direction pédagogique & inspiration API Thomson' },
+          { value: 'GRÉGOIRE', label: 'Accès API & support technique' },
+          { value: 'ÉQUIPE & ÉLÈVES', label: 'Encadrement pédagogique & retours terrain' }
         ],
         sections: [
           {
-            title: 'Configuration de l’Unité Systemd',
-            desc: 'Le démon veille en permanence sur le processus du bot et garantit sa reprise après toute coupure de courant ou mise à jour système.',
+            title: 'Thomas Pierson & l’Équipe Pédagogique',
+            desc: "Reconnaissance envers l'encadrement pédagogique de l'ESGI Reims pour son accompagnement et la dynamique de promo.",
             bullets: [
-              'Dépendance réseau (After=network-online.target)',
-              'Exécution sous utilisateur non-privilégié pour la sécurité',
-              'Redémarrage propre via systemctl restart esgi-bot'
-            ],
-            code: `sudo systemctl enable --now esgi-bot.service\njournalctl -u esgi-bot.service -n 50 --no-pager`
+              'Thomas Pierson (directeur pédagogique à l’ESGI Reims) : inspiration directe de l’API Thomson et des commandes communautaires associées',
+              'L’équipe pédagogique : suivi, conseils et cadre d’apprentissage tout au long de l’année'
+            ]
+          },
+          {
+            title: 'Grégoire & les Élèves de l’ESGI',
+            desc: 'Merci aux contributeurs techniques et aux étudiants qui font vivre le bot sur Discord.',
+            bullets: [
+              'Grégoire : un grand merci pour l’accès à l’API ayant permis d’intégrer les fonctionnalités externes du bot',
+              'Les élèves : merci pour leurs tests, leurs retours et l’utilisation quotidienne du bot pour les devoirs et évaluations'
+            ]
           }
         ]
       }
@@ -527,7 +554,7 @@ loader.load('/skyscraper.glb', (gltf) => {
   const modalMetrics = document.getElementById('modal-metrics');
   const modalAccordions = document.getElementById('modal-accordions');
 
-  let activeDossier = null; // { type: 'tower' | 'underground', index: number }
+  let activeDossier = null;
   let isModalOpen = false;
 
   function renderModalContent(type, idx) {
@@ -540,7 +567,6 @@ loader.load('/skyscraper.glb', (gltf) => {
     modalTitle.textContent = item.title;
     modalSubtitle.textContent = item.detail.subtitle;
 
-    // Onglets dynamiques adaptés au contexte (Tour ou Souterrain)
     modalTabsContainer.innerHTML = collection
       .map(
         (entry, i) => `
@@ -644,7 +670,7 @@ loader.load('/skyscraper.glb', (gltf) => {
   // =========================================================================
   // CAMÉRA & TIMELINE GSAP SCROLLTRIGGER
   // =========================================================================
-const camState = {
+  const camState = {
     mode: 0,
     angle: 0,
     radius: 28,
@@ -940,7 +966,6 @@ const camState = {
       return;
     }
 
-    // Raycast récursif (true) pour détecter les groupes d'étiquettes 3D et piliers
     const hits = raycaster.intersectObjects(underground.interactivePillarObjects, true);
     const hoveredLabel = hits.length > 0 ? resolveUndergroundLabel(hits[0].object) : null;
     document.body.style.cursor = hoveredLabel ? 'pointer' : 'default';
@@ -956,7 +981,6 @@ const camState = {
     pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
 
-    // 1. Clic sur un panneau de la tour
     if (camState.mode < 0.35) {
       const panelHits = raycaster.intersectObjects(interactivePanelScreens, true);
       if (panelHits.length > 0 && panelHits[0].object.userData.dossierIndex !== undefined) {
@@ -965,7 +989,6 @@ const camState = {
       }
     }
 
-    // 2. Clic sur un pilier ou une étiquette souterraine -> cadrage + ouverture du dossier plein écran
     if (camState.mode >= 0.72) {
       const hits = raycaster.intersectObjects(underground.interactivePillarObjects, true);
       const clickedLabel = hits.length > 0 ? resolveUndergroundLabel(hits[0].object) : null;
@@ -1022,7 +1045,6 @@ const camState = {
     const finalTarget = orbitalTargetVec.lerp(underTargetVec, camState.mode);
     camera.lookAt(finalTarget);
 
-    // Détection de proximité (Tour OU Piliers souterrains) pour afficher l'invite [ ENTRÉE ]
     let nextDossier = null;
 
     if (camState.mode < 0.25) {

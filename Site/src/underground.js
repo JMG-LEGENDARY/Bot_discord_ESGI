@@ -328,8 +328,8 @@ export function buildUndergroundMasterclass(scene) {
       id: 0,
       label: 'pillar-0',
       name: 'BRYAN (JMG)',
-      role: 'Architecture & Core Dev',
-      tag: 'APEX // PILIER 01',
+      role: 'Développeur Principal — Bot & Site 3D',
+      tag: 'COLLAB 01 // DÉVELOPPEUR',
       color: '#00f3ff',
       pos: new THREE.Vector3(0, floorY, 7.0),
       camPos: new THREE.Vector3(0, floorY + 5.2, 16.5)
@@ -337,29 +337,29 @@ export function buildUndergroundMasterclass(scene) {
     {
       id: 1,
       label: 'pillar-1',
-      name: 'COLLABORATEUR 2',
-      role: 'Systèmes & Base de données',
-      tag: 'FLANC G // PILIER 02',
-      color: '#ff007f',
+      name: 'YANIS',
+      role: 'Socle, Config & Listes de Matières',
+      tag: 'COLLAB 02 // FONDATIONS',
+      color: '#38bdf8',
       pos: new THREE.Vector3(-8.5, floorY, -2.5),
       camPos: new THREE.Vector3(-14.5, floorY + 5.2, 6.2)
     },
     {
       id: 2,
       label: 'pillar-2',
-      name: 'COLLABORATEUR 3',
-      role: 'Modules & Commandes',
-      tag: 'BASE G // PILIER 03',
-      color: '#00f3ff',
+      name: 'ESGI REIMS',
+      role: 'Campus & Cadre Académique',
+      tag: 'COLLAB 03 // ÉCOLE',
+      color: '#10b981',
       pos: new THREE.Vector3(-15.5, floorY, -12.5),
       camPos: new THREE.Vector3(-19.5, floorY + 5.2, -2.2)
     },
     {
       id: 3,
       label: 'pillar-3',
-      name: 'PROMO ESGI REIMS',
-      role: 'Tests, Idées & Communauté',
-      tag: 'BASE D // PILIER 04',
+      name: 'GEMINI AI',
+      role: 'Co-Pilote Three.js, Shaders & UI',
+      tag: 'COLLAB 04 // ASSISTANT IA',
       color: '#ff007f',
       pos: new THREE.Vector3(15.5, floorY, -12.5),
       camPos: new THREE.Vector3(19.5, floorY + 5.2, -2.2)
@@ -367,10 +367,10 @@ export function buildUndergroundMasterclass(scene) {
     {
       id: 4,
       label: 'pillar-4',
-      name: 'GEMINI AI',
-      role: 'Co-Pilote WebGL & Shaders',
-      tag: 'FLANC D // PILIER 05',
-      color: '#00f3ff',
+      name: 'REMERCIEMENTS',
+      role: 'T. Pierson, Grégoire, Équipe & Élèves',
+      tag: 'COLLAB 05 // COMMUNAUTÉ',
+      color: '#a855f7',
       pos: new THREE.Vector3(8.5, floorY, -2.5),
       camPos: new THREE.Vector3(14.5, floorY + 5.2, 6.2)
     }
