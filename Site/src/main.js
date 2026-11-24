@@ -84,7 +84,7 @@ const loader = new GLTFLoader();
 const panelGroups = [];
 const interactivePanelScreens = [];
 
-loader.load('/skyscraper.glb', (gltf) => {
+loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   const tower = gltf.scene;
 
   const box = new THREE.Box3().setFromObject(tower);
