@@ -95,7 +95,13 @@ export function createGlowSystem(scene, maxGlows = 512) {
       colors[n * 3] = g.color.r * intensity;
       colors[n * 3 + 1] = g.color.g * intensity;
       colors[n * 3 + 2] = g.color.b * intensity;
-      sizes[n] = g.size;
+      // Objets qui changent de taille (NOVA dans l'ascenseur) : halo à l'échelle
+      if (g.object.userData.glowScale) {
+        const e = g.object.matrixWorld.elements;
+        sizes[n] = g.size * Math.hypot(e[0], e[1], e[2]);
+      } else {
+        sizes[n] = g.size;
+      }
       n++;
     }
     geometry.setDrawRange(0, n);
