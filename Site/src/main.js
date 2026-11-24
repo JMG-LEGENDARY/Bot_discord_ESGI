@@ -644,12 +644,12 @@ loader.load('/skyscraper.glb', (gltf) => {
   // =========================================================================
   // CAMÉRA & TIMELINE GSAP SCROLLTRIGGER
   // =========================================================================
-  const camState = {
+const camState = {
     mode: 0,
     angle: 0,
-    radius: 36,
-    camY: targetHeight + 9.5,
-    targetY: targetHeight + 5.0,
+    radius: 28,
+    camY: targetHeight + 11.1,
+    targetY: targetHeight + 11.0,
     ux: 0,
     uy: 14,
     uz: 44,

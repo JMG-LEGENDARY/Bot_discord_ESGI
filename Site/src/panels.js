@@ -75,7 +75,6 @@ export function createHoloPanel(tag, title, lines, accentColor = '#00f3ff', widt
     ctx.fillText(`▸ ${line}`, 56, 206 + i * 62);
   });
 
-  // Bandeau d'action en bas du panneau 3D
   ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
   ctx.fillRect(54, 408, cvs.width - 108, 54);
   ctx.strokeStyle = accentColor;
@@ -99,7 +98,7 @@ export function createHoloPanel(tag, title, lines, accentColor = '#00f3ff', widt
 
   const hexColor = new THREE.Color(accentColor);
   const hdrNeonMat = new THREE.MeshBasicMaterial({
-    color: hexColor.clone().multiplyScalar(2.2),
+    color: hexColor.clone().multiplyScalar(2.0),
     toneMapped: false
   });
   const barGeo = new THREE.BoxGeometry(width * 0.85, 0.06, 0.08);
@@ -119,22 +118,24 @@ export function buildSkyPlatform(scene, topY) {
 
   const darkSteelMat = new THREE.MeshStandardMaterial({
     color: 0x131a29,
-    metalness: 0.9,
-    roughness: 0.25
+    metalness: 0.65,
+    roughness: 0.35,
+    envMapIntensity: 0.35
   });
   const solarMat = new THREE.MeshStandardMaterial({
     color: 0x0c4a6e,
     emissive: 0x0284c7,
-    emissiveIntensity: 0.25,
-    metalness: 0.85,
-    roughness: 0.2
+    emissiveIntensity: 0.2,
+    metalness: 0.6,
+    roughness: 0.3,
+    envMapIntensity: 0.35
   });
 
   const base = new THREE.Mesh(new THREE.CylinderGeometry(7.2, 4.5, 1.3, 8), darkSteelMat);
   group.add(base);
 
-  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 2.2, 2.8), toneMapped: false });
-  const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.5, 0.1, 1.4), toneMapped: false });
+  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 1.5, 1.9), toneMapped: false });
+  const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.7, 0.12, 1.0), toneMapped: false });
 
   const ring1 = new THREE.Mesh(new THREE.TorusGeometry(7.6, 0.08, 16, 64), cyanHdr);
   ring1.rotation.x = Math.PI / 2;
@@ -149,38 +150,52 @@ export function buildSkyPlatform(scene, topY) {
   ring3.rotation.x = Math.PI / 2.3;
   group.add(ring3);
 
+  // Panneau ESGI BOT haute définition & contraste renforcé
   const signCvs = document.createElement('canvas');
-  signCvs.width = 1024;
-  signCvs.height = 320;
+  signCvs.width = 1280;
+  signCvs.height = 384;
   const ctx = signCvs.getContext('2d');
 
-  ctx.fillStyle = 'rgba(3, 8, 18, 0.72)';
+  ctx.fillStyle = 'rgba(2, 7, 18, 0.88)';
   ctx.beginPath();
-  ctx.roundRect(110, 24, 804, 260, 18);
+  ctx.roundRect(70, 24, 1140, 336, 22);
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(0, 243, 255, 0.45)';
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#00f3ff';
+  ctx.lineWidth = 4;
   ctx.stroke();
 
-  ctx.font = '900 132px "Segoe UI", sans-serif';
+  // Coins techniques
+  ctx.strokeStyle = '#ff007f';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(96, 84);
+  ctx.lineTo(96, 48);
+  ctx.lineTo(148, 48);
+  ctx.moveTo(1184, 300);
+  ctx.lineTo(1184, 336);
+  ctx.lineTo(1132, 336);
+  ctx.stroke();
+
+  ctx.font = '900 168px "Segoe UI", sans-serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = '#00f3ff';
-  ctx.shadowBlur = 14;
-  ctx.fillText('ESGI BOT', 512, 162);
+  ctx.fillText('ESGI BOT', 640, 206);
 
-  ctx.font = '700 28px monospace';
-  ctx.fillStyle = '#38bdf8';
-  ctx.shadowBlur = 0;
-  ctx.fillText('MEGASTRUCTURE // REIMS CYBERNETICS', 512, 232);
+  ctx.fillStyle = '#00f3ff';
+  ctx.fillRect(360, 234, 560, 4);
+
+  ctx.font = '700 32px monospace';
+  ctx.fillStyle = '#7dd3fc';
+  ctx.fillText('MEGASTRUCTURE // REIMS CYBERNETICS', 640, 294);
 
   const signTex = new THREE.CanvasTexture(signCvs);
   signTex.colorSpace = THREE.SRGBColorSpace;
   const signMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(14.5, 4.5),
+    new THREE.PlaneGeometry(15.6, 4.68),
     new THREE.MeshBasicMaterial({ map: signTex, transparent: true, side: THREE.DoubleSide })
   );
+  // Situé à baseY + 3.5 = 141.0m (strictement au niveau des yeux de la caméra)
   signMesh.position.y = 3.5;
   group.add(signMesh);
 
@@ -210,7 +225,7 @@ export function buildSkyPlatform(scene, topY) {
   }
 
   function update(elapsed) {
-    group.position.y = baseY + Math.sin(elapsed * 2) * 0.35;
+    group.position.y = baseY + Math.sin(elapsed * 1.8) * 0.16;
     ring1.rotation.z = elapsed * 0.45;
     ring2.rotation.z = -elapsed * 0.7;
     ring3.rotation.y = elapsed * 0.35;
