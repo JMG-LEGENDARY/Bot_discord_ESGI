@@ -616,6 +616,7 @@ export function createCompanion(scene, camera, glows) {
   }
 
   const screenPos = new THREE.Vector3();
+  const bubbleEdge = new THREE.Vector3();
   function placeBubble() {
     if (!bubble || !bubbleVisible) return;
     screenPos.copy(pos).project(camera);
@@ -630,15 +631,23 @@ export function createCompanion(scene, camera, glows) {
     const sy = (1 - screenPos.y) * 0.5 * h;
     const bw = bubble.offsetWidth;
     const bh = bubble.offsetHeight;
-    // La bulle se place au-dessus du vaisseau, la pointe dirigée vers lui
-    let left = sx - bw * 0.75;
-    let top = sy - bh - 34;
+    // Rayon de NOVA à l'écran (pour coller la bulle juste à côté de lui)
+    bubbleEdge.set(1, 0, 0).applyQuaternion(camera.quaternion).multiplyScalar(0.36 * ship.scale.x).add(pos).project(camera);
+    const r = Math.max(Math.abs((bubbleEdge.x + 1) * 0.5 * w - sx), 14);
+    // La bulle se met à CÔTÉ de NOVA, à hauteur de sa bouche (jamais au-dessus
+    // de sa tête : on voit la couronne et ses expressions), la pointe vers lui.
+    // À gauche de préférence, à droite s'il n'y a pas la place.
+    const side = sx - r - 18 - bw >= 12 ? 'left' : 'right';
+    let left = side === 'left' ? sx - r - 18 - bw : sx + r + 18;
+    const mouthY = sy + r * 0.2;
+    let top = mouthY - bh * 0.5;
     left = Math.min(Math.max(left, 12), w - bw - 12);
     top = Math.min(Math.max(top, 64), h - bh - 12);
+    bubble.dataset.side = side;
     bubble.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
-    // La pointe de la bulle suit le vaisseau horizontalement
-    const tail = Math.min(Math.max(sx - left, 18), bw - 18);
-    bubble.style.setProperty('--tail-x', `${Math.round(tail)}px`);
+    // La pointe suit NOVA verticalement
+    const tail = Math.min(Math.max(mouthY - top, 18), bh - 18);
+    bubble.style.setProperty('--tail-y', `${Math.round(tail)}px`);
   }
 
   // ---------------------------------------------------------------------

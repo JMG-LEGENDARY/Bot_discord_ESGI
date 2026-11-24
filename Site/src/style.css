@@ -939,7 +939,7 @@ body.in-underground #panel-prompt {
    BULLE DE BD DE NOVA
    ========================================================================== */
 #companion-bubble {
-  --tail-x: 40px;
+  --tail-y: 30px;
   position: fixed;
   top: 0;
   left: 0;
@@ -976,18 +976,37 @@ body.in-underground #panel-prompt {
   border-color: transparent;
 }
 
+/* La bulle est à côté de NOVA : la pointe sort sur le côté, vers lui.
+   data-side="left" : bulle à gauche de NOVA, pointe sur son bord droit. */
 #companion-bubble::before {
-  bottom: -19px;
-  left: calc(var(--tail-x) - 11px);
-  border-width: 18px 11px 0 11px;
-  border-top-color: #141827;
+  top: calc(var(--tail-y, 30px) - 11px);
+  right: -19px;
+  border-width: 11px 0 11px 18px;
+  border-left-color: #141827;
 }
 
 #companion-bubble::after {
-  bottom: -12px;
-  left: calc(var(--tail-x) - 7px);
-  border-width: 12px 7px 0 7px;
-  border-top-color: #ffffff;
+  top: calc(var(--tail-y, 30px) - 7px);
+  right: -12px;
+  border-width: 7px 0 7px 12px;
+  border-left-color: #ffffff;
+}
+
+/* data-side="right" : bulle à droite de NOVA, pointe sur son bord gauche */
+#companion-bubble[data-side='right']::before {
+  right: auto;
+  left: -19px;
+  border-width: 11px 18px 11px 0;
+  border-left-color: transparent;
+  border-right-color: #141827;
+}
+
+#companion-bubble[data-side='right']::after {
+  right: auto;
+  left: -12px;
+  border-width: 7px 12px 7px 0;
+  border-left-color: transparent;
+  border-right-color: #ffffff;
 }
 
 .companion-name {
