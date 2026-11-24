@@ -146,7 +146,7 @@ class SqlCog(commands.Cog):
             temps_2 TEXT,
             channel_id INTEGER,
             is_personal BOOLEAN DEFAULT 0,
-            FOREIGN KEY (guild_id, user_id) REFERENCES membres(classe_id, user_id) ON DELETE CASCADE
+            FOREIGN KEY (user_id) REFERENCES membres(user_id) ON DELETE CASCADE
         )""")
 
         # 4. Config Bot Tokens & Liens par Guild
@@ -267,7 +267,7 @@ class SqlCog(commands.Cog):
         settings = self.get_settings(guild_id)
 
         conn = self.connexion()
-        membres_rows = conn.execute("SELECT * FROM membres WHERE classe_id = ?", (guild_id,)).fetchall()
+        membres_rows = conn.execute("SELECT * FROM membres WHERE classe_name = ?", (guild_id,)).fetchall()
 
         membres = []
         for m in membres_rows:
@@ -372,7 +372,7 @@ class SqlCog(commands.Cog):
     def inscrire_membre(self, classe_id, user_id):
         conn = self.connexion()
         curseur = conn.execute(
-            "INSERT OR IGNORE INTO membres (classe_id, user_id) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO membres (classe_name, user_id) VALUES (?, ?)",
             (classe_id, user_id)
         )
         conn.commit()
@@ -382,7 +382,7 @@ class SqlCog(commands.Cog):
     def get_membre(self, classe_id, user_id):
         conn = self.connexion()
         ligne = conn.execute(
-            "SELECT * FROM membres WHERE classe_id = ? AND user_id = ?",
+            "SELECT * FROM membres WHERE classe_name = ? AND user_id = ?",
             (classe_id, user_id)
         ).fetchone()
         conn.close()
@@ -392,7 +392,7 @@ class SqlCog(commands.Cog):
         conn = self.connexion()
         ligne = conn.execute(
             "SELECT rang FROM membres WHERE user_id = ?",
-            (user_id)
+            (user_id,)
         ).fetchone()
         conn.close()
         if ligne is None:
@@ -404,8 +404,9 @@ class SqlCog(commands.Cog):
             raise ValueError(f"Rang inconnu : {rang} (autorisés : {RANGS})")
         conn = self.connexion()
         curseur = conn.execute(
-            "UPDATE membres SET rang = ? AND user_id = ?",
-            (rang, user_id)
+            """INSERT INTO membres (classe_name, user_id, rang) VALUES ('', ?, ?)
+               ON CONFLICT(user_id) DO UPDATE SET rang = excluded.rang""",
+            (user_id, rang)
         )
         conn.commit()
         conn.close()
@@ -417,8 +418,8 @@ class SqlCog(commands.Cog):
             raise ValueError(f"Classe inconnue : {classe} (autorisées : {CLASSES})")
         conn = self.connexion()
         curseur = conn.execute(
-            "UPDATE membres SET classe = ? WHERE classe_id = ? AND user_id = ?",
-            (classe, classe_id, user_id)
+            "UPDATE membres SET classe_name = ? WHERE user_id = ?",
+            (classe, user_id)
         )
         conn.commit()
         conn.close()
@@ -427,11 +428,11 @@ class SqlCog(commands.Cog):
     def retirer_membre(self, classe_id, user_id):
         conn = self.connexion()
         conn.execute(
-            "DELETE FROM competences WHERE classe_id = ? AND user_id = ?",
+            "DELETE FROM competences WHERE guild_id = ? AND user_id = ?",
             (classe_id, user_id)
         )
         curseur = conn.execute(
-            "DELETE FROM membres WHERE classe_id = ? AND user_id = ?",
+            "DELETE FROM membres WHERE classe_name = ? AND user_id = ?",
             (classe_id, user_id)
         )
         conn.commit()
@@ -518,7 +519,7 @@ class SqlCog(commands.Cog):
     def ajouter_competence(self, classe_id, user_id, competence):
         conn = self.connexion()
         curseur = conn.execute(
-            "INSERT OR IGNORE INTO competences (classe_id, user_id, competence) VALUES (?, ?, ?)",
+            "INSERT OR IGNORE INTO competences (guild_id, user_id, competence) VALUES (?, ?, ?)",
             (classe_id, user_id, competence.strip().lower())
         )
         conn.commit()
@@ -528,7 +529,7 @@ class SqlCog(commands.Cog):
     def retirer_competence(self, classe_id, user_id, competence):
         conn = self.connexion()
         curseur = conn.execute(
-            "DELETE FROM competences WHERE classe_id = ? AND user_id = ? AND competence = ?",
+            "DELETE FROM competences WHERE guild_id = ? AND user_id = ? AND competence = ?",
             (classe_id, user_id, competence.strip().lower())
         )
         conn.commit()
@@ -538,7 +539,7 @@ class SqlCog(commands.Cog):
     def get_competences(self, classe_id, user_id):
         conn = self.connexion()
         lignes = conn.execute(
-            "SELECT competence FROM competences WHERE classe_id = ? AND user_id = ? ORDER BY competence",
+            "SELECT competence FROM competences WHERE guild_id = ? AND user_id = ? ORDER BY competence",
             (classe_id, user_id)
         ).fetchall()
         conn.close()
@@ -547,7 +548,7 @@ class SqlCog(commands.Cog):
     def chercher_competence(self, classe_id, competence):
         conn = self.connexion()
         lignes = conn.execute(
-            "SELECT user_id FROM competences WHERE classe_id = ? AND competence = ?",
+            "SELECT user_id FROM competences WHERE guild_id = ? AND competence = ?",
             (classe_id, competence.strip().lower())
         ).fetchall()
         conn.close()
@@ -555,11 +556,13 @@ class SqlCog(commands.Cog):
 
     def supprimer_serveur(self, classe_id):
         conn = self.connexion()
-        for table in (
-            "valeurs", "salons", "roles", "competences", "membres", "projets",
-            "config_salons", "config_roles", "member_notifications", "config_bot", "bot_constantes_variables"
+        for table, colonne in (
+            ("salons", "classe_id"), ("projets", "classe_id"), ("competences", "guild_id"),
+            ("devoirs", "guild_id"), ("evaluations", "guild_id"), ("member_notifications", "guild_id"),
+            ("config_salons", "guild_id"), ("config_roles", "guild_id"), ("config_bot", "guild_id"),
+            ("bot_constantes_variables", "guild_id")
         ):
-            conn.execute(f"DELETE FROM {table} WHERE classe_id = ? OR guild_id = ?", (classe_id, classe_id))
+            conn.execute(f"DELETE FROM {table} WHERE {colonne} = ?", (classe_id,))
         conn.commit()
         conn.close()
 
