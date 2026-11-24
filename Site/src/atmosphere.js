@@ -89,7 +89,7 @@ function createPlanetTexture() {
 export function createAtmosphere(scene, mainTowerHeight) {
   const atmoGroup = new THREE.Group();
 
-  // 1. SHADER DU CIEL & DE L'ESPACE PROFOND (SANS POW SUR VALEURS NÉGATIVES)
+  // 1. SHADER DU CIEL & DE L'ESPACE PROFOND (VOIE LACTÉE FBM + LIMBE HORIZON)
   const skyUniforms = {
     uTopColor: { value: new THREE.Color(0x0284c7) },
     uMidColor: { value: new THREE.Color(0x38bdf8) },
@@ -100,7 +100,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
     uTime: { value: 0.0 }
   };
 
-  const skyGeo = new THREE.SphereGeometry(1450, 64, 48);
+  const skyGeo = new THREE.SphereGeometry(1480, 64, 48);
   const skyMat = new THREE.ShaderMaterial({
     uniforms: skyUniforms,
     side: THREE.BackSide,
@@ -171,8 +171,9 @@ export function createAtmosphere(scene, mainTowerHeight) {
         col += vec3(1.0, 0.98, 0.92) * pow(sunAmt, 180.0) * 0.65 * uSunIntensity;
 
         if (uSpaceFactor > 0.02) {
-          float limb = exp(-abs(h + 0.02) * 14.0) * smoothstep(-0.25, 0.15, h);
-          col += vec3(0.06, 0.34, 0.68) * limb * uSpaceFactor * 0.65;
+          // Limbe lumineux bleu-violet à l'horizon vu depuis le sommet
+          float limb = exp(-abs(h + 0.015) * 15.0) * smoothstep(-0.22, 0.16, h);
+          col += vec3(0.08, 0.36, 0.72) * limb * uSpaceFactor * 0.75;
 
           if (h > -0.15) {
             vec3 galCoord = vec3(
@@ -226,11 +227,98 @@ export function createAtmosphere(scene, mainTowerHeight) {
   sunLight.position.set(110, 230, 120);
   scene.add(sunLight);
 
-  const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.45);
-  rimLight.position.set(-80, 70, -70);
+  const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.5);
+  rimLight.position.set(-80, 90, -70);
   scene.add(rimLight);
 
-  // 3. NUAGES « BARBE À PAPA » (ANTI-NAN STRICT SUR LE FRESNEL)
+  // 3. MER DE NUAGES CONTINUE JUSQU'À L'HORIZON (SHADER FBM VELOUTÉ)
+  const cloudBandY = mainTowerHeight * 0.52; // ~67.6m
+  const cloudSeaUniforms = {
+    uTime: { value: 0.0 },
+    uOpacity: { value: 0.86 }
+  };
+
+  const cloudSeaGeo = new THREE.RingGeometry(34, 1440, 96, 1);
+  cloudSeaGeo.rotateX(-Math.PI / 2);
+
+  const cloudSeaMat = new THREE.ShaderMaterial({
+    uniforms: cloudSeaUniforms,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    vertexShader: `
+      varying vec3 vWorldPos;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform float uOpacity;
+      varying vec3 vWorldPos;
+
+      float hash21(vec2 p) {
+        p = fract(p * vec2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
+      }
+
+      float noise2D(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        float a = hash21(i);
+        float b = hash21(i + vec2(1.0, 0.0));
+        float c = hash21(i + vec2(0.0, 1.0));
+        float d = hash21(i + vec2(1.0, 1.0));
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      }
+
+      float fbm2D(vec2 p) {
+        float v = 0.0;
+        float a = 0.5;
+        for (int i = 0; i < 4; i++) {
+          v += a * noise2D(p);
+          p = p * 2.05 + vec2(7.3, 11.1);
+          a *= 0.5;
+        }
+        return v;
+      }
+
+      void main() {
+        float r = length(vWorldPos.xz);
+        // Transparent près de la tour centrale pour voir la ville en contrebas, dense vers l'horizon
+        float innerMask = smoothstep(34.0, 210.0, r);
+        float outerFade = 1.0 - smoothstep(1150.0, 1435.0, r);
+
+        vec2 uv = vWorldPos.xz * 0.0085 + vec2(uTime * 0.006, -uTime * 0.004);
+        float n1 = fbm2D(uv);
+        float n2 = fbm2D(uv * 2.3 - vec2(uTime * 0.008, 0.0));
+        float billow = smoothstep(0.28, 0.78, n1 * 0.65 + n2 * 0.35);
+
+        vec3 shadowBlue = vec3(0.54, 0.68, 0.90);
+        vec3 cottonPink = vec3(0.94, 0.79, 0.89);
+        vec3 creamTop   = vec3(0.92, 0.94, 0.98);
+
+        vec3 col = mix(shadowBlue, cottonPink, smoothstep(0.2, 0.65, n2));
+        col = mix(col, creamTop, billow);
+
+        // Densité progressive : trouées nuageuses proches, mer coton continue au loin
+        float density = mix(billow * 0.55, 0.45 + billow * 0.55, innerMask);
+        float alpha = clamp(density * innerMask * outerFade * uOpacity, 0.0, 1.0);
+
+        gl_FragColor = vec4(max(col, vec3(0.0)), alpha);
+      }
+    `
+  });
+
+  const cloudSeaMesh = new THREE.Mesh(cloudSeaGeo, cloudSeaMat);
+  cloudSeaMesh.position.y = cloudBandY - 1.5;
+  atmoGroup.add(cloudSeaMesh);
+
+  // 4. 540 NUAGES « BARBE À PAPA » 3D INSTANCIÉS JUSQU'À L'HORIZON (3 DRAW CALLS)
   const cottonCloudTemplates = [
     buildCottonCandyCloudGeometry([
       { x: 0, y: 0.4, z: 0, rx: 7.5, ry: 6.2, rz: 7.2 },
@@ -258,7 +346,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
 
   const cottonCloudUniforms = {
     uSunDir: { value: new THREE.Vector3(0.45, 0.78, 0.42).normalize() },
-    uOpacity: { value: 0.82 }
+    uOpacity: { value: 0.85 }
   };
 
   const cottonCloudMat = new THREE.ShaderMaterial({
@@ -269,10 +357,26 @@ export function createAtmosphere(scene, mainTowerHeight) {
       varying vec3 vNormalWorld;
       varying vec3 vViewDir;
       varying vec3 vLocalPos;
+      varying vec3 vTint;
+
       void main() {
         vLocalPos = position;
-        vec4 worldPos = modelMatrix * vec4(position, 1.0);
-        vNormalWorld = normalize(mat3(modelMatrix) * normal);
+        vec4 localPosition = vec4(position, 1.0);
+        vec3 localNormal = normal;
+
+        #ifdef USE_INSTANCING
+          localPosition = instanceMatrix * localPosition;
+          localNormal = mat3(instanceMatrix) * localNormal;
+        #endif
+
+        #ifdef USE_INSTANCING_COLOR
+          vTint = instanceColor;
+        #else
+          vTint = vec3(1.0);
+        #endif
+
+        vec4 worldPos = modelMatrix * localPosition;
+        vNormalWorld = normalize(mat3(modelMatrix) * localNormal);
         vViewDir = normalize(cameraPosition - worldPos.xyz);
         gl_Position = projectionMatrix * viewMatrix * worldPos;
       }
@@ -283,6 +387,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
       varying vec3 vNormalWorld;
       varying vec3 vViewDir;
       varying vec3 vLocalPos;
+      varying vec3 vTint;
 
       void main() {
         vec3 N = normalize(vNormalWorld);
@@ -293,13 +398,13 @@ export function createAtmosphere(scene, mainTowerHeight) {
         float shade = clamp(wrapLight * 0.6 + heightGrad * 0.4, 0.0, 1.0);
 
         vec3 bellyColor = vec3(0.60, 0.73, 0.92);
-        vec3 cottonPink = vec3(0.95, 0.80, 0.89);
-        vec3 creamTop   = vec3(0.93, 0.94, 0.97);
+        vec3 cottonPink = vec3(0.96, 0.80, 0.90);
+        vec3 creamTop   = vec3(0.94, 0.95, 0.98);
 
         vec3 col = mix(bellyColor, cottonPink, smoothstep(0.15, 0.62, shade));
         col = mix(col, creamTop, smoothstep(0.55, 0.95, shade));
+        col *= vTint;
 
-        // Clamp strict dans [0.0, 1.0] pour éviter toute valeur négative dans pow() -> NaN bloom
         float ndotv = clamp(abs(dot(N, V)), 0.0, 1.0);
         float rimBase = max(1.0 - ndotv, 0.0);
         float rimGlow = pow(rimBase, 1.8);
@@ -311,36 +416,69 @@ export function createAtmosphere(scene, mainTowerHeight) {
     `
   });
 
-  const clouds = [];
-  // Altitude abaissée (~69m) : effleure juste le bas de l'écran depuis le sommet horizontal
-  const cloudBandY = mainTowerHeight * 0.53;
+  const cloudsPerTemplate = 180; // 3 * 180 = 540 nuages 3D jusqu'à 1380m
+  const instancedCloudMeshes = [];
+  const cloudInstancesData = [];
+  const dummy = new THREE.Object3D();
+  const pastelPalette = [
+    new THREE.Color(1.0, 1.0, 1.0),
+    new THREE.Color(1.0, 0.95, 0.98),
+    new THREE.Color(0.96, 0.97, 1.0),
+    new THREE.Color(1.0, 0.97, 0.94)
+  ];
 
-  for (let i = 0; i < 130; i++) {
-    const templateIdx = i % cottonCloudTemplates.length;
-    const mesh = new THREE.Mesh(cottonCloudTemplates[templateIdx], cottonCloudMat);
+  cottonCloudTemplates.forEach((geo, tIdx) => {
+    const instMesh = new THREE.InstancedMesh(geo, cottonCloudMat, cloudsPerTemplate);
+    instMesh.frustumCulled = false;
 
-    const angle = (i / 130) * Math.PI * 2 + (Math.random() - 0.5) * 0.24;
-    const dist = 42 + Math.pow(Math.random(), 0.82) * 500;
-    const cy = cloudBandY + (Math.random() - 0.5) * 9;
+    for (let i = 0; i < cloudsPerTemplate; i++) {
+      const globalIdx = tIdx * cloudsPerTemplate + i;
+      const total = cloudsPerTemplate * cottonCloudTemplates.length;
 
-    const scale = (0.95 + Math.random() * 1.3) * (1 + dist / 540);
-    mesh.position.set(Math.cos(angle) * dist, cy, Math.sin(angle) * dist);
-    mesh.rotation.y = Math.random() * Math.PI * 2;
-    mesh.scale.set(scale, scale * (0.9 + Math.random() * 0.2), scale);
+      // Répartition homogène de 40m jusqu'à l'horizon 1370m
+      const ratio = (globalIdx + Math.random()) / total;
+      const dist = 40 + Math.pow(ratio, 0.62) * 1330;
+      const angle = globalIdx * 2.399963 + (Math.random() - 0.5) * 0.35; // Angle d'or
 
-    atmoGroup.add(mesh);
-    clouds.push({
-      mesh,
-      angle,
-      dist,
-      baseY: cy,
-      bobPhase: Math.random() * Math.PI * 2,
-      rotSpeed: (Math.random() - 0.5) * 0.015,
-      orbitSpeed: (0.0025 + Math.random() * 0.005) * (i % 2 === 0 ? 1 : -1)
-    });
-  }
+      // Certains cumulus éloignés montent un peu plus haut pour donner du relief à l'horizon
+      const horizonBoost = THREE.MathUtils.smoothstep(dist, 300, 1200) * (Math.random() * 11);
+      const cy = cloudBandY + (Math.random() - 0.45) * 9 + horizonBoost;
 
-  // 4. CHAMP D'ÉTOILES
+      const scale = (1.05 + Math.random() * 1.45) * (1 + dist / 460);
+      const rotY = Math.random() * Math.PI * 2;
+      const sy = scale * (0.88 + Math.random() * 0.24);
+
+      dummy.position.set(Math.cos(angle) * dist, cy, Math.sin(angle) * dist);
+      dummy.rotation.set(0, rotY, 0);
+      dummy.scale.set(scale, sy, scale);
+      dummy.updateMatrix();
+      instMesh.setMatrixAt(i, dummy.matrix);
+
+      instMesh.setColorAt(i, pastelPalette[globalIdx % pastelPalette.length]);
+
+      cloudInstancesData.push({
+        instMesh,
+        index: i,
+        angle,
+        dist,
+        baseY: cy,
+        rotY,
+        sx: scale,
+        sy,
+        sz: scale,
+        bobPhase: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.012,
+        orbitSpeed: (0.0018 + Math.random() * 0.0032) * (globalIdx % 2 === 0 ? 1 : -1)
+      });
+    }
+
+    instMesh.instanceMatrix.needsUpdate = true;
+    if (instMesh.instanceColor) instMesh.instanceColor.needsUpdate = true;
+    atmoGroup.add(instMesh);
+    instancedCloudMeshes.push(instMesh);
+  });
+
+  // 5. CHAMP D'ÉTOILES
   function buildStarLayer(count, minR, maxR, size, baseOpacity) {
     const pos = new Float32Array(count * 3);
     const cols = new Float32Array(count * 3);
@@ -389,8 +527,8 @@ export function createAtmosphere(scene, mainTowerHeight) {
     return { points, mat, baseOpacity };
   }
 
-  const fineStars = buildStarLayer(14500, 820, 1250, 1.5, 0.9);
-  const brightStars = buildStarLayer(3500, 740, 1100, 3.1, 1.0);
+  const fineStars = buildStarLayer(14500, 820, 1280, 1.5, 0.9);
+  const brightStars = buildStarLayer(3500, 740, 1140, 3.1, 1.0);
 
   const shootingStars = [];
   for (let s = 0; s < 5; s++) {
@@ -406,9 +544,9 @@ export function createAtmosphere(scene, mainTowerHeight) {
     });
   }
 
-  // 5. PLANÈTE AUX ANNEAUX DANS L'ESPACE
+  // 6. PLANÈTE AUX ANNEAUX DANS L'ESPACE
   const planetGroup = new THREE.Group();
-  planetGroup.position.set(290, 320, -540);
+  planetGroup.position.set(320, 340, -620);
 
   const planetMat = new THREE.MeshStandardMaterial({
     map: createPlanetTexture(),
@@ -417,7 +555,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
     transparent: true,
     opacity: 0
   });
-  const planetMesh = new THREE.Mesh(new THREE.SphereGeometry(48, 36, 36), planetMat);
+  const planetMesh = new THREE.Mesh(new THREE.SphereGeometry(54, 36, 36), planetMat);
   planetGroup.add(planetMesh);
 
   const planetRingMat = new THREE.MeshBasicMaterial({
@@ -426,7 +564,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
     opacity: 0,
     side: THREE.DoubleSide
   });
-  const planetRing = new THREE.Mesh(new THREE.RingGeometry(62, 92, 64), planetRingMat);
+  const planetRing = new THREE.Mesh(new THREE.RingGeometry(68, 102, 64), planetRingMat);
   planetRing.rotation.x = Math.PI / 2.6;
   planetRing.rotation.y = 0.35;
   planetGroup.add(planetRing);
@@ -460,7 +598,8 @@ export function createAtmosphere(scene, mainTowerHeight) {
 
     if (scene.fog) {
       scene.fog.color.copy(skyUniforms.uHorizonColor.value).lerp(cavernFog, undergroundMode);
-      scene.fog.density = THREE.MathUtils.lerp(0.0012, 0.0018, spaceFactor);
+      // Brouillard léger pour laisser voir les méga-tours et nuages jusqu'à 1300m
+      scene.fog.density = THREE.MathUtils.lerp(0.00055, 0.00072, spaceFactor);
     }
 
     hemiLight.color.copy(dayHemiSky).lerp(spaceHemiSky, spaceFactor);
@@ -496,14 +635,31 @@ export function createAtmosphere(scene, mainTowerHeight) {
       }
     });
 
-    cottonCloudUniforms.uOpacity.value = 0.82 * (1 - undergroundMode);
-    clouds.forEach((c) => {
-      const a = c.angle + elapsed * c.orbitSpeed;
-      c.mesh.position.x = Math.cos(a) * c.dist;
-      c.mesh.position.z = Math.sin(a) * c.dist;
-      c.mesh.position.y = c.baseY + Math.sin(elapsed * 0.5 + c.bobPhase) * 0.4;
-      c.mesh.rotation.y += c.rotSpeed * delta;
-    });
+    const visFactor = 1 - undergroundMode;
+    cloudSeaUniforms.uTime.value = elapsed;
+    cloudSeaUniforms.uOpacity.value = 0.86 * visFactor;
+    cottonCloudUniforms.uOpacity.value = 0.85 * visFactor;
+
+    if (visFactor > 0.01) {
+      for (let i = 0; i < cloudInstancesData.length; i++) {
+        const c = cloudInstancesData[i];
+        const a = c.angle + elapsed * c.orbitSpeed;
+        c.rotY += c.rotSpeed * delta;
+
+        dummy.position.set(
+          Math.cos(a) * c.dist,
+          c.baseY + Math.sin(elapsed * 0.5 + c.bobPhase) * 0.45,
+          Math.sin(a) * c.dist
+        );
+        dummy.rotation.set(0, c.rotY, 0);
+        dummy.scale.set(c.sx, c.sy, c.sz);
+        dummy.updateMatrix();
+        c.instMesh.setMatrixAt(c.index, dummy.matrix);
+      }
+      instancedCloudMeshes.forEach((m) => {
+        m.instanceMatrix.needsUpdate = true;
+      });
+    }
   }
 
   return { update };
