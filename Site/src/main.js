@@ -42,7 +42,7 @@ composer.addPass(new RenderPass(scene, camera));
 
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.32,
+  0.3,
   0.25,
   1.28
 );
@@ -116,12 +116,14 @@ loader.load('/skyscraper.glb', (gltf) => {
 
   scene.add(tower);
 
-  const panelsData = [
+  // Dossiers des 4 panneaux de la tour
+  const towerDossiers = [
     {
       y: 104,
       angle: Math.PI * 0.5,
       color: '#00f3ff',
       tag: 'SYS.01 // FEATURES',
+      tabLabel: '01 // FEATURES',
       title: 'Fonctionnalités Clés',
       zoneName: 'NIVEAU 01 — FONCTIONNALITÉS',
       lines: [
@@ -150,16 +152,16 @@ loader.load('/skyscraper.glb', (gltf) => {
           },
           {
             title: 'Attribution Dynamique des Rôles & Classes',
-            desc: 'Fini la configuration manuelle des permissions à chaque rentrée : un panneau interactif paginé permet aux étudiants de rejoindre leur campus, année et spécialisation.',
+            desc: 'Un panneau interactif paginé permet aux étudiants de rejoindre leur campus, année et spécialisation en un clic.',
             bullets: [
-              'Menus déroulants paginés supportant un grand nombre de filières (AL, SRC, SI, IABD...)',
+              'Menus déroulants paginés supportant toutes les filières (AL, SRC, SI, IABD...)',
               'Synchronisation immédiate des salons textuels et vocaux privés',
               'Protection anti-doublon et mise à jour instantanée lors d’un changement de groupe'
             ]
           },
           {
             title: 'Boutique Virtuelle & Économie Étudiante',
-            desc: 'Les membres accumulent des crédits au fil de leur activité sur le serveur pour débloquer des récompenses cosmétiques, rôles spéciaux ou bonus communautaires.',
+            desc: 'Les membres accumulent des crédits au fil de leur activité sur le serveur pour débloquer des récompenses cosmétiques ou bonus communautaires.',
             bullets: [
               'Solde persistant stocké en base relationnelle avec historique des transactions',
               'Catalogue configurable par serveur avec stock limité ou objets permanents',
@@ -174,6 +176,7 @@ loader.load('/skyscraper.glb', (gltf) => {
       angle: Math.PI * 1.0,
       color: '#ff007f',
       tag: 'SYS.02 // INTERFACE',
+      tabLabel: '02 // INTERFACE',
       title: 'Expérience Étudiante',
       zoneName: 'NIVEAU 02 — EXPÉRIENCE',
       lines: [
@@ -192,7 +195,7 @@ loader.load('/skyscraper.glb', (gltf) => {
         sections: [
           {
             title: 'Modales Interactives & Formulaires Natifs',
-            desc: 'Plutôt que de taper des commandes longues avec une syntaxe complexe, l’utilisateur remplit une fenêtre modale claire directement dans l’interface Discord.',
+            desc: 'Plutôt que de taper des commandes longues avec une syntaxe complexe, l’utilisateur remplit une fenêtre modale claire directement dans Discord.',
             bullets: [
               'Validation côté bot des formats de dates et des champs obligatoires',
               'Messages d’erreur pédagogiques en éphémère sans polluer le salon',
@@ -204,8 +207,8 @@ loader.load('/skyscraper.glb', (gltf) => {
             desc: 'Les listes longues (devoirs à venir, catalogue boutique, annuaire des rôles) sont découpées en pages fluides contrôlées par boutons.',
             bullets: [
               'Navigation Précédent / Suivant avec compteur de page dynamique',
-              'Verrouillage par utilisateur pour éviter que deux étudiants n’interfèrent sur la même vue',
-              'Expiration propre des composants après inactivité pour économiser la RAM'
+              'Verrouillage par utilisateur pour éviter toute interférence entre membres',
+              'Expiration propre des composants après inactivité'
             ]
           },
           {
@@ -213,8 +216,8 @@ loader.load('/skyscraper.glb', (gltf) => {
             desc: 'Chaque annonce adopte un code couleur cohérent selon son niveau d’urgence (information, devoir standard, partiel critique).',
             bullets: [
               'Mentions chirurgicales uniquement sur les rôles abonnés',
-              'Horodatage dynamique Discord (<t:timestamp:R>) adapté au fuseau horaire de chacun',
-              'Mode silencieux configurable pendant les périodes de vacances'
+              'Horodatage dynamique Discord (<t:timestamp:R>) adapté au fuseau horaire',
+              'Mode silencieux configurable pendant les vacances'
             ]
           }
         ]
@@ -225,6 +228,7 @@ loader.load('/skyscraper.glb', (gltf) => {
       angle: Math.PI * 1.5,
       color: '#00f3ff',
       tag: 'SYS.03 // ARCHITECTURE',
+      tabLabel: '03 // ARCHITECTURE',
       title: 'Architecture & Code',
       zoneName: 'NIVEAU 03 — STACK TECHNIQUE',
       lines: [
@@ -243,7 +247,7 @@ loader.load('/skyscraper.glb', (gltf) => {
         sections: [
           {
             title: 'Cœur Python Modulaire (Cogs & Services)',
-            desc: 'La version principale repose sur une séparation stricte entre les commandes Discord (Cogs), la logique métier et la couche d’accès aux données.',
+            desc: 'Séparation stricte entre les commandes Discord (Cogs), la logique métier et la couche d’accès aux données.',
             bullets: [
               'Chargement dynamique des modules (devoirs, rôles, boutique, utilitaires)',
               'Boucles asynchrones asyncio pour la vérification périodique des échéances',
@@ -263,7 +267,7 @@ loader.load('/skyscraper.glb', (gltf) => {
           },
           {
             title: 'Hébergement Autonome 24/7 sur Raspberry Pi Zero 2 W',
-            desc: 'Le bot tourne en continu sur un nano-ordinateur dédié relié par réseau privé Tailscale, garantissant une disponibilité constante sans frais cloud.',
+            desc: 'Le bot tourne en continu sur un nano-ordinateur dédié relié par réseau privé Tailscale, garantissant une disponibilité constante.',
             bullets: [
               'Exécution en arrière-plan via service systemd avec redémarrage automatique',
               'Mode WAL (Write-Ahead Logging) sur SQLite pour préserver la carte SD',
@@ -278,6 +282,7 @@ loader.load('/skyscraper.glb', (gltf) => {
       angle: Math.PI * 2.0,
       color: '#a855f7',
       tag: 'SYS.04 // DEPLOYMENT',
+      tabLabel: '04 // OPEN-SOURCE',
       title: 'Open-Source ESGI',
       zoneName: 'NIVEAU 04 — OPEN-SOURCE',
       lines: [
@@ -287,7 +292,7 @@ loader.load('/skyscraper.glb', (gltf) => {
       ],
       detail: {
         subtitle:
-          "Un projet collaboratif développé par des étudiants en informatique de l'ESGI Reims, ouvert aux contributions, reproductible sur n'importe quel serveur Discord.",
+          "Un projet collaboratif développé par des étudiants en informatique de l'ESGI Reims, ouvert aux contributions et reproductible sur n'importe quel serveur Discord.",
         metrics: [
           { value: 'OPEN-SOURCE', label: 'Code transparent, documenté et extensible' },
           { value: 'MULTI-SERVEUR', label: 'Isolation des données par guild_id Discord' },
@@ -296,7 +301,7 @@ loader.load('/skyscraper.glb', (gltf) => {
         sections: [
           {
             title: 'Architecture Multi-Serveur Prête à l’Emploi',
-            desc: 'Chaque serveur Discord dispose de sa propre configuration isolée (salons d’annonces, rôles, catalogue boutique, fuseau horaire).',
+            desc: 'Chaque serveur Discord dispose de sa propre configuration isolée (salons d’annonces, rôles, catalogue boutique).',
             bullets: [
               'Initialisation guidée via commande /setup réservée aux administrateurs',
               'Aucune donnée partagée entre différents campus ou serveurs',
@@ -305,7 +310,7 @@ loader.load('/skyscraper.glb', (gltf) => {
           },
           {
             title: 'Déploiement & Supervision Systemd',
-            desc: 'Intégration native Linux permettant au bot de démarrer automatiquement avec la machine et de récupérer instantanément en cas de coupure réseau.',
+            desc: 'Intégration native Linux permettant au bot de démarrer automatiquement avec la machine et de récupérer instantanément en cas de coupure.',
             bullets: [
               'Unité systemd dédiée avec politique Restart=always',
               'Consultation des logs en temps réel via journalctl -u esgi-bot -f',
@@ -327,7 +332,157 @@ loader.load('/skyscraper.glb', (gltf) => {
     }
   ];
 
-  panelsData.forEach((p, idx) => {
+  // Dossiers des 5 piliers techniques souterrains
+  const undergroundDossiers = [
+    {
+      label: 'pillar-0',
+      color: '#00f3ff',
+      tag: 'PILIER 01 // CORE ENGINE',
+      tabLabel: '01 // PYTHON & RUST',
+      title: 'Cœur Python & Portage Rust',
+      detail: {
+        subtitle:
+          "Double moteur logiciel : souplesse d'évolution en Python (discord.py / disnake) et exécution native ultra-sobre en Rust (serenity + poise).",
+        metrics: [
+          { value: 'ASYNCIO / TOKIO', label: 'Concurrence événementielle non-bloquante' },
+          { value: 'ZERO PANIC', label: 'Gestion stricte des erreurs Result<T, E>' },
+          { value: 'MODULAIRE', label: 'Découpage par domaines fonctionnels' }
+        ],
+        sections: [
+          {
+            title: 'Architecture Événementielle Asynchrone',
+            desc: 'Chaque interaction Discord est traitée de manière non-bloquante afin de maintenir une réactivité immédiate même lors des pics de connexion.',
+            bullets: [
+              'Séparation nette entre la couche Gateway Discord et la logique métier',
+              'Gestion propre des cooldowns et permissions par rôle',
+              'Rechargement à chaud des extensions en environnement de développement'
+            ]
+          },
+          {
+            title: 'Optimisation Mémoire & Binaire Natif',
+            desc: 'Le portage Rust réduit drastiquement l’empreinte RAM et CPU pour une exécution fluide sur carte ARM basse consommation.',
+            bullets: [
+              'Compilation statique sans dépendances runtime lourdes',
+              'Structures de données fortement typées pour les événements Discord',
+              'Tests unitaires intégrés sur le parseur de dates et rappels'
+            ]
+          }
+        ]
+      }
+    },
+    {
+      label: 'pillar-1',
+      color: '#38bdf8',
+      tag: 'PILIER 02 // DATABASE',
+      tabLabel: '02 // SQLITE',
+      title: 'Base de Données SQLite & SQLx',
+      detail: {
+        subtitle:
+          "Stockage relationnel embarqué sans serveur externe, configuré en mode WAL pour garantir intégrité des données et lectures simultanées.",
+        metrics: [
+          { value: 'MODE WAL', label: 'Lectures concurrentes sans verrouillage' },
+          { value: 'ACID', label: 'Transactions atomiques sécurisées' },
+          { value: 'SQLX CHECK', label: 'Validation SQL dès la compilation Rust' }
+        ],
+        sections: [
+          {
+            title: 'Schéma Relationnel Multi-Serveur',
+            desc: 'Toutes les tables sont indexées par identifiant de serveur (guild_id) et de classe pour des requêtes instantanées.',
+            bullets: [
+              'Tables dédiées : guilds, classes, homeworks, users_economy, shop_items',
+              'Clés étrangères activées (PRAGMA foreign_keys = ON)',
+              'Migrations versionnées pour faire évoluer le schéma sans perte'
+            ],
+            code: `CREATE TABLE IF NOT EXISTS homeworks (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  guild_id INTEGER NOT NULL,\n  role_id INTEGER NOT NULL,\n  subject TEXT NOT NULL,\n  due_at INTEGER NOT NULL\n);`
+          }
+        ]
+      }
+    },
+    {
+      label: 'pillar-2',
+      color: '#10b981',
+      tag: 'PILIER 03 // HARDWARE SBC',
+      tabLabel: '03 // RASPBERRY PI',
+      title: 'Hébergement Raspberry Pi Zero 2 W',
+      detail: {
+        subtitle:
+          "Infrastructure auto-hébergée fonctionnant 24h/24 sur un Raspberry Pi Zero 2 W connecté via un réseau maillé sécurisé Tailscale.",
+        metrics: [
+          { value: '< 1.5 W', label: 'Consommation électrique moyenne en continu' },
+          { value: 'TAILSCALE VPN', label: 'Accès SSH chiffré sans ouvrir de port public' },
+          { value: '24/7 UPTIME', label: 'Disponibilité permanente autonome' }
+        ],
+        sections: [
+          {
+            title: 'Optimisation Système sur SBC ARM',
+            desc: 'Chaque service Linux inutile est désactivé afin de réserver la mémoire vive aux processus critiques du bot.',
+            bullets: [
+              'Journalisation en mémoire (volatile) pour limiter les écritures sur carte SD',
+              'Supervision thermique et charge CPU accessible à distance',
+              'Connexion réseau résiliente avec reconnexion automatique'
+            ]
+          }
+        ]
+      }
+    },
+    {
+      label: 'pillar-3',
+      color: '#ff007f',
+      tag: 'PILIER 04 // DISCORD UI',
+      tabLabel: '04 // MODALES UI',
+      title: 'Modales & Composants Interactifs',
+      detail: {
+        subtitle:
+          "Interface utilisateur moderne intégrée directement dans Discord via les composants V2 : Modales, Select Menus, Boutons persistants et Embeds.",
+        metrics: [
+          { value: 'MODALS', label: 'Saisie structurée multi-champs' },
+          { value: 'PAGINATION', label: 'Navigation fluide dans les catalogues' },
+          { value: 'PERSISTENT', label: 'Boutons actifs même après redémarrage' }
+        ],
+        sections: [
+          {
+            title: 'Vues Persistantes & Callbacks Sécurisés',
+            desc: 'Les panneaux de sélection de rôles restent fonctionnels indéfiniment grâce aux custom_id déterministes enregistrés au démarrage.',
+            bullets: [
+              'Filtrage par auteur d’interaction (interaction_check)',
+              'Retours visuels immédiats avec embeds dynamiques',
+              'Autocomplétion des matières et commandes slash'
+            ]
+          }
+        ]
+      }
+    },
+    {
+      label: 'pillar-4',
+      color: '#a855f7',
+      tag: 'PILIER 05 // AUTOMATION',
+      tabLabel: '05 // SYSTEMD',
+      title: 'Orchestration & Déploiement Systemd',
+      detail: {
+        subtitle:
+          "Cycle de vie entièrement automatisé sous Linux via systemd : démarrage au boot, relance en cas d'erreur et suivi centralisé des journaux.",
+        metrics: [
+          { value: 'AUTO-HEAL', label: 'Redémarrage automatique en 5 secondes' },
+          { value: 'JOURNALD', label: 'Logs horodatés centralisés' },
+          { value: 'GIT DEPLOY', label: 'Mise à jour rapide depuis le dépôt' }
+        ],
+        sections: [
+          {
+            title: 'Configuration de l’Unité Systemd',
+            desc: 'Le démon veille en permanence sur le processus du bot et garantit sa reprise après toute coupure de courant ou mise à jour système.',
+            bullets: [
+              'Dépendance réseau (After=network-online.target)',
+              'Exécution sous utilisateur non-privilégié pour la sécurité',
+              'Redémarrage propre via systemctl restart esgi-bot'
+            ],
+            code: `sudo systemctl enable --now esgi-bot.service\njournalctl -u esgi-bot.service -n 50 --no-pager`
+          }
+        ]
+      }
+    }
+  ];
+
+  towerDossiers.forEach((p, idx) => {
     const surfaceR = getFacadeRadiusAtY(tower, p.y, maxHalfWidth * 0.65);
     p.panelRadius = surfaceR + 3.0;
     p.camRadius = p.panelRadius + 14.5;
@@ -342,7 +497,8 @@ loader.load('/skyscraper.glb', (gltf) => {
     group.rotateY(Math.PI);
 
     if (group.screenMesh) {
-      group.screenMesh.userData.panelIndex = idx;
+      group.screenMesh.userData.dossierType = 'tower';
+      group.screenMesh.userData.dossierIndex = idx;
       interactivePanelScreens.push(group.screenMesh);
     }
 
@@ -351,7 +507,7 @@ loader.load('/skyscraper.glb', (gltf) => {
   });
 
   // =========================================================================
-  // GESTION DE LA PAGE PLEIN ÉCRAN NÉON & DES MENUS DÉROULANTS
+  // GESTION DE LA PAGE PLEIN ÉCRAN NÉON (TOUR + PILIERS SOUTERRAINS)
   // =========================================================================
   const panelPrompt = document.getElementById('panel-prompt');
   const promptTag = document.getElementById('prompt-tag');
@@ -363,7 +519,7 @@ loader.load('/skyscraper.glb', (gltf) => {
   const modalScrollArea = document.getElementById('modal-scroll-area');
   const modalCloseBtn = document.getElementById('modal-close-btn');
   const modalFooterClose = document.getElementById('modal-footer-close');
-  const modalTabs = document.querySelectorAll('.modal-tab');
+  const modalTabsContainer = document.getElementById('modal-tabs');
 
   const modalTag = document.getElementById('modal-tag');
   const modalTitle = document.getElementById('modal-title');
@@ -371,23 +527,37 @@ loader.load('/skyscraper.glb', (gltf) => {
   const modalMetrics = document.getElementById('modal-metrics');
   const modalAccordions = document.getElementById('modal-accordions');
 
-  let activePanelIndex = null;
+  let activeDossier = null; // { type: 'tower' | 'underground', index: number }
   let isModalOpen = false;
 
-  function renderModalContent(idx) {
-    const p = panelsData[idx];
-    if (!p) return;
+  function renderModalContent(type, idx) {
+    const collection = type === 'underground' ? undergroundDossiers : towerDossiers;
+    const item = collection[idx];
+    if (!item) return;
 
-    panelModal.style.setProperty('--modal-accent', p.color);
-    modalTag.textContent = p.tag;
-    modalTitle.textContent = p.title;
-    modalSubtitle.textContent = p.detail.subtitle;
+    panelModal.style.setProperty('--modal-accent', item.color);
+    modalTag.textContent = item.tag;
+    modalTitle.textContent = item.title;
+    modalSubtitle.textContent = item.detail.subtitle;
 
-    modalTabs.forEach((tab) => {
-      tab.classList.toggle('active', Number(tab.dataset.idx) === idx);
+    // Onglets dynamiques adaptés au contexte (Tour ou Souterrain)
+    modalTabsContainer.innerHTML = collection
+      .map(
+        (entry, i) => `
+        <button type="button" class="modal-tab ${i === idx ? 'active' : ''}" data-type="${type}" data-idx="${i}">
+          ${entry.tabLabel}
+        </button>
+      `
+      )
+      .join('');
+
+    modalTabsContainer.querySelectorAll('.modal-tab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        renderModalContent(tab.dataset.type, Number(tab.dataset.idx));
+      });
     });
 
-    modalMetrics.innerHTML = p.detail.metrics
+    modalMetrics.innerHTML = item.detail.metrics
       .map(
         (m) => `
         <div class="metric-card">
@@ -398,7 +568,7 @@ loader.load('/skyscraper.glb', (gltf) => {
       )
       .join('');
 
-    modalAccordions.innerHTML = p.detail.sections
+    modalAccordions.innerHTML = item.detail.sections
       .map(
         (sec, sIdx) => `
         <div class="neon-dropdown ${sIdx === 0 ? 'expanded' : ''}">
@@ -421,7 +591,6 @@ loader.load('/skyscraper.glb', (gltf) => {
       )
       .join('');
 
-    // Gestion du clic sur chaque menu déroulant
     modalAccordions.querySelectorAll('.dropdown-trigger').forEach((btn) => {
       btn.addEventListener('click', () => {
         const parent = btn.closest('.neon-dropdown');
@@ -433,9 +602,8 @@ loader.load('/skyscraper.glb', (gltf) => {
     modalScrollArea.scrollTop = 0;
   }
 
-  function openPanelModal(idx) {
-    if (idx === null || idx === undefined || !panelsData[idx]) return;
-    renderModalContent(idx);
+  function openDossierModal(type, idx) {
+    renderModalContent(type, idx);
     isModalOpen = true;
     panelModal.classList.add('open');
     panelModal.setAttribute('aria-hidden', 'false');
@@ -444,7 +612,7 @@ loader.load('/skyscraper.glb', (gltf) => {
     document.body.style.overflow = 'hidden';
   }
 
-  function closePanelModal() {
+  function closeDossierModal() {
     if (!isModalOpen) return;
     isModalOpen = false;
     panelModal.classList.remove('open');
@@ -454,26 +622,22 @@ loader.load('/skyscraper.glb', (gltf) => {
   }
 
   promptOpenBtn.addEventListener('click', () => {
-    if (activePanelIndex !== null) openPanelModal(activePanelIndex);
+    if (activeDossier) {
+      openDossierModal(activeDossier.type, activeDossier.index);
+    }
   });
 
-  modalCloseBtn.addEventListener('click', closePanelModal);
-  modalFooterClose.addEventListener('click', closePanelModal);
-  modalBackdrop.addEventListener('click', closePanelModal);
-
-  modalTabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
-      renderModalContent(Number(tab.dataset.idx));
-    });
-  });
+  modalCloseBtn.addEventListener('click', closeDossierModal);
+  modalFooterClose.addEventListener('click', closeDossierModal);
+  modalBackdrop.addEventListener('click', closeDossierModal);
 
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !isModalOpen && activePanelIndex !== null) {
+    if (e.key === 'Enter' && !isModalOpen && activeDossier) {
       e.preventDefault();
-      openPanelModal(activePanelIndex);
+      openDossierModal(activeDossier.type, activeDossier.index);
     } else if (e.key === 'Escape' && isModalOpen) {
       e.preventDefault();
-      closePanelModal();
+      closeDossierModal();
     }
   });
 
@@ -528,10 +692,10 @@ loader.load('/skyscraper.glb', (gltf) => {
 
         if (hudZone && !isUnderground) {
           if (currentY > 116) hudZone.textContent = 'CITADELLE ORBITALE';
-          else if (currentY > 90) hudZone.textContent = panelsData[0].zoneName;
-          else if (currentY > 64) hudZone.textContent = panelsData[1].zoneName;
-          else if (currentY > 36) hudZone.textContent = panelsData[2].zoneName;
-          else if (currentY > 17) hudZone.textContent = panelsData[3].zoneName;
+          else if (currentY > 90) hudZone.textContent = towerDossiers[0].zoneName;
+          else if (currentY > 64) hudZone.textContent = towerDossiers[1].zoneName;
+          else if (currentY > 36) hudZone.textContent = towerDossiers[2].zoneName;
+          else if (currentY > 17) hudZone.textContent = towerDossiers[3].zoneName;
           else hudZone.textContent = 'ECO-PARC & SKYBRIDGES';
         }
 
@@ -554,7 +718,7 @@ loader.load('/skyscraper.glb', (gltf) => {
 
   tl.addLabel('top');
 
-  panelsData.forEach((p, idx) => {
+  towerDossiers.forEach((p, idx) => {
     tl.to(camState, {
       angle: p.angle,
       radius: p.camRadius,
@@ -693,9 +857,12 @@ loader.load('/skyscraper.glb', (gltf) => {
     }, 340);
   }, { passive: true });
 
-  function navigateToLabel(labelName) {
+  function navigateToLabel(labelName, onArrival = null) {
     const st = tl.scrollTrigger;
-    if (!st || tl.labels[labelName] === undefined) return;
+    if (!st || tl.labels[labelName] === undefined) {
+      if (onArrival) onArrival();
+      return;
+    }
     cancelMagnet();
     const progress = tl.labels[labelName] / tl.duration();
     const targetScroll = st.start + progress * (st.end - st.start);
@@ -703,12 +870,16 @@ loader.load('/skyscraper.glb', (gltf) => {
     isProgrammaticScroll = true;
     magnetTween = gsap.to(scrollProxy, {
       y: targetScroll,
-      duration: 1.05,
+      duration: 1.0,
       ease: 'power2.inOut',
       onUpdate: () => window.scrollTo(0, scrollProxy.y),
       onComplete: () => {
         isProgrammaticScroll = false;
         magnetTween = null;
+        if (onArrival) onArrival();
+      },
+      onInterrupt: () => {
+        isProgrammaticScroll = false;
       }
     });
   }
@@ -718,7 +889,7 @@ loader.load('/skyscraper.glb', (gltf) => {
   });
 
   // =========================================================================
-  // RAYCASTING (PANNEAUX 3D + PILIERS SOUTERRAINS) & PARALLAXE SOURIS
+  // RAYCASTING RÉCURSIF (PANNEAUX TOUR + ÉTIQUETTES SOUTERRAINES)
   // =========================================================================
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -726,6 +897,17 @@ loader.load('/skyscraper.glb', (gltf) => {
   let pointerDownPos = { x: 0, y: 0 };
   const mouseTarget = { x: 0, y: 0 };
   const mouseCurrent = { x: 0, y: 0 };
+
+  function resolveUndergroundLabel(hitObject) {
+    let obj = hitObject;
+    while (obj) {
+      if (obj.userData && obj.userData.label) {
+        return obj.userData.label;
+      }
+      obj = obj.parent;
+    }
+    return null;
+  }
 
   window.addEventListener('pointerdown', (e) => {
     pointerDownPos = { x: e.clientX, y: e.clientY };
@@ -737,6 +919,7 @@ loader.load('/skyscraper.glb', (gltf) => {
 
     if (isModalOpen) {
       document.body.style.cursor = 'default';
+      if (tooltip) tooltip.classList.remove('visible');
       return;
     }
 
@@ -744,7 +927,7 @@ loader.load('/skyscraper.glb', (gltf) => {
     raycaster.setFromCamera(pointer, camera);
 
     if (camState.mode < 0.35) {
-      const panelHits = raycaster.intersectObjects(interactivePanelScreens, false);
+      const panelHits = raycaster.intersectObjects(interactivePanelScreens, true);
       document.body.style.cursor = panelHits.length > 0 ? 'pointer' : 'default';
       if (tooltip) tooltip.classList.remove('visible');
       return;
@@ -756,10 +939,11 @@ loader.load('/skyscraper.glb', (gltf) => {
       return;
     }
 
-    const hits = raycaster.intersectObjects(underground.interactivePillarObjects, false);
-    const hovered = hits.length > 0;
-    document.body.style.cursor = hovered ? 'pointer' : 'default';
-    if (tooltip) tooltip.classList.toggle('visible', hovered);
+    // Raycast récursif (true) pour détecter les groupes d'étiquettes 3D et piliers
+    const hits = raycaster.intersectObjects(underground.interactivePillarObjects, true);
+    const hoveredLabel = hits.length > 0 ? resolveUndergroundLabel(hits[0].object) : null;
+    document.body.style.cursor = hoveredLabel ? 'pointer' : 'default';
+    if (tooltip) tooltip.classList.toggle('visible', Boolean(hoveredLabel));
   });
 
   window.addEventListener('pointerup', (e) => {
@@ -771,20 +955,25 @@ loader.load('/skyscraper.glb', (gltf) => {
     pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
 
-    // Clic direct sur un panneau holographique 3D
+    // 1. Clic sur un panneau de la tour
     if (camState.mode < 0.35) {
-      const panelHits = raycaster.intersectObjects(interactivePanelScreens, false);
-      if (panelHits.length > 0 && panelHits[0].object.userData.panelIndex !== undefined) {
-        openPanelModal(panelHits[0].object.userData.panelIndex);
+      const panelHits = raycaster.intersectObjects(interactivePanelScreens, true);
+      if (panelHits.length > 0 && panelHits[0].object.userData.dossierIndex !== undefined) {
+        openDossierModal('tower', panelHits[0].object.userData.dossierIndex);
         return;
       }
     }
 
-    // Clic sur un pilier souterrain
+    // 2. Clic sur un pilier ou une étiquette souterraine -> cadrage + ouverture du dossier plein écran
     if (camState.mode >= 0.72) {
-      const hits = raycaster.intersectObjects(underground.interactivePillarObjects, false);
-      if (hits.length > 0 && hits[0].object.userData.label) {
-        navigateToLabel(hits[0].object.userData.label);
+      const hits = raycaster.intersectObjects(underground.interactivePillarObjects, true);
+      const clickedLabel = hits.length > 0 ? resolveUndergroundLabel(hits[0].object) : null;
+      if (clickedLabel) {
+        const uIdx = undergroundDossiers.findIndex((d) => d.label === clickedLabel);
+        if (tooltip) tooltip.classList.remove('visible');
+        navigateToLabel(clickedLabel, () => {
+          if (uIdx !== -1) openDossierModal('underground', uIdx);
+        });
       }
     }
   });
@@ -794,6 +983,7 @@ loader.load('/skyscraper.glb', (gltf) => {
   const orbitalTargetVec = new THREE.Vector3();
   const underCamVec = new THREE.Vector3();
   const underTargetVec = new THREE.Vector3();
+  const pillarWorldPos = new THREE.Vector3();
 
   function animate() {
     requestAnimationFrame(animate);
@@ -831,28 +1021,49 @@ loader.load('/skyscraper.glb', (gltf) => {
     const finalTarget = orbitalTargetVec.lerp(underTargetVec, camState.mode);
     camera.lookAt(finalTarget);
 
-    // Détection de proximité avec les panneaux holographiques pour l'invite [ ENTRÉE ]
-    let detectedIdx = null;
-    let minPanelDist = 19.5;
+    // Détection de proximité (Tour OU Piliers souterrains) pour afficher l'invite [ ENTRÉE ]
+    let nextDossier = null;
 
-    panelGroups.forEach((grp, idx) => {
-      const dist = camera.position.distanceTo(grp.position);
-      const targetScale = dist < 17.5 ? 1.04 : 1.0;
-      grp.scale.lerp(new THREE.Vector3(targetScale, targetScale, 1), 0.12);
+    if (camState.mode < 0.25) {
+      let minPanelDist = 19.5;
+      panelGroups.forEach((grp, idx) => {
+        const dist = camera.position.distanceTo(grp.position);
+        const targetScale = dist < 17.5 ? 1.04 : 1.0;
+        grp.scale.lerp(new THREE.Vector3(targetScale, targetScale, 1), 0.12);
 
-      if (camState.mode < 0.25 && dist < minPanelDist) {
-        minPanelDist = dist;
-        detectedIdx = idx;
-      }
-    });
+        if (dist < minPanelDist) {
+          minPanelDist = dist;
+          nextDossier = { type: 'tower', index: idx };
+        }
+      });
+    } else if (camState.mode > 0.85) {
+      let minPillarDist = 16.5;
+      underground.pillarsData.forEach((p, idx) => {
+        pillarWorldPos.set(p.pos.x, p.pos.y + 5.0, p.pos.z);
+        const dist = camera.position.distanceTo(pillarWorldPos);
+        if (dist < minPillarDist && undergroundDossiers[idx]) {
+          minPillarDist = dist;
+          nextDossier = { type: 'underground', index: idx };
+        }
+      });
+    }
 
-    if (detectedIdx !== activePanelIndex) {
-      activePanelIndex = detectedIdx;
-      if (activePanelIndex !== null && !isModalOpen) {
-        const p = panelsData[activePanelIndex];
-        panelPrompt.style.setProperty('--prompt-accent', p.color);
-        promptTag.textContent = p.tag;
-        promptTitle.textContent = p.title.toUpperCase();
+    const changed =
+      (nextDossier === null) !== (activeDossier === null) ||
+      (nextDossier &&
+        activeDossier &&
+        (nextDossier.type !== activeDossier.type || nextDossier.index !== activeDossier.index));
+
+    if (changed) {
+      activeDossier = nextDossier;
+      if (activeDossier && !isModalOpen) {
+        const source =
+          activeDossier.type === 'underground'
+            ? undergroundDossiers[activeDossier.index]
+            : towerDossiers[activeDossier.index];
+        panelPrompt.style.setProperty('--prompt-accent', source.color);
+        promptTag.textContent = source.tag;
+        promptTitle.textContent = source.title.toUpperCase();
         panelPrompt.classList.add('visible');
         panelPrompt.setAttribute('aria-hidden', 'false');
       } else {

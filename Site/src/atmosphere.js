@@ -1,34 +1,22 @@
 import * as THREE from 'three';
 
-function buildSculptedCloudGeometry(lobes) {
-  const sunDir = new THREE.Vector3(0.45, 0.78, 0.42).normalize();
-  // Teintes calibrées pour éviter toute surexposition avec le Bloom
-  const topColor = new THREE.Color(0xcbd9ea);
-  const midColor = new THREE.Color(0x92abc9);
-  const bellyColor = new THREE.Color(0x526c90);
-
-  let minY = Infinity;
-  let maxY = -Infinity;
-  lobes.forEach((l) => {
-    minY = Math.min(minY, l.y - l.ry);
-    maxY = Math.max(maxY, l.y + l.ry);
-  });
-  const spanY = Math.max(maxY - minY, 0.01);
-
+// Construit une grappe haute définition de boules cotonneuses lisses
+function buildCottonCandyCloudGeometry(lobes) {
   const geos = lobes.map((l) => {
-    const g = new THREE.SphereGeometry(1, 16, 12);
+    const g = new THREE.SphereGeometry(1, 24, 18);
     const pos = g.attributes.position;
     const v = new THREE.Vector3();
 
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i);
-      const organic =
+      // Déformation très douce pour un aspect arrondi et moelleux
+      const fluff =
         1 +
-        0.13 * Math.sin(v.x * 3.0 + l.x) * Math.cos(v.z * 2.8 + l.z) +
-        0.09 * Math.cos(v.y * 3.6);
-      v.x *= l.rx * organic;
-      v.z *= l.rz * organic;
-      v.y *= l.ry * (v.y < 0 ? 0.72 : organic);
+        0.06 * Math.sin(v.x * 2.6 + l.x) * Math.cos(v.z * 2.4 + l.z) +
+        0.04 * Math.cos(v.y * 2.8);
+      v.x *= l.rx * fluff;
+      v.y *= l.ry * fluff;
+      v.z *= l.rz * fluff;
       v.x += l.x;
       v.y += l.y;
       v.z += l.z;
@@ -36,31 +24,6 @@ function buildSculptedCloudGeometry(lobes) {
     }
 
     g.computeVertexNormals();
-    const norm = g.attributes.normal;
-    const colors = new Float32Array(pos.count * 3);
-    const nVec = new THREE.Vector3();
-    const c = new THREE.Color();
-
-    for (let i = 0; i < pos.count; i++) {
-      const py = pos.getY(i);
-      nVec.fromBufferAttribute(norm, i);
-
-      const heightRatio = THREE.MathUtils.clamp((py - minY) / spanY, 0, 1);
-      const sunDot = THREE.MathUtils.clamp(nVec.dot(sunDir) * 0.5 + 0.5, 0, 1);
-      const shade = THREE.MathUtils.clamp(heightRatio * 0.68 + sunDot * 0.36, 0, 1);
-
-      if (shade < 0.5) {
-        c.copy(bellyColor).lerp(midColor, shade * 2);
-      } else {
-        c.copy(midColor).lerp(topColor, (shade - 0.5) * 2);
-      }
-
-      colors[i * 3] = c.r;
-      colors[i * 3 + 1] = c.g;
-      colors[i * 3 + 2] = c.b;
-    }
-
-    g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     return g;
   });
 
@@ -73,7 +36,6 @@ function buildSculptedCloudGeometry(lobes) {
 
   const mergedPos = new Float32Array(totalVerts * 3);
   const mergedNorm = new Float32Array(totalVerts * 3);
-  const mergedCol = new Float32Array(totalVerts * 3);
   const mergedIdx = new Uint32Array(totalIndices);
 
   let vOffset = 0;
@@ -82,7 +44,6 @@ function buildSculptedCloudGeometry(lobes) {
     const count = g.attributes.position.count;
     mergedPos.set(g.attributes.position.array, vOffset * 3);
     mergedNorm.set(g.attributes.normal.array, vOffset * 3);
-    mergedCol.set(g.attributes.color.array, vOffset * 3);
 
     const idxArr = g.index.array;
     for (let k = 0; k < idxArr.length; k++) {
@@ -97,7 +58,6 @@ function buildSculptedCloudGeometry(lobes) {
   const merged = new THREE.BufferGeometry();
   merged.setAttribute('position', new THREE.BufferAttribute(mergedPos, 3));
   merged.setAttribute('normal', new THREE.BufferAttribute(mergedNorm, 3));
-  merged.setAttribute('color', new THREE.BufferAttribute(mergedCol, 3));
   merged.setIndex(new THREE.BufferAttribute(mergedIdx, 1));
   return merged;
 }
@@ -130,17 +90,18 @@ function createPlanetTexture() {
 export function createAtmosphere(scene, mainTowerHeight) {
   const atmoGroup = new THREE.Group();
 
-  // 1. DÔME DU CIEL DYNAMIQUE (BLEU JOUR -> ESPACE ÉTOILÉ + NÉBULEUSE)
+  // 1. SHADER DU CIEL & DE L'ESPACE PROFOND (VOIE LACTÉE FBM + LIMBE ATMOSPHÉRIQUE)
   const skyUniforms = {
     uTopColor: { value: new THREE.Color(0x0284c7) },
     uMidColor: { value: new THREE.Color(0x38bdf8) },
     uHorizonColor: { value: new THREE.Color(0xbae6fd) },
     uSunDir: { value: new THREE.Vector3(0.45, 0.72, 0.52).normalize() },
     uSunIntensity: { value: 1.0 },
-    uSpaceFactor: { value: 0.0 }
+    uSpaceFactor: { value: 0.0 },
+    uTime: { value: 0.0 }
   };
 
-  const skyGeo = new THREE.SphereGeometry(1450, 48, 32);
+  const skyGeo = new THREE.SphereGeometry(1450, 64, 48);
   const skyMat = new THREE.ShaderMaterial({
     uniforms: skyUniforms,
     side: THREE.BackSide,
@@ -160,17 +121,18 @@ export function createAtmosphere(scene, mainTowerHeight) {
       uniform vec3 uSunDir;
       uniform float uSunIntensity;
       uniform float uSpaceFactor;
+      uniform float uTime;
       varying vec3 vWorldPos;
 
       float hash(vec3 p) {
-        p = fract(p * 0.3183099 + 0.1);
-        p *= 17.0;
-        return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+        p = fract(p * vec3(443.897, 441.423, 437.195));
+        p += dot(p, p.yzx + 19.19);
+        return fract((p.x + p.y) * p.z);
       }
 
-      float noise(vec3 x) {
-        vec3 i = floor(x);
-        vec3 f = fract(x);
+      float noise(vec3 p) {
+        vec3 i = floor(p);
+        vec3 f = fract(p);
         f = f * f * (3.0 - 2.0 * f);
         return mix(
           mix(mix(hash(i + vec3(0,0,0)), hash(i + vec3(1,0,0)), f.x),
@@ -180,29 +142,79 @@ export function createAtmosphere(scene, mainTowerHeight) {
         );
       }
 
+      float fbm(vec3 p) {
+        float val = 0.0;
+        float amp = 0.52;
+        for (int i = 0; i < 5; i++) {
+          val += amp * noise(p);
+          p = p * 2.04 + vec3(13.1, 7.4, 5.2);
+          amp *= 0.5;
+        }
+        return val;
+      }
+
       void main() {
         vec3 dir = normalize(vWorldPos);
         float h = dir.y;
 
+        // Dégradé ciel jour -> espace profond
         vec3 col;
         if (h >= 0.0) {
-          float t1 = smoothstep(0.0, 0.26, h);
-          float t2 = smoothstep(0.20, 0.85, h);
+          float t1 = smoothstep(0.0, 0.25, h);
+          float t2 = smoothstep(0.18, 0.85, h);
           col = mix(uHorizonColor, uMidColor, t1);
           col = mix(col, uTopColor, t2);
         } else {
           col = uHorizonColor;
         }
 
+        // Halo solaire en basse altitude
         float sunAmt = max(dot(dir, uSunDir), 0.0);
-        col += vec3(1.0, 0.95, 0.85) * pow(sunAmt, 16.0) * 0.25 * uSunIntensity;
+        col += vec3(1.0, 0.95, 0.88) * pow(sunAmt, 16.0) * 0.25 * uSunIntensity;
         col += vec3(1.0, 0.98, 0.92) * pow(sunAmt, 180.0) * 0.65 * uSunIntensity;
 
-        if (uSpaceFactor > 0.05 && h > -0.1) {
-          float band = exp(-pow((dir.x * 0.6 + dir.y * 0.5 - dir.z * 0.4) * 3.2, 2.0));
-          float n = noise(dir * 5.0) * 0.6 + noise(dir * 12.0) * 0.4;
-          vec3 nebCol = mix(vec3(0.04, 0.14, 0.34), vec3(0.24, 0.05, 0.30), n);
-          col += nebCol * band * n * uSpaceFactor * 0.9;
+        // Rendu spatial haute définition : Voie Lactée, nébuleuses colorées et limbe atmosphérique
+        if (uSpaceFactor > 0.02) {
+          // Limbe bleu turquoise subtil à l'horizon vu de l'orbite
+          float limb = exp(-abs(h + 0.02) * 14.0) * smoothstep(-0.25, 0.15, h);
+          col += vec3(0.06, 0.34, 0.68) * limb * uSpaceFactor * 0.65;
+
+          if (h > -0.15) {
+            // Coordonnées inclinées pour la bande galactique
+            vec3 galCoord = vec3(
+              dir.x * 0.72 + dir.y * 0.45 - dir.z * 0.52,
+              dir.y * 0.82 - dir.x * 0.38,
+              dir.z * 0.78 + dir.x * 0.42
+            );
+
+            float galacticPlane = exp(-pow(galCoord.x * 3.1, 2.0));
+            vec3 warp = vec3(
+              fbm(galCoord * 3.2 + uTime * 0.004),
+              fbm(galCoord * 3.2 + vec3(4.2)),
+              fbm(galCoord * 3.2 + vec3(8.7))
+            );
+            float neb1 = fbm(galCoord * 4.5 + warp * 1.4);
+            float neb2 = fbm(galCoord * 9.0 - warp * 1.1);
+            float dustLane = smoothstep(0.44, 0.68, fbm(galCoord * 7.5 + vec3(2.1)));
+
+            vec3 cyanNeb = vec3(0.04, 0.26, 0.48);
+            vec3 violetNeb = vec3(0.28, 0.08, 0.42);
+            vec3 coreGlow = vec3(0.55, 0.38, 0.62);
+
+            vec3 galaxyColor = mix(cyanNeb, violetNeb, neb2);
+            galaxyColor = mix(galaxyColor, coreGlow, smoothstep(0.55, 0.85, neb1) * galacticPlane);
+
+            // Creusement des sillons de poussière sombre au centre de la Voie Lactée
+            float intensity = galacticPlane * neb1 * (1.0 - dustLane * 0.72);
+            col += galaxyColor * intensity * uSpaceFactor * 1.15;
+
+            // Poussière d'étoiles lointaines scintillantes dans le shader
+            float microStar = hash(floor(dir * 520.0));
+            if (microStar > 0.9965) {
+              float twinkle = 0.65 + 0.35 * sin(uTime * 2.5 + microStar * 100.0);
+              col += vec3(0.75, 0.88, 1.0) * twinkle * uSpaceFactor * 0.75;
+            }
+          }
         }
 
         gl_FragColor = vec4(col, 1.0);
@@ -216,91 +228,119 @@ export function createAtmosphere(scene, mainTowerHeight) {
   const hemiLight = new THREE.HemisphereLight(0xbae6fd, 0x166534, 1.35);
   scene.add(hemiLight);
 
-  const sunLight = new THREE.DirectionalLight(0xffffff, 1.85);
+  const sunLight = new THREE.DirectionalLight(0xffffff, 1.75);
   sunLight.position.set(110, 230, 120);
   scene.add(sunLight);
 
-  const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.5);
+  const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.45);
   rimLight.position.set(-80, 70, -70);
   scene.add(rimLight);
 
-  // 3. NUAGES 3D VOLUMINEUX & ÉPAIS (4 ARCHETYPES SANS FORME PLATE + BORDS DOUX)
-  const cloudTemplates = [
-    // Archetype 0 : Cumulus majestueux à dôme épais
-    buildSculptedCloudGeometry([
-      { x: 0, y: 0, z: 0, rx: 11.5, ry: 6.4, rz: 9.8 },
-      { x: -8.2, y: -0.6, z: 2.2, rx: 8.8, ry: 5.0, rz: 7.8 },
-      { x: 8.8, y: -0.5, z: -1.8, rx: 9.2, ry: 5.2, rz: 8.2 },
-      { x: -2.2, y: 4.2, z: -1.0, rx: 7.8, ry: 5.8, rz: 7.2 },
-      { x: 3.8, y: 3.4, z: 2.6, rx: 6.8, ry: 5.0, rz: 6.4 },
-      { x: -13.2, y: -1.2, z: -2.0, rx: 6.4, ry: 3.8, rz: 5.8 },
-      { x: 14.0, y: -1.1, z: 2.5, rx: 6.6, ry: 3.9, rz: 6.0 }
+  // 3. NUAGES « BARBE À PAPA » (PUFFS RONDS, MOELLEUX, TEINTES PASTEL & BORDS COTONNEUX)
+  const cottonCloudTemplates = [
+    // Grappe 0 : Gros nuage barbe à papa dodu et symétrique
+    buildCottonCandyCloudGeometry([
+      { x: 0, y: 0.4, z: 0, rx: 7.5, ry: 6.2, rz: 7.2 },
+      { x: -5.8, y: -0.6, z: 1.5, rx: 5.8, ry: 4.8, rz: 5.6 },
+      { x: 6.0, y: -0.5, z: -1.2, rx: 6.0, ry: 5.0, rz: 5.8 },
+      { x: -2.2, y: 3.4, z: -1.4, rx: 5.2, ry: 4.6, rz: 5.0 },
+      { x: 2.8, y: 3.0, z: 1.8, rx: 4.8, ry: 4.3, rz: 4.6 },
+      { x: 0, y: -1.4, z: 4.5, rx: 4.6, ry: 3.8, rz: 4.4 },
+      { x: -0.5, y: -1.4, z: -4.5, rx: 4.6, ry: 3.8, rz: 4.4 }
     ]),
-    // Archetype 1 : Gros amas Stratocumulus vallonné et épais
-    buildSculptedCloudGeometry([
-      { x: -13.5, y: -0.4, z: 1.2, rx: 9.8, ry: 4.6, rz: 7.5 },
-      { x: -4.8, y: 1.0, z: -1.6, rx: 10.8, ry: 5.4, rz: 8.2 },
-      { x: 5.2, y: 1.4, z: 1.4, rx: 11.2, ry: 5.8, rz: 8.5 },
-      { x: 14.5, y: -0.2, z: -1.0, rx: 9.2, ry: 4.4, rz: 7.0 },
-      { x: 0, y: 3.2, z: 0.2, rx: 8.0, ry: 4.8, rz: 6.5 }
+    // Grappe 1 : Duo de pompons cotonneux
+    buildCottonCandyCloudGeometry([
+      { x: -4.2, y: 0.2, z: 0.5, rx: 6.6, ry: 5.6, rz: 6.4 },
+      { x: 4.6, y: 0.8, z: -0.6, rx: 7.2, ry: 6.0, rz: 6.8 },
+      { x: 0.2, y: -0.9, z: 2.2, rx: 5.4, ry: 4.4, rz: 5.2 },
+      { x: -8.5, y: -1.1, z: -0.8, rx: 4.4, ry: 3.7, rz: 4.2 },
+      { x: 9.2, y: -0.9, z: 1.0, rx: 4.6, ry: 3.9, rz: 4.4 }
     ]),
-    // Archetype 2 : Cumulus compact à 3 tourelles rebondies
-    buildSculptedCloudGeometry([
-      { x: 0, y: 0.8, z: 0, rx: 8.6, ry: 5.6, rz: 8.2 },
-      { x: -6.0, y: -0.5, z: 2.4, rx: 6.8, ry: 4.4, rz: 6.4 },
-      { x: 5.8, y: -0.4, z: -2.2, rx: 7.2, ry: 4.6, rz: 6.6 },
-      { x: 1.2, y: 3.8, z: 1.0, rx: 5.8, ry: 4.6, rz: 5.6 }
-    ]),
-    // Archetype 3 : Banc nuageux double-dôme volumineux
-    buildSculptedCloudGeometry([
-      { x: -7.5, y: 0.4, z: -1.2, rx: 9.4, ry: 5.2, rz: 8.0 },
-      { x: 7.2, y: 0.8, z: 1.4, rx: 9.8, ry: 5.6, rz: 8.4 },
-      { x: 0, y: -0.6, z: 0, rx: 11.0, ry: 4.5, rz: 9.0 },
-      { x: -5.5, y: 3.6, z: -0.5, rx: 6.2, ry: 4.2, rz: 5.8 },
-      { x: 6.0, y: 4.0, z: 0.8, rx: 6.5, ry: 4.5, rz: 6.0 }
+    // Grappe 2 : Petit nuage kawaii tout rond
+    buildCottonCandyCloudGeometry([
+      { x: 0, y: 0.5, z: 0, rx: 6.2, ry: 5.4, rz: 6.0 },
+      { x: -4.4, y: -0.6, z: 1.0, rx: 4.6, ry: 4.0, rz: 4.5 },
+      { x: 4.4, y: -0.5, z: -0.8, rx: 4.8, ry: 4.1, rz: 4.6 },
+      { x: 0.4, y: 3.0, z: 0.6, rx: 4.0, ry: 3.6, rz: 3.9 }
     ])
   ];
 
-  const cloudMat = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    roughness: 1.0,
-    metalness: 0.0,
-    transparent: true,
-    opacity: 0.94
-  });
-
-  // Shader custom : plafond anti-éblouissement + légère transparence douce sur les bords (Fresnel)
-  cloudMat.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <dithering_fragment>',
-      `
-      float edgeFresnel = abs(dot(normalize(vViewPosition), normal));
-      float softRim = smoothstep(0.06, 0.56, edgeFresnel);
-      gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.90, 0.94, 0.99));
-      gl_FragColor.a *= mix(0.20, 1.0, softRim);
-      #include <dithering_fragment>
-      `
-    );
+  const cottonCloudUniforms = {
+    uSunDir: { value: new THREE.Vector3(0.45, 0.78, 0.42).normalize() },
+    uOpacity: { value: 0.82 }
   };
+
+  // Shader Barbe à Papa :
+  // - Sommet crème sucré (#fff6fa)
+  // - Diffusion interne (Subsurface Scattering) rose pastel doux (#ffd2e6)
+  // - Base ombragée lavande / bleu ciel tendre (#9db8e6)
+  // - Bords doux translucides sans contour dur (Fresnel)
+  const cottonCloudMat = new THREE.ShaderMaterial({
+    uniforms: cottonCloudUniforms,
+    transparent: true,
+    depthWrite: false,
+    vertexShader: `
+      varying vec3 vNormalWorld;
+      varying vec3 vViewDir;
+      varying vec3 vLocalPos;
+      void main() {
+        vLocalPos = position;
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vNormalWorld = normalize(mat3(modelMatrix) * normal);
+        vViewDir = normalize(cameraPosition - worldPos.xyz);
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uSunDir;
+      uniform float uOpacity;
+      varying vec3 vNormalWorld;
+      varying vec3 vViewDir;
+      varying vec3 vLocalPos;
+
+      void main() {
+        vec3 N = normalize(vNormalWorld);
+        vec3 V = normalize(vViewDir);
+
+        // Éclairage enveloppant (wrap lighting) très doux
+        float wrapLight = clamp(dot(N, uSunDir) * 0.5 + 0.55, 0.0, 1.0);
+        float heightGrad = clamp(vLocalPos.y * 0.1 + 0.55, 0.0, 1.0);
+        float shade = clamp(wrapLight * 0.6 + heightGrad * 0.4, 0.0, 1.0);
+
+        vec3 bellyColor = vec3(0.60, 0.73, 0.92);   // Ombre bleu-lavande douce
+        vec3 cottonPink = vec3(0.95, 0.80, 0.89);   // Teinte barbe à papa pastel
+        vec3 creamTop   = vec3(0.93, 0.94, 0.97);   // Blanc crème calibré (sans bloom excessif)
+
+        vec3 col = mix(bellyColor, cottonPink, smoothstep(0.15, 0.62, shade));
+        col = mix(col, creamTop, smoothstep(0.55, 0.95, shade));
+
+        // Halo sucre filé sur les contours (Fresnel)
+        float ndotv = abs(dot(N, V));
+        float rimGlow = pow(1.0 - ndotv, 1.8);
+        col += vec3(0.12, 0.07, 0.11) * rimGlow;
+
+        // Fondu alpha progressif sur les bords pour un aspect cotonneux aérien
+        float edgeAlpha = smoothstep(0.08, 0.68, ndotv);
+        gl_FragColor = vec4(col, edgeAlpha * uOpacity);
+      }
+    `
+  });
 
   const clouds = [];
   const cloudBandY = mainTowerHeight * 0.66; // ~85.8m
 
-  for (let i = 0; i < 150; i++) {
-    const templateIdx = i % cloudTemplates.length;
-    const mesh = new THREE.Mesh(cloudTemplates[templateIdx], cloudMat);
+  for (let i = 0; i < 140; i++) {
+    const templateIdx = i % cottonCloudTemplates.length;
+    const mesh = new THREE.Mesh(cottonCloudTemplates[templateIdx], cottonCloudMat);
 
-    const angle = (i / 150) * Math.PI * 2 + (Math.random() - 0.5) * 0.22;
-    const dist = 34 + Math.pow(Math.random(), 0.82) * 520;
-    const cy = cloudBandY + (Math.random() - 0.42) * 14;
+    const angle = (i / 140) * Math.PI * 2 + (Math.random() - 0.5) * 0.24;
+    const dist = 36 + Math.pow(Math.random(), 0.82) * 510;
+    const cy = cloudBandY + (Math.random() - 0.45) * 14;
 
-    const scaleXZ = (0.85 + Math.random() * 1.35) * (1 + dist / 480);
-    // Épaisseur verticale généreuse garantie (jamais de nuage fin)
-    const scaleY = 1.0 + Math.random() * 0.65;
-
+    const scale = (0.95 + Math.random() * 1.35) * (1 + dist / 520);
     mesh.position.set(Math.cos(angle) * dist, cy, Math.sin(angle) * dist);
     mesh.rotation.y = Math.random() * Math.PI * 2;
-    mesh.scale.set(scaleXZ, scaleY, scaleXZ * (0.82 + Math.random() * 0.36));
+    mesh.scale.set(scale, scale * (0.92 + Math.random() * 0.22), scale);
 
     atmoGroup.add(mesh);
     clouds.push({
@@ -308,7 +348,8 @@ export function createAtmosphere(scene, mainTowerHeight) {
       angle,
       dist,
       baseY: cy,
-      rotSpeed: (Math.random() - 0.5) * 0.014,
+      bobPhase: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.015,
       orbitSpeed: (0.0025 + Math.random() * 0.005) * (i % 2 === 0 ? 1 : -1)
     });
   }
@@ -413,8 +454,8 @@ export function createAtmosphere(scene, mainTowerHeight) {
   const dayHor = new THREE.Color(0xbae6fd);
 
   const spaceTop = new THREE.Color(0x010207);
-  const spaceMid = new THREE.Color(0x040916);
-  const spaceHor = new THREE.Color(0x091326);
+  const spaceMid = new THREE.Color(0x030712);
+  const spaceHor = new THREE.Color(0x071022);
   const cavernFog = new THREE.Color(0x03060e);
 
   const dayHemiSky = new THREE.Color(0xbae6fd);
@@ -425,6 +466,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
   function update(delta, elapsed, camY, undergroundMode) {
     const spaceFactor = THREE.MathUtils.smoothstep(camY, 34, 114);
     skyUniforms.uSpaceFactor.value = spaceFactor;
+    skyUniforms.uTime.value = elapsed;
 
     skyUniforms.uTopColor.value.copy(dayTop).lerp(spaceTop, spaceFactor);
     skyUniforms.uMidColor.value.copy(dayMid).lerp(spaceMid, spaceFactor);
@@ -439,7 +481,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
     hemiLight.color.copy(dayHemiSky).lerp(spaceHemiSky, spaceFactor);
     hemiLight.groundColor.copy(dayHemiGnd).lerp(spaceHemiGnd, spaceFactor);
     hemiLight.intensity = THREE.MathUtils.lerp(1.4, 0.78, spaceFactor);
-    sunLight.intensity = THREE.MathUtils.lerp(1.85, 1.2, spaceFactor);
+    sunLight.intensity = THREE.MathUtils.lerp(1.75, 1.15, spaceFactor);
 
     const starVis = THREE.MathUtils.smoothstep(camY, 76, 108) * (1 - undergroundMode);
     fineStars.mat.opacity = starVis * fineStars.baseOpacity;
@@ -469,11 +511,12 @@ export function createAtmosphere(scene, mainTowerHeight) {
       }
     });
 
-    cloudMat.opacity = 0.94 * (1 - undergroundMode);
+    cottonCloudUniforms.uOpacity.value = 0.82 * (1 - undergroundMode);
     clouds.forEach((c) => {
       const a = c.angle + elapsed * c.orbitSpeed;
       c.mesh.position.x = Math.cos(a) * c.dist;
       c.mesh.position.z = Math.sin(a) * c.dist;
+      c.mesh.position.y = c.baseY + Math.sin(elapsed * 0.5 + c.bobPhase) * 0.45;
       c.mesh.rotation.y += c.rotSpeed * delta;
     });
   }
