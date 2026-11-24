@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export function createHoloPanel(tag, title, lines, accentColor = '#00f3ff', width = 9.2, height = 4.6) {
+export function createHoloPanel(tag, title, lines, accentColor = '#22e4ff', width = 9.2, height = 4.6) {
   const group = new THREE.Group();
 
   const cvs = document.createElement('canvas');
@@ -8,7 +8,7 @@ export function createHoloPanel(tag, title, lines, accentColor = '#00f3ff', widt
   cvs.height = 512;
   const ctx = cvs.getContext('2d');
 
-  ctx.fillStyle = 'rgba(4, 10, 22, 0.92)';
+  ctx.fillStyle = 'rgba(8, 10, 28, 0.9)';
   ctx.fillRect(0, 0, cvs.width, cvs.height);
 
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
@@ -56,20 +56,20 @@ export function createHoloPanel(tag, title, lines, accentColor = '#00f3ff', widt
   ctx.lineTo(cvs.width - 14, cvs.height - 14 - cLen);
   ctx.stroke();
 
-  ctx.font = 'bold 24px monospace';
+  ctx.font = 'bold 24px "JetBrains Mono", monospace';
   ctx.fillStyle = 'rgba(255, 255, 255, 0.58)';
   ctx.textAlign = 'right';
   ctx.fillText(tag, cvs.width - 46, 62);
 
   ctx.textAlign = 'left';
-  ctx.font = 'bold 48px "Segoe UI", sans-serif';
+  ctx.font = 'bold 48px "Space Grotesk", "Segoe UI", sans-serif';
   ctx.fillStyle = accentColor;
   ctx.fillText(title.toUpperCase(), 54, 114);
 
   ctx.fillStyle = accentColor;
   ctx.fillRect(54, 136, 190, 4);
 
-  ctx.font = '32px "Segoe UI", sans-serif';
+  ctx.font = '32px "Space Grotesk", "Segoe UI", sans-serif';
   ctx.fillStyle = '#eef8ff';
   lines.forEach((line, i) => {
     ctx.fillText(`▸ ${line}`, 56, 206 + i * 62);
@@ -81,7 +81,7 @@ export function createHoloPanel(tag, title, lines, accentColor = '#00f3ff', widt
   ctx.lineWidth = 2;
   ctx.strokeRect(54, 408, cvs.width - 108, 54);
 
-  ctx.font = 'bold 23px monospace';
+  ctx.font = 'bold 23px "JetBrains Mono", monospace';
   ctx.fillStyle = accentColor;
   ctx.textAlign = 'center';
   ctx.fillText('[ APPUYEZ SUR ENTRÉE OU CLIQUEZ POUR EXPLORER LE DOSSIER ↗ ]', cvs.width / 2, 443);
@@ -161,12 +161,12 @@ export function buildSkyPlatform(scene, topY) {
   ctx.roundRect(70, 24, 1140, 336, 22);
   ctx.fill();
 
-  ctx.strokeStyle = '#00f3ff';
+  ctx.strokeStyle = '#22e4ff';
   ctx.lineWidth = 4;
   ctx.stroke();
 
   // Coins techniques
-  ctx.strokeStyle = '#ff007f';
+  ctx.strokeStyle = '#ff3dbb';
   ctx.lineWidth = 8;
   ctx.beginPath();
   ctx.moveTo(96, 84);
@@ -177,16 +177,16 @@ export function buildSkyPlatform(scene, topY) {
   ctx.lineTo(1132, 336);
   ctx.stroke();
 
-  ctx.font = '900 168px "Segoe UI", sans-serif';
+  ctx.font = '900 168px "Space Grotesk", "Segoe UI", sans-serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
   ctx.fillText('ESGI BOT', 640, 206);
 
-  ctx.fillStyle = '#00f3ff';
+  ctx.fillStyle = '#22e4ff';
   ctx.fillRect(360, 234, 560, 4);
 
-  ctx.font = '700 32px monospace';
-  ctx.fillStyle = '#7dd3fc';
+  ctx.font = '700 32px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#a9b3d6';
   ctx.fillText('MEGASTRUCTURE // REIMS CYBERNETICS', 640, 294);
 
   const signTex = new THREE.CanvasTexture(signCvs);

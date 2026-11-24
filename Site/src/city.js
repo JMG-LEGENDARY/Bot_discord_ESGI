@@ -1,4 +1,44 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { NEON_HDR } from './theme.js';
+
+// Fusionne tous les objets fixes qui partagent le même matériau en un seul mesh.
+// Des centaines d'appels de dessin deviennent une vingtaine : gros gain de fluidité.
+function mergeStaticMeshes(group) {
+  group.updateMatrixWorld(true);
+  const buckets = new Map();
+  const merged = [];
+
+  group.traverse((obj) => {
+    if (!obj.isMesh) return;
+    for (let p = obj; p && p !== group; p = p.parent) {
+      if (p.userData.dynamic) return;
+    }
+    const key = obj.material.uuid + (obj.geometry.index ? '|i' : '|n');
+    if (!buckets.has(key)) buckets.set(key, { material: obj.material, meshes: [] });
+    buckets.get(key).meshes.push(obj);
+  });
+
+  buckets.forEach(({ material, meshes }) => {
+    if (meshes.length < 2) return;
+    const geos = meshes.map((m) => {
+      const g = m.geometry.clone();
+      g.applyMatrix4(m.matrixWorld);
+      // Ne garder que les attributs communs à toutes les formes
+      Object.keys(g.attributes).forEach((name) => {
+        if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+      });
+      return g;
+    });
+    const mergedGeo = mergeGeometries(geos, false);
+    geos.forEach((g) => g.dispose());
+    if (!mergedGeo) return;
+    meshes.forEach((m) => m.parent.remove(m));
+    merged.push(new THREE.Mesh(mergedGeo, material));
+  });
+
+  merged.forEach((m) => group.add(m));
+}
 
 export function getTerrainHeight(x, z) {
   const r = Math.hypot(x, z);
@@ -35,25 +75,25 @@ function createHighDetailGroundTextures() {
   bumpCvs.height = 1024;
   const bCtx = bumpCvs.getContext('2d');
 
-  ctx.fillStyle = '#155e33';
+  ctx.fillStyle = '#0a0f1f';
   ctx.fillRect(0, 0, size, size);
 
   bCtx.fillStyle = '#707070';
   bCtx.fillRect(0, 0, 1024, 1024);
 
   const patches = [
-    { x: 420, y: 420, r: 380, c: '#166534' },
-    { x: 1620, y: 440, r: 400, c: '#15803d' },
-    { x: 440, y: 1620, r: 390, c: '#14532d' },
-    { x: 1600, y: 1600, r: 410, c: '#166534' },
-    { x: 1024, y: 1024, r: 500, c: '#16a34a' },
-    { x: 750, y: 1320, r: 220, c: '#3f6212' },
-    { x: 1320, y: 740, r: 240, c: '#15803d' }
+    { x: 420, y: 420, r: 380, c: '#0e1630' },
+    { x: 1620, y: 440, r: 400, c: '#120f2e' },
+    { x: 440, y: 1620, r: 390, c: '#0b1228' },
+    { x: 1600, y: 1600, r: 410, c: '#101a36' },
+    { x: 1024, y: 1024, r: 500, c: '#121a3a' },
+    { x: 750, y: 1320, r: 220, c: '#170f33' },
+    { x: 1320, y: 740, r: 240, c: '#0e1a30' }
   ];
   patches.forEach((p) => {
     const g = ctx.createRadialGradient(p.x, p.y, 30, p.x, p.y, p.r);
     g.addColorStop(0, p.c);
-    g.addColorStop(1, 'rgba(21, 94, 51, 0)');
+    g.addColorStop(1, 'rgba(10, 15, 31, 0)');
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
@@ -64,7 +104,7 @@ function createHighDetailGroundTextures() {
     const x = Math.random() * size;
     const y = Math.random() * size;
     const r = Math.random();
-    ctx.fillStyle = r > 0.68 ? '#22c55e' : r > 0.35 ? '#15803d' : r > 0.12 ? '#0f3d22' : '#4d7c0f';
+    ctx.fillStyle = r > 0.68 ? '#1a2647' : r > 0.35 ? '#121b36' : r > 0.12 ? '#070b18' : '#1b1440';
     ctx.fillRect(x, y, 2, 4);
 
     if (i % 2 === 0) {
@@ -73,7 +113,7 @@ function createHighDetailGroundTextures() {
     }
   }
 
-  ctx.fillStyle = '#1e293b';
+  ctx.fillStyle = '#05070f';
   ctx.fillRect(0, 0, size, 96);
   ctx.fillRect(0, 1952, size, 96);
   ctx.fillRect(0, 0, 96, size);
@@ -85,7 +125,7 @@ function createHighDetailGroundTextures() {
   bCtx.fillRect(0, 0, 48, 1024);
   bCtx.fillRect(976, 0, 48, 1024);
 
-  ctx.strokeStyle = '#38bdf8';
+  ctx.strokeStyle = '#22e4ff';
   ctx.lineWidth = 4;
   ctx.setLineDash([42, 28]);
   ctx.beginPath();
@@ -105,7 +145,7 @@ function createHighDetailGroundTextures() {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    ctx.strokeStyle = '#64748b';
+    ctx.strokeStyle = '#8b2a7a';
     ctx.lineWidth = w + 10;
     ctx.beginPath();
     ctx.moveTo(pts[0][0], pts[0][1]);
@@ -116,7 +156,7 @@ function createHighDetailGroundTextures() {
     }
     ctx.stroke();
 
-    ctx.strokeStyle = '#e2e8f0';
+    ctx.strokeStyle = '#1c2344';
     ctx.lineWidth = w;
     ctx.stroke();
 
@@ -148,12 +188,12 @@ function createHighDetailGroundTextures() {
     [1024, 1024]
   ].forEach(([px, py], idx) => {
     const rad = idx === 4 ? 195 : 112;
-    ctx.fillStyle = '#334155';
+    ctx.fillStyle = '#141b33';
     ctx.beginPath();
     ctx.arc(px, py, rad, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = idx === 4 ? '#0ea5e9' : '#10b981';
+    ctx.strokeStyle = idx === 4 ? '#22e4ff' : '#ff3dbb';
     ctx.lineWidth = 6;
     ctx.stroke();
   });
@@ -181,11 +221,11 @@ function createBuildingFacadeTexture(paletteIndex) {
   const ctx = cvs.getContext('2d');
 
   const palettes = [
-    { wall: '#0f172a', win1: '#38bdf8', win2: '#00f3ff', style: 'grid' },
-    { wall: '#132238', win1: '#bae6fd', win2: '#34d399', style: 'stripes' },
-    { wall: '#172033', win1: '#7dd3fc', win2: '#ff007f', style: 'grid' },
-    { wall: '#0c192c', win1: '#e0f2fe', win2: '#38bdf8', style: 'tall' },
-    { wall: '#1e293b', win1: '#93c5fd', win2: '#10b981', style: 'diagrid' }
+    { wall: '#0a0e1f', win1: '#9ad8ff', win2: '#22e4ff', style: 'grid' },
+    { wall: '#0d1022', win1: '#ffd9a8', win2: '#ff3dbb', style: 'stripes' },
+    { wall: '#0c0f24', win1: '#c4b5fd', win2: '#ff3dbb', style: 'grid' },
+    { wall: '#0a1020', win1: '#a5f3fc', win2: '#22e4ff', style: 'tall' },
+    { wall: '#111430', win1: '#4b4f8f', win2: '#22e4ff', style: 'diagrid' }
   ];
   const p = palettes[paletteIndex % palettes.length];
 
@@ -194,7 +234,7 @@ function createBuildingFacadeTexture(paletteIndex) {
 
   if (p.style === 'stripes') {
     for (let y = 12; y < 500; y += 18) {
-      ctx.fillStyle = Math.random() > 0.2 ? p.win1 : '#1e293b';
+      ctx.fillStyle = Math.random() > 0.2 ? p.win1 : '#0e1328';
       ctx.fillRect(10, y, 236, 8);
       if (Math.random() > 0.85) {
         ctx.fillStyle = p.win2;
@@ -231,7 +271,7 @@ function createBuildingFacadeTexture(paletteIndex) {
           ctx.fillStyle = Math.random() > 0.86 ? p.win2 : p.win1;
           ctx.fillRect(x, y, 10, 6);
         } else {
-          ctx.fillStyle = '#1e293b';
+          ctx.fillStyle = '#0e1328';
           ctx.fillRect(x, y, 10, 6);
         }
       }
@@ -249,27 +289,28 @@ function createBuildingFacadeTexture(paletteIndex) {
 export function buildEcoCyberCity(scene, mainTowerHeight) {
   const cityGroup = new THREE.Group();
 
-  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 2.2, 2.8), toneMapped: false });
-  const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 0.1, 1.4), toneMapped: false });
-  const amberHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 1.2, 0.1), toneMapped: false });
+  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(...NEON_HDR.cyan), toneMapped: false });
+  const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(...NEON_HDR.magenta), toneMapped: false });
+  const amberHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(...NEON_HDR.violet), toneMapped: false });
 
+  // Néons doux (s'allument la nuit sans éblouir)
   const softEmeraldMat = new THREE.MeshStandardMaterial({
-    color: 0x10b981,
-    emissive: 0x059669,
-    emissiveIntensity: 0.32,
+    color: 0xff3dbb,
+    emissive: 0xb0127a,
+    emissiveIntensity: 0.9,
     roughness: 0.45
   });
   const softTealMat = new THREE.MeshStandardMaterial({
-    color: 0x0ea5e9,
-    emissive: 0x0284c7,
-    emissiveIntensity: 0.32,
+    color: 0x22e4ff,
+    emissive: 0x0a8fb0,
+    emissiveIntensity: 0.9,
     roughness: 0.45
   });
 
   const whiteBridgeMat = new THREE.MeshStandardMaterial({
-    color: 0xf1f5f9,
-    metalness: 0.35,
-    roughness: 0.28
+    color: 0x3a4468,
+    metalness: 0.6,
+    roughness: 0.3
   });
   const darkSteelMat = new THREE.MeshStandardMaterial({
     color: 0x162033,
@@ -277,7 +318,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     roughness: 0.28
   });
   const woodBarkMat = new THREE.MeshStandardMaterial({
-    color: 0x2d241e,
+    color: 0x1a1426,
     roughness: 0.85,
     metalness: 0.1
   });
@@ -310,9 +351,9 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
 
   // Bassins d'eau réfléchissants dans le parc
   const waterMat = new THREE.MeshStandardMaterial({
-    color: 0x0284c7,
-    emissive: 0x0369a1,
-    emissiveIntensity: 0.25,
+    color: 0x0a1a3a,
+    emissive: 0x0b2a55,
+    emissiveIntensity: 0.6,
     metalness: 0.9,
     roughness: 0.12
   });
@@ -405,6 +446,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
   const maglevCars = [];
   for (let w = 0; w < 5; w++) {
     const wagon = new THREE.Group();
+    wagon.userData.dynamic = true;
     const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.3, 4.4), whiteBridgeMat);
     const stripe = new THREE.Mesh(
       new THREE.BoxGeometry(1.66, 0.18, 4.45),
@@ -416,31 +458,30 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
   }
 
   // 4. ARBRES HOLOGRAPHIQUES DOUX & ORGANIQUES
-  const holoTreeCanopies = [];
   const holoWireGreen = new THREE.MeshBasicMaterial({
-    color: 0x34d399,
+    color: 0xff3dbb,
     wireframe: true,
     transparent: true,
     opacity: 0.3
   });
   const holoWireTeal = new THREE.MeshBasicMaterial({
-    color: 0x38bdf8,
+    color: 0x22e4ff,
     wireframe: true,
     transparent: true,
     opacity: 0.28
   });
   const holoLeafShellGreen = new THREE.MeshStandardMaterial({
-    color: 0x16a34a,
-    emissive: 0x065f46,
-    emissiveIntensity: 0.22,
+    color: 0x3b1a6b,
+    emissive: 0x5b21b6,
+    emissiveIntensity: 0.5,
     roughness: 0.65,
     transparent: true,
     opacity: 0.6
   });
   const holoLeafShellTeal = new THREE.MeshStandardMaterial({
-    color: 0x0d9488,
-    emissive: 0x115e59,
-    emissiveIntensity: 0.22,
+    color: 0x0e3a5a,
+    emissive: 0x0a6c8c,
+    emissiveIntensity: 0.5,
     roughness: 0.65,
     transparent: true,
     opacity: 0.56
@@ -485,7 +526,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     tree.add(canopyGroup);
 
     cityGroup.add(tree);
-    holoTreeCanopies.push({ mesh: canopyGroup, phase: Math.random() * Math.PI * 2 });
+    canopyGroup.rotation.y = Math.random() * Math.PI * 2; // arbres fixes (fusionnés) mais orientés au hasard
   }
 
   for (let i = 0; i < 68; i++) {
@@ -519,6 +560,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
 
   function createCyberCar(isCyan) {
     const car = new THREE.Group();
+    car.userData.dynamic = true;
     const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.42, 3.4), carBodyMat);
     chassis.position.y = 0.45;
     const head = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.1, 0.12), isCyan ? cyanHdr : amberHdr);
@@ -551,18 +593,18 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
   const facadeMats = [0, 1, 2, 3, 4].map((idx) => {
     const tex = createBuildingFacadeTexture(idx);
     return new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
+      color: 0x0d1124,
       map: tex,
       emissiveMap: tex,
-      emissive: new THREE.Color(0xe0f2fe),
-      emissiveIntensity: 0.65,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.75,
       metalness: 0.65,
       roughness: 0.3
     });
   });
 
   const glassCylinderMat = new THREE.MeshStandardMaterial({
-    color: 0x0c4a6e,
+    color: 0x0b1430,
     metalness: 0.92,
     roughness: 0.12
   });
@@ -573,7 +615,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
   });
 
   const searchlightMat = new THREE.MeshBasicMaterial({
-    color: 0x38bdf8,
+    color: 0x22e4ff,
     transparent: true,
     opacity: 0.07,
     side: THREE.DoubleSide,
@@ -676,6 +718,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
         const beamGeo = new THREE.CylinderGeometry(2.6, 0.25, 52, 12, 1, true);
         beamGeo.translate(0, 26, 0);
         const beam = new THREE.Mesh(beamGeo, searchlightMat);
+        beam.userData.dynamic = true;
         beam.position.set(tx, baseGndY + h, tz);
         cityGroup.add(beam);
         searchlights.push({ mesh: beam, phase: i * 1.4 });
@@ -683,14 +726,11 @@ export function buildEcoCyberCity(scene, mainTowerHeight) {
     }
   });
 
+  terrainMesh.userData.dynamic = true; // déjà un seul mesh, inutile de le copier
+  mergeStaticMeshes(cityGroup);
   scene.add(cityGroup);
 
   function update(delta, elapsed) {
-    holoTreeCanopies.forEach((t) => {
-      t.mesh.rotation.y = elapsed * 0.28 + t.phase;
-      t.mesh.position.y = 4.6 + Math.sin(elapsed * 1.6 + t.phase) * 0.1;
-    });
-
     searchlights.forEach((sl) => {
       sl.mesh.rotation.x = Math.sin(elapsed * 0.45 + sl.phase) * 0.22;
       sl.mesh.rotation.z = Math.cos(elapsed * 0.38 + sl.phase) * 0.22;

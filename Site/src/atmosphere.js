@@ -1,8 +1,9 @@
 import * as THREE from 'three';
+import { SKY } from './theme.js';
 
 function buildCottonCandyCloudGeometry(lobes) {
   const geos = lobes.map((l) => {
-    const g = new THREE.SphereGeometry(1, 18, 14);
+    const g = new THREE.SphereGeometry(1, 10, 8); // faible densité : nuages lointains, gros gain GPU
     const pos = g.attributes.position;
     const v = new THREE.Vector3();
 
@@ -91,9 +92,9 @@ export function createAtmosphere(scene, mainTowerHeight) {
 
   // 1. SHADER DU CIEL & DE L'ESPACE PROFOND (VOIE LACTÉE FBM + LIMBE HORIZON)
   const skyUniforms = {
-    uTopColor: { value: new THREE.Color(0x0284c7) },
-    uMidColor: { value: new THREE.Color(0x38bdf8) },
-    uHorizonColor: { value: new THREE.Color(0xbae6fd) },
+    uTopColor: { value: new THREE.Color(SKY.cityTop) },
+    uMidColor: { value: new THREE.Color(SKY.cityMid) },
+    uHorizonColor: { value: new THREE.Color(SKY.cityHorizon) },
     uSunDir: { value: new THREE.Vector3(0.45, 0.72, 0.52).normalize() },
     uSunIntensity: { value: 1.0 },
     uSpaceFactor: { value: 0.0 },
@@ -167,8 +168,9 @@ export function createAtmosphere(scene, mainTowerHeight) {
         }
 
         float sunAmt = max(dot(dir, uSunDir), 0.0);
-        col += vec3(1.0, 0.95, 0.88) * pow(sunAmt, 16.0) * 0.25 * uSunIntensity;
-        col += vec3(1.0, 0.98, 0.92) * pow(sunAmt, 180.0) * 0.65 * uSunIntensity;
+        // Lune froide : halo large discret + disque net
+        col += vec3(0.55, 0.65, 1.0) * pow(sunAmt, 24.0) * 0.18 * uSunIntensity;
+        col += vec3(0.92, 0.95, 1.0) * pow(sunAmt, 900.0) * 1.4 * uSunIntensity;
 
         if (uSpaceFactor > 0.02) {
           // Limbe lumineux bleu-violet à l'horizon vu depuis le sommet
@@ -220,14 +222,15 @@ export function createAtmosphere(scene, mainTowerHeight) {
   atmoGroup.add(new THREE.Mesh(skyGeo, skyMat));
 
   // 2. ÉCLAIRAGE DYNAMIQUE
-  const hemiLight = new THREE.HemisphereLight(0xbae6fd, 0x166534, 1.35);
+  const hemiLight = new THREE.HemisphereLight(0x5a64b8, 0x140a24, 0.9);
   scene.add(hemiLight);
 
-  const sunLight = new THREE.DirectionalLight(0xffffff, 1.75);
+  // Lumière lunaire froide (même direction que la lune du ciel)
+  const sunLight = new THREE.DirectionalLight(0xaab8ff, 0.9);
   sunLight.position.set(110, 230, 120);
   scene.add(sunLight);
 
-  const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.5);
+  const rimLight = new THREE.DirectionalLight(0xff3dbb, 0.45);
   rimLight.position.set(-80, 90, -70);
   scene.add(rimLight);
 
@@ -298,9 +301,10 @@ export function createAtmosphere(scene, mainTowerHeight) {
         float n2 = fbm2D(uv * 2.3 - vec2(uTime * 0.008, 0.0));
         float billow = smoothstep(0.28, 0.78, n1 * 0.65 + n2 * 0.35);
 
-        vec3 shadowBlue = vec3(0.54, 0.68, 0.90);
-        vec3 cottonPink = vec3(0.94, 0.79, 0.89);
-        vec3 creamTop   = vec3(0.92, 0.94, 0.98);
+        // Nuages de nuit : ventre éclairé par les néons de la ville, sommet lunaire
+        vec3 shadowBlue = vec3(0.035, 0.04, 0.11);
+        vec3 cottonPink = vec3(0.16, 0.05, 0.20);
+        vec3 creamTop   = vec3(0.17, 0.20, 0.36);
 
         vec3 col = mix(shadowBlue, cottonPink, smoothstep(0.2, 0.65, n2));
         col = mix(col, creamTop, billow);
@@ -397,9 +401,9 @@ export function createAtmosphere(scene, mainTowerHeight) {
         float heightGrad = clamp(vLocalPos.y * 0.1 + 0.55, 0.0, 1.0);
         float shade = clamp(wrapLight * 0.6 + heightGrad * 0.4, 0.0, 1.0);
 
-        vec3 bellyColor = vec3(0.60, 0.73, 0.92);
-        vec3 cottonPink = vec3(0.96, 0.80, 0.90);
-        vec3 creamTop   = vec3(0.94, 0.95, 0.98);
+        vec3 bellyColor = vec3(0.17, 0.05, 0.21);
+        vec3 cottonPink = vec3(0.09, 0.09, 0.23);
+        vec3 creamTop   = vec3(0.24, 0.28, 0.46);
 
         vec3 col = mix(bellyColor, cottonPink, smoothstep(0.15, 0.62, shade));
         col = mix(col, creamTop, smoothstep(0.55, 0.95, shade));
@@ -408,7 +412,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
         float ndotv = clamp(abs(dot(N, V)), 0.0, 1.0);
         float rimBase = max(1.0 - ndotv, 0.0);
         float rimGlow = pow(rimBase, 1.8);
-        col += vec3(0.12, 0.07, 0.11) * rimGlow;
+        col += vec3(0.04, 0.20, 0.28) * rimGlow;
 
         float edgeAlpha = smoothstep(0.08, 0.68, ndotv);
         gl_FragColor = vec4(max(col, vec3(0.0)), clamp(edgeAlpha * uOpacity, 0.0, 1.0));
@@ -416,15 +420,17 @@ export function createAtmosphere(scene, mainTowerHeight) {
     `
   });
 
-  const cloudsPerTemplate = 180; // 3 * 180 = 540 nuages 3D jusqu'à 1380m
-  const instancedCloudMeshes = [];
-  const cloudInstancesData = [];
+  const cloudsPerTemplate = 100; // 3 * 100 = 300 nuages 3D jusqu'à 1380m
   const dummy = new THREE.Object3D();
+  // Les nuages tournent tous ensemble : une seule rotation de groupe par image
+  // au lieu de recalculer 300 matrices sur le processeur.
+  const cloudSpin = new THREE.Group();
+  atmoGroup.add(cloudSpin);
   const pastelPalette = [
     new THREE.Color(1.0, 1.0, 1.0),
-    new THREE.Color(1.0, 0.95, 0.98),
-    new THREE.Color(0.96, 0.97, 1.0),
-    new THREE.Color(1.0, 0.97, 0.94)
+    new THREE.Color(1.05, 0.92, 1.05),
+    new THREE.Color(0.9, 0.98, 1.08),
+    new THREE.Color(0.95, 0.95, 1.0)
   ];
 
   cottonCloudTemplates.forEach((geo, tIdx) => {
@@ -456,26 +462,11 @@ export function createAtmosphere(scene, mainTowerHeight) {
 
       instMesh.setColorAt(i, pastelPalette[globalIdx % pastelPalette.length]);
 
-      cloudInstancesData.push({
-        instMesh,
-        index: i,
-        angle,
-        dist,
-        baseY: cy,
-        rotY,
-        sx: scale,
-        sy,
-        sz: scale,
-        bobPhase: Math.random() * Math.PI * 2,
-        rotSpeed: (Math.random() - 0.5) * 0.012,
-        orbitSpeed: (0.0018 + Math.random() * 0.0032) * (globalIdx % 2 === 0 ? 1 : -1)
-      });
     }
 
     instMesh.instanceMatrix.needsUpdate = true;
     if (instMesh.instanceColor) instMesh.instanceColor.needsUpdate = true;
-    atmoGroup.add(instMesh);
-    instancedCloudMeshes.push(instMesh);
+    cloudSpin.add(instMesh);
   });
 
   // 5. CHAMP D'ÉTOILES
@@ -572,18 +563,18 @@ export function createAtmosphere(scene, mainTowerHeight) {
   atmoGroup.add(planetGroup);
   scene.add(atmoGroup);
 
-  const dayTop = new THREE.Color(0x0284c7);
-  const dayMid = new THREE.Color(0x38bdf8);
-  const dayHor = new THREE.Color(0xbae6fd);
+  const dayTop = new THREE.Color(SKY.cityTop);
+  const dayMid = new THREE.Color(SKY.cityMid);
+  const dayHor = new THREE.Color(SKY.cityHorizon);
 
-  const spaceTop = new THREE.Color(0x010207);
-  const spaceMid = new THREE.Color(0x030712);
-  const spaceHor = new THREE.Color(0x071022);
-  const cavernFog = new THREE.Color(0x03060e);
+  const spaceTop = new THREE.Color(SKY.spaceTop);
+  const spaceMid = new THREE.Color(SKY.spaceMid);
+  const spaceHor = new THREE.Color(SKY.spaceHorizon);
+  const cavernFog = new THREE.Color(SKY.cavernFog);
 
-  const dayHemiSky = new THREE.Color(0xbae6fd);
-  const dayHemiGnd = new THREE.Color(0x166534);
-  const spaceHemiSky = new THREE.Color(0x60a5fa);
+  const dayHemiSky = new THREE.Color(0x5a64b8);
+  const dayHemiGnd = new THREE.Color(0x140a24);
+  const spaceHemiSky = new THREE.Color(0x6d7fd8);
   const spaceHemiGnd = new THREE.Color(0x090d1a);
 
   function update(delta, elapsed, camY, undergroundMode) {
@@ -594,7 +585,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
     skyUniforms.uTopColor.value.copy(dayTop).lerp(spaceTop, spaceFactor);
     skyUniforms.uMidColor.value.copy(dayMid).lerp(spaceMid, spaceFactor);
     skyUniforms.uHorizonColor.value.copy(dayHor).lerp(spaceHor, spaceFactor);
-    skyUniforms.uSunIntensity.value = 1.0 - spaceFactor * 0.85;
+    skyUniforms.uSunIntensity.value = 1.0 - spaceFactor * 0.4;
 
     if (scene.fog) {
       scene.fog.color.copy(skyUniforms.uHorizonColor.value).lerp(cavernFog, undergroundMode);
@@ -604,17 +595,20 @@ export function createAtmosphere(scene, mainTowerHeight) {
 
     hemiLight.color.copy(dayHemiSky).lerp(spaceHemiSky, spaceFactor);
     hemiLight.groundColor.copy(dayHemiGnd).lerp(spaceHemiGnd, spaceFactor);
-    hemiLight.intensity = THREE.MathUtils.lerp(1.4, 0.78, spaceFactor);
-    sunLight.intensity = THREE.MathUtils.lerp(1.75, 1.15, spaceFactor);
+    hemiLight.intensity = THREE.MathUtils.lerp(0.95, 0.75, spaceFactor);
+    sunLight.intensity = THREE.MathUtils.lerp(0.9, 1.1, spaceFactor);
 
-    const starVis = THREE.MathUtils.smoothstep(camY, 76, 108) * (1 - undergroundMode);
+    // De nuit, quelques étoiles restent visibles même au niveau de la ville
+    const highSky = THREE.MathUtils.smoothstep(camY, 76, 108);
+    const starVis = THREE.MathUtils.lerp(0.35, 1.0, highSky) * (1 - undergroundMode);
+    const planetVis = highSky * (1 - undergroundMode);
     fineStars.mat.opacity = starVis * fineStars.baseOpacity;
     brightStars.mat.opacity = starVis * brightStars.baseOpacity;
     fineStars.points.rotation.y = elapsed * 0.003;
     brightStars.points.rotation.y = elapsed * 0.0045;
 
-    planetMat.opacity = starVis * 0.94;
-    planetRingMat.opacity = starVis * 0.38;
+    planetMat.opacity = planetVis * 0.94;
+    planetRingMat.opacity = planetVis * 0.38;
     planetMesh.rotation.y = elapsed * 0.04;
 
     shootingStars.forEach((st) => {
@@ -627,9 +621,9 @@ export function createAtmosphere(scene, mainTowerHeight) {
         st.mesh.position.set(startX, startY, startZ);
         st.mesh.lookAt(startX + 120, startY - 70, startZ + 80);
       }
-      if (st.timer < 1.1 && starVis > 0.3) {
+      if (st.timer < 1.1 && planetVis > 0.3) {
         st.mesh.translateZ(260 * delta);
-        st.mesh.material.opacity = Math.sin((st.timer / 1.1) * Math.PI) * starVis * 0.9;
+        st.mesh.material.opacity = Math.sin((st.timer / 1.1) * Math.PI) * planetVis * 0.9;
       } else {
         st.mesh.material.opacity = 0;
       }
@@ -640,26 +634,8 @@ export function createAtmosphere(scene, mainTowerHeight) {
     cloudSeaUniforms.uOpacity.value = 0.86 * visFactor;
     cottonCloudUniforms.uOpacity.value = 0.85 * visFactor;
 
-    if (visFactor > 0.01) {
-      for (let i = 0; i < cloudInstancesData.length; i++) {
-        const c = cloudInstancesData[i];
-        const a = c.angle + elapsed * c.orbitSpeed;
-        c.rotY += c.rotSpeed * delta;
-
-        dummy.position.set(
-          Math.cos(a) * c.dist,
-          c.baseY + Math.sin(elapsed * 0.5 + c.bobPhase) * 0.45,
-          Math.sin(a) * c.dist
-        );
-        dummy.rotation.set(0, c.rotY, 0);
-        dummy.scale.set(c.sx, c.sy, c.sz);
-        dummy.updateMatrix();
-        c.instMesh.setMatrixAt(c.index, dummy.matrix);
-      }
-      instancedCloudMeshes.forEach((m) => {
-        m.instanceMatrix.needsUpdate = true;
-      });
-    }
+    cloudSpin.visible = visFactor > 0.01;
+    cloudSpin.rotation.y = elapsed * 0.0025;
   }
 
   return { update };

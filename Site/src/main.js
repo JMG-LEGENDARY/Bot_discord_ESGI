@@ -17,15 +17,31 @@ import { buildUndergroundMasterclass } from './underground.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
+// Les panneaux 3D sont dessinés sur des canvas : on attend les polices
+// (1,5 s maximum) pour ne pas les dessiner avec la police de secours.
+await Promise.race([
+  Promise.all([
+    document.fonts.load('700 48px "Space Grotesk"'),
+    document.fonts.load('400 32px "Space Grotesk"'),
+    document.fonts.load('700 24px "JetBrains Mono"')
+  ]),
+  new Promise((resolve) => setTimeout(resolve, 1500))
+]).catch(() => {});
+
 const canvas = document.querySelector('#bg');
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0xbae6fd, 0.0014);
+scene.fog = new THREE.FogExp2(0x3a2560, 0.0014);
 
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+// Résolution plafonnée à 1.5x : au-delà, l'œil ne voit presque pas la différence
+// mais la carte graphique travaille jusqu'à 2x plus.
+const MAX_PIXEL_RATIO = Math.min(window.devicePixelRatio, 1.5);
+let currentPixelRatio = MAX_PIXEL_RATIO;
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(currentPixelRatio);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -38,16 +54,22 @@ const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.inner
   samples: 4
 });
 const composer = new EffectComposer(renderer, renderTarget);
+composer.setPixelRatio(currentPixelRatio);
+composer.setSize(window.innerWidth, window.innerHeight);
 composer.addPass(new RenderPass(scene, camera));
 
+// Halo lumineux des néons, un peu plus présent la nuit
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.3,
-  0.25,
-  1.28
+  0.55,
+  0.4,
+  1.05
 );
 composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
+
+// Accès debug (uniquement en développement) pour mesurer les performances
+if (import.meta.env.DEV) window.__three = { renderer, scene, camera };
 
 const targetHeight = 130;
 const atmosphere = createAtmosphere(scene, targetHeight);
@@ -102,16 +124,29 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     scaledBox.max.z - scaledBox.min.z
   ) / 2;
 
+  // Habillage « nuit néon » de la tour : structure en acier sombre,
+  // vitres qui brillent comme des fenêtres allumées (bleu, avec une touche magenta).
   tower.traverse((child) => {
-    if (child.isMesh && child.material) {
-      if (child.material.color) {
-        child.material.color.multiplyScalar(0.32);
-      }
-      child.material.emissiveIntensity = 0;
-      child.material.envMapIntensity = 0.35;
-      child.material.roughness = Math.max(child.material.roughness ?? 0.5, 0.45);
-      child.material.needsUpdate = true;
+    if (!child.isMesh || !child.material) return;
+    const mat = child.material;
+    const name = (mat.name || '').toLowerCase();
+
+    if (name.includes('glass')) {
+      const accent = name.includes('green');
+      mat.color.set(0x0a1030);
+      mat.emissive.set(accent ? 0x7a1a78 : 0x1f3f9a);
+      mat.emissiveIntensity = accent ? 0.85 : 0.7;
+      mat.metalness = 0.9;
+      mat.roughness = 0.18;
+      mat.envMapIntensity = 0.5;
+    } else {
+      mat.color.set(name.includes('gray') ? 0x10142a : 0x1a2040);
+      mat.emissiveIntensity = 0;
+      mat.metalness = 0.65;
+      mat.roughness = 0.42;
+      mat.envMapIntensity = 0.25;
     }
+    mat.needsUpdate = true;
   });
 
   scene.add(tower);
@@ -123,7 +158,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     {
       y: 104,
       angle: Math.PI * 0.5,
-      color: '#00f3ff',
+      color: '#22e4ff',
       tag: 'SYS.01 // FONCTIONNALITÉS',
       tabLabel: '01 // FONCTIONNALITÉS',
       title: 'Fonctionnalités',
@@ -177,7 +212,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     {
       y: 78,
       angle: Math.PI * 1.0,
-      color: '#ff007f',
+      color: '#ff3dbb',
       tag: 'SYS.02 // COMMANDES',
       tabLabel: '02 // COMMANDES',
       title: 'Commandes Discord',
@@ -229,7 +264,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     {
       y: 50,
       angle: Math.PI * 1.5,
-      color: '#00f3ff',
+      color: '#22e4ff',
       tag: 'SYS.03 // ARCHITECTURE',
       tabLabel: '03 // ARCHITECTURE',
       title: 'Technologies & Structure',
@@ -275,7 +310,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     {
       y: 24,
       angle: Math.PI * 2.0,
-      color: '#a855f7',
+      color: '#8b5cf6',
       tag: 'SYS.04 // INSTALLATION & RÔLES',
       tabLabel: '04 // INSTALL & RÔLES',
       title: 'Installation & Équipe',
@@ -283,7 +318,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       lines: [
         'Environnement .venv & lancement main.py',
         'Site 3D : npm install, npm run dev & build',
-        'Rôles : JMG (principal) & Yanis (socle)'
+        'Rôles : JMG (développeur) & Yanis (secrétaire)'
       ],
       detail: {
         subtitle:
@@ -291,7 +326,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
         metrics: [
           { value: 'MAIN.PY', label: 'Init tables SQLite, cogs & sync slash' },
           { value: 'SITE/', label: 'npm install, npm run dev & npm run build' },
-          { value: 'JMG & YANIS', label: 'Développement principal & socle du projet' }
+          { value: 'JMG & YANIS', label: 'Développement principal & secrétariat du projet' }
         ],
         sections: [
           {
@@ -319,7 +354,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
             desc: 'Répartition des contributions autour du bot Discord et du site 3D.',
             bullets: [
               'JMG — développeur principal du bot : porte l’essentiel du développement actuel du bot et de ses différentes briques (architecture Python, démarrage du bot, commandes Discord, modales, gestion des devoirs et évaluations, cogs, notifications programmées, accès SQLite, événements Discord, intégration Thomson et réalisation du site 3D).',
-              'Yanis — participation au socle du projet : a contribué notamment aux éléments fondateurs du projet, avec ses premiers travaux visibles sur la configuration générale et les listes de matières, ainsi qu’à des évolutions du README.'
+              'Yanis — secrétaire du projet : rédige les comptes rendus et rapports de livrables, suit l’avancement du bot, tient la documentation et s’occupe du site vitrine ; renfort sur le code si besoin (configuration, listes de matières, SQLite).'
             ]
           }
         ]
@@ -333,15 +368,15 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   const undergroundDossiers = [
     {
       label: 'pillar-0',
-      color: '#00f3ff',
+      color: '#22e4ff',
       tag: 'COLLAB 01 // DÉVELOPPEUR PRINCIPAL',
       tabLabel: '01 // JMG',
       title: 'JMG — Développeur Principal',
       detail: {
         subtitle:
-          "Bryan (JMG), étudiant en 2e année de Bachelor Informatique en alternance à l'ESGI Reims, porte l'essentiel du développement du bot Discord et de cette expérience web 3D.",
+          "Bryan (JMG), étudiant en 1re année de Bachelor Informatique à l'ESGI Reims, porte l'essentiel du développement du bot Discord et de cette expérience web 3D.",
         metrics: [
-          { value: 'ESGI REIMS', label: '2e année de Bachelor Informatique (alternance)' },
+          { value: 'ESGI REIMS', label: '1re année de Bachelor Informatique' },
           { value: 'FULL-STACK', label: 'Architecture Python, SQLite & interface 3D' },
           { value: '24/7 HOSTING', label: 'Déploiement autonome & administration' }
         ],
@@ -369,34 +404,43 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     },
     {
       label: 'pillar-1',
-      color: '#38bdf8',
-      tag: 'COLLAB 02 // SOCLE DU PROJET',
+      color: '#ff3dbb',
+      tag: 'COLLAB 02 // SECRÉTARIAT & SUIVI',
       tabLabel: '02 // YANIS',
-      title: 'Yanis — Socle du Projet',
+      title: 'Yanis — Secrétaire du Projet',
       detail: {
         subtitle:
-          "Yanis a contribué aux éléments fondateurs du projet, posant une base structurante reprise et étendue par la suite du développement.",
+          "Yanis, étudiant en 1re année de Bachelor Informatique à l'ESGI Reims, assure le secrétariat du projet : comptes rendus, suivi de l'avancement du bot et documentation. Il prête aussi main-forte sur le code quand c'est nécessaire et s'occupe du site vitrine.",
         metrics: [
-          { value: 'FONDATIONS', label: 'Éléments initiaux de structure du dépôt' },
-          { value: 'CONFIG & MATIÈRES', label: 'Configuration générale & référentiel matières' },
-          { value: 'DOCUMENTATION', label: 'Évolutions et structuration du README' }
+          { value: 'COMPTES RENDUS', label: 'Rapports de livrables & points d’étape' },
+          { value: 'SUIVI', label: 'Avancement du bot & tâches à venir' },
+          { value: 'RENFORT CODE', label: 'Configuration, matières, SQL & site vitrine' }
         ],
         sections: [
           {
-            title: 'Travaux Fondateurs & Configuration',
-            desc: 'Mise en place des premiers paramètres et référentiels utilisés par les commandes du bot.',
+            title: 'Secrétariat & Suivi de l’Avancement',
+            desc: 'Garder une trace claire de ce qui est fait, de ce qui reste à faire et des décisions prises.',
             bullets: [
-              'Contribution aux éléments fondateurs de l’architecture initiale du projet',
-              'Premiers travaux visibles sur la configuration générale du bot',
-              'Définition des listes de matières et catégories proposées aux étudiants'
+              'Rédaction des comptes rendus de réunion et des rapports de livrables',
+              'Suivi de l’avancement du bot : fonctionnalités terminées, en cours et prévues',
+              'Documentation du projet : README, installation et liste des commandes'
             ]
           },
           {
-            title: 'Documentation & Base Collaborative',
-            desc: 'Participation à la clarté du projet et à la transmission des bases techniques.',
+            title: 'Renfort sur le Code',
+            desc: 'Un coup de main sur le développement du bot quand le besoin se présente.',
             bullets: [
-              'Contribution aux évolutions du README et à la présentation du projet',
-              'Base technique utilisée ensuite par le reste du développement'
+              'Configuration générale du bot (config.py)',
+              'Listes de matières et catégories proposées aux étudiants (utils.py)',
+              'Participation à la couche base de données SQLite (cogs/sql.py)'
+            ]
+          },
+          {
+            title: 'Site Vitrine',
+            desc: 'Mise en forme et contenu de cette expérience web de présentation du projet.',
+            bullets: [
+              'Rédaction et mise à jour des contenus présentés sur le site',
+              'Restylage de l’interface et cohérence des informations avec le bot'
             ]
           }
         ]
@@ -404,7 +448,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     },
     {
       label: 'pillar-2',
-      color: '#10b981',
+      color: '#8b5cf6',
       tag: 'COLLAB 03 // ÉCOLE & CAMPUS',
       tabLabel: '03 // ESGI',
       title: 'ESGI — Campus de Reims',
@@ -439,21 +483,21 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     },
     {
       label: 'pillar-3',
-      color: '#ff007f',
-      tag: 'COLLAB 04 // ASSISTANT IA',
-      tabLabel: '04 // GEMINI',
-      title: 'Gemini — Assistance IA',
+      color: '#22e4ff',
+      tag: 'COLLAB 04 // ASSISTANTS IA',
+      tabLabel: '04 // GEMINI & CLAUDE',
+      title: 'Gemini & Claude — Assistance IA',
       detail: {
         subtitle:
-          "Collaboration technique avec Gemini tout au long de la conception de l'expérience web 3D, du rendu graphique jusqu'à l'interface interactive.",
+          "Deux assistants IA ont accompagné l'équipe : Gemini sur la conception de l'expérience web 3D, Claude sur la relecture du code, le contenu et le restylage du site.",
         metrics: [
-          { value: 'THREE.JS & GLSL', label: 'Shaders ciel, nuages et post-traitement' },
-          { value: 'GSAP SCROLL', label: 'Chorégraphie caméra & transitions fluides' },
-          { value: 'DEBUG & UI', label: 'Optimisation GPU & modales interactives' }
+          { value: 'THREE.JS & GLSL', label: 'Gemini : shaders, scène 3D & post-traitement' },
+          { value: 'GSAP SCROLL', label: 'Gemini : chorégraphie caméra & transitions' },
+          { value: 'CODE & CONTENU', label: 'Claude : relecture, cohérence & restylage' }
         ],
         sections: [
           {
-            title: 'Conception de l’Environnement 3D & Shaders',
+            title: 'Gemini — Environnement 3D & Shaders',
             desc: 'Assistance dans le développement de la scène WebGL et des effets atmosphériques.',
             bullets: [
               'Création des shaders personnalisés (Voie Lactée, mer de nuages et nuages barbe à papa)',
@@ -462,12 +506,21 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
             ]
           },
           {
-            title: 'Navigation Interactive & Résolution de Bugs',
+            title: 'Gemini — Navigation Interactive & Résolution de Bugs',
             desc: "Aide au pilotage de la caméra au défilement et à l'intégration des fiches de documentation.",
             bullets: [
               'Synchronisation des trajectoires de caméra avec GSAP ScrollTrigger',
               'Mise en place du raycasting 3D et de l’interface modale néon plein écran',
               'Diagnostic et correction des erreurs WebGL et d’ergonomie'
+            ]
+          },
+          {
+            title: 'Claude — Relecture, Contenu & Restylage',
+            desc: "Aide à la vérification du code et à la mise en cohérence du site avec le vrai fonctionnement du bot.",
+            bullets: [
+              'Comparaison du contenu du site avec le code du bot pour corriger les informations',
+              'Aide à la rédaction des présentations de l’équipe et des fonctionnalités',
+              'Accompagnement sur le restylage de l’interface et le lancement du projet'
             ]
           }
         ]
@@ -475,7 +528,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     },
     {
       label: 'pillar-4',
-      color: '#a855f7',
+      color: '#ff3dbb',
       tag: 'COLLAB 05 // REMERCIEMENTS',
       tabLabel: '05 // MERCI',
       title: 'Remerciements Généraux',
@@ -696,7 +749,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       trigger: '.scroll-container',
       start: 'top top',
       end: 'bottom bottom',
-      scrub: 1.1,
+      scrub: 0.6,
       onUpdate: (self) => {
         const hud = document.getElementById('hud');
         const hudAlt = document.getElementById('hud-alt');
@@ -723,7 +776,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
           else if (currentY > 64) hudZone.textContent = towerDossiers[1].zoneName;
           else if (currentY > 36) hudZone.textContent = towerDossiers[2].zoneName;
           else if (currentY > 17) hudZone.textContent = towerDossiers[3].zoneName;
-          else hudZone.textContent = 'ECO-PARC & SKYBRIDGES';
+          else hudZone.textContent = 'PARC NÉON & PASSERELLES';
         }
 
         if (isUnderground) {
@@ -1009,10 +1062,42 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   const underTargetVec = new THREE.Vector3();
   const pillarWorldPos = new THREE.Vector3();
 
+  // Lissage de la caméra : absorbe les à-coups de la molette
+  const smoothCamPos = new THREE.Vector3();
+  const smoothCamTarget = new THREE.Vector3();
+  let camInitialized = false;
+
+  // Qualité adaptative : si l'ordinateur n'arrive pas à suivre, on baisse la
+  // résolution puis on coupe le halo lumineux, pour rester fluide.
+  let perfFrames = 0;
+  let perfTime = 0;
+  function adaptQuality(delta) {
+    perfFrames++;
+    perfTime += delta;
+    if (perfTime < 2) return;
+    const fps = perfFrames / perfTime;
+    perfFrames = 0;
+    perfTime = 0;
+    if (fps >= 45) return;
+    if (currentPixelRatio > 1) {
+      currentPixelRatio = Math.max(1, currentPixelRatio - 0.25);
+      renderer.setPixelRatio(currentPixelRatio);
+      composer.setPixelRatio(currentPixelRatio);
+    } else if (bloomPass.enabled && fps < 30) {
+      bloomPass.enabled = false;
+    }
+  }
+
   function animate() {
     requestAnimationFrame(animate);
-    const delta = Math.min(clock.getDelta(), 0.05);
+    const rawDelta = clock.getDelta();
+    const delta = Math.min(rawDelta, 0.05);
     const elapsed = clock.elapsedTime;
+
+    // Fiche ouverte : elle couvre tout l'écran, inutile de calculer la 3D derrière
+    if (isModalOpen) return;
+
+    if (document.visibilityState === 'visible' && rawDelta < 0.5) adaptQuality(rawDelta);
 
     mouseCurrent.x += (mouseTarget.x - mouseCurrent.x) * 0.05;
     mouseCurrent.y += (mouseTarget.y - mouseCurrent.y) * 0.05;
@@ -1041,9 +1126,19 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     );
     underTargetVec.set(camState.utx, camState.uty, camState.utz);
 
-    camera.position.lerpVectors(orbitalCamVec, underCamVec, camState.mode);
+    const desiredCamPos = orbitalCamVec.lerp(underCamVec, camState.mode);
     const finalTarget = orbitalTargetVec.lerp(underTargetVec, camState.mode);
-    camera.lookAt(finalTarget);
+    if (!camInitialized) {
+      smoothCamPos.copy(desiredCamPos);
+      smoothCamTarget.copy(finalTarget);
+      camInitialized = true;
+    } else {
+      const follow = 1 - Math.exp(-delta * 8);
+      smoothCamPos.lerp(desiredCamPos, follow);
+      smoothCamTarget.lerp(finalTarget, follow);
+    }
+    camera.position.copy(smoothCamPos);
+    camera.lookAt(smoothCamTarget);
 
     let nextDossier = null;
 

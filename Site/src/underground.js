@@ -89,7 +89,7 @@ function createCircuitWallTexture() {
     ctx.lineTo(cx, cy);
     ctx.stroke();
 
-    ctx.fillStyle = i % 3 === 0 ? '#ff007f' : '#00f3ff';
+    ctx.fillStyle = i % 3 === 0 ? '#ff3dbb' : '#22e4ff';
     ctx.beginPath();
     ctx.arc(cx, cy, 5, 0, Math.PI * 2);
     ctx.fill();
@@ -330,7 +330,7 @@ export function buildUndergroundMasterclass(scene) {
       name: 'BRYAN (JMG)',
       role: 'Développeur Principal — Bot & Site 3D',
       tag: 'COLLAB 01 // DÉVELOPPEUR',
-      color: '#00f3ff',
+      color: '#22e4ff',
       pos: new THREE.Vector3(0, floorY, 7.0),
       camPos: new THREE.Vector3(0, floorY + 5.2, 16.5)
     },
@@ -338,9 +338,9 @@ export function buildUndergroundMasterclass(scene) {
       id: 1,
       label: 'pillar-1',
       name: 'YANIS',
-      role: 'Socle, Config & Listes de Matières',
-      tag: 'COLLAB 02 // FONDATIONS',
-      color: '#38bdf8',
+      role: 'Secrétaire, Suivi & Renfort Code',
+      tag: 'COLLAB 02 // SECRÉTARIAT',
+      color: '#ff3dbb',
       pos: new THREE.Vector3(-8.5, floorY, -2.5),
       camPos: new THREE.Vector3(-14.5, floorY + 5.2, 6.2)
     },
@@ -350,17 +350,17 @@ export function buildUndergroundMasterclass(scene) {
       name: 'ESGI REIMS',
       role: 'Campus & Cadre Académique',
       tag: 'COLLAB 03 // ÉCOLE',
-      color: '#10b981',
+      color: '#8b5cf6',
       pos: new THREE.Vector3(-15.5, floorY, -12.5),
       camPos: new THREE.Vector3(-19.5, floorY + 5.2, -2.2)
     },
     {
       id: 3,
       label: 'pillar-3',
-      name: 'GEMINI AI',
-      role: 'Co-Pilote Three.js, Shaders & UI',
-      tag: 'COLLAB 04 // ASSISTANT IA',
-      color: '#ff007f',
+      name: 'GEMINI & CLAUDE',
+      role: 'Assistants IA — 3D, Code & Contenu',
+      tag: 'COLLAB 04 // ASSISTANTS IA',
+      color: '#22e4ff',
       pos: new THREE.Vector3(15.5, floorY, -12.5),
       camPos: new THREE.Vector3(19.5, floorY + 5.2, -2.2)
     },
@@ -370,7 +370,7 @@ export function buildUndergroundMasterclass(scene) {
       name: 'REMERCIEMENTS',
       role: 'T. Pierson, Grégoire, Équipe & Élèves',
       tag: 'COLLAB 05 // COMMUNAUTÉ',
-      color: '#a855f7',
+      color: '#ff3dbb',
       pos: new THREE.Vector3(8.5, floorY, -2.5),
       camPos: new THREE.Vector3(14.5, floorY + 5.2, 6.2)
     }
@@ -396,7 +396,7 @@ export function buildUndergroundMasterclass(scene) {
     const pGroup = new THREE.Group();
     pGroup.position.copy(p.pos);
 
-    const isCyan = p.color === '#00f3ff';
+    const isCyan = p.color === '#22e4ff';
     const ringMat = isCyan ? cyanHdr : pinkHdr;
 
     const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.5, 1.8, 8), darkSteelMat);
