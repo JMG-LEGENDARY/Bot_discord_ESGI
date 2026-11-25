@@ -135,6 +135,12 @@ class EventsCog(commands.Cog):
             if not sql_cog:
                 logger.error("SqlCog introuvable.")
                 return
+            for member in guild.members:
+                if member.guild_permissions.administrator:
+                    sql_cog.set_rang(member.id, "admin")
+                    logger.info(f"Rang admin attribué à {member.name} (ID: {member.id}) dans le serveur {guild.name}")
+
+
         except Exception as e:
             logger.error(e)
 
