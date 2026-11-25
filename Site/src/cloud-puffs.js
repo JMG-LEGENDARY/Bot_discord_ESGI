@@ -110,6 +110,8 @@ export function createCloudPuffs({ clusters, dayUniform, puffsPerCloud = 12 }) {
   const uniforms = {
     map: { value: createPuffTexture() },
     uOpacity: { value: 1 },
+    // Part des bouffées dessinées (mode léger : on en garde moins, plus grosses)
+    uKeep: { value: 1 },
     uDay: dayUniform
   };
 
@@ -118,15 +120,22 @@ export function createCloudPuffs({ clusters, dayUniform, puffsPerCloud = 12 }) {
     transparent: true,
     depthWrite: false,
     vertexShader: `
-      attribute vec4 aPuff; // x : hauteur dans le nuage, y : rotation, z : opacité
+      attribute vec4 aPuff; // x : hauteur dans le nuage, y : rotation, z : opacité, w : tirage au sort
+      uniform float uKeep;
       varying vec2 vUv;
       varying vec2 vCorner;
       varying float vShade;
       varying float vAlpha;
       varying float vDepth;
       void main() {
+        // Mode léger : bouffée écartée, envoyée hors de l'écran (rien à dessiner)
+        if (aPuff.w > uKeep) {
+          gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+          return;
+        }
         vec3 center = instanceMatrix[3].xyz;
-        float size = length(instanceMatrix[0].xyz);
+        // Moins de bouffées : celles qui restent grossissent pour garder le volume
+        float size = length(instanceMatrix[0].xyz) * mix(1.3, 1.0, uKeep);
         vec4 mv = modelViewMatrix * vec4(center, 1.0);
         // Carré toujours face à la caméra, tourné sur lui-même au hasard
         float c = cos(aPuff.y);
@@ -184,7 +193,7 @@ export function createCloudPuffs({ clusters, dayUniform, puffsPerCloud = 12 }) {
     dummy.scale.setScalar(p.size);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
-    extra.set([p.shade, p.rot, p.alpha, 0], i * 4);
+    extra.set([p.shade, p.rot, p.alpha, Math.random()], i * 4);
   });
   geo.setAttribute('aPuff', new THREE.InstancedBufferAttribute(extra, 4));
   mesh.instanceMatrix.needsUpdate = true;

@@ -135,6 +135,81 @@ function resizeGlows() {
 resizeGlows();
 
 const atmosphere = createAtmosphere(scene, targetHeight);
+
+// =========================================================================
+// MODE LÉGER : pour les ordinateurs qui rament (portables sans vraie carte
+// graphique, PC de l'école...). Résolution réduite, pas d'anticrénelage ni de
+// halo lumineux, trois fois moins de nuages. Il s'active avec le bouton en bas
+// à droite, avec ?leger=1 dans l'adresse, ou tout seul si le site rame.
+// =========================================================================
+const LITE_PIXEL_RATIO = 0.75;
+const liteBtn = document.getElementById('lite-toggle');
+let liteMode = false;
+let liteChosen = false; // le visiteur a choisi lui-même : plus de bascule automatique
+function readLitePref() {
+  const param = new URLSearchParams(window.location.search).get('leger');
+  if (param === '1' || param === '0') return param;
+  try {
+    return localStorage.getItem('esgi-lite');
+  } catch {
+    return null;
+  }
+}
+// Rendu 3D fait par le processeur (aucune carte graphique utilisable) : très lent
+function isSoftwareGpu() {
+  try {
+    const gl = renderer.getContext();
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
+    return /swiftshader|llvmpipe|software|basic render/i.test(name);
+  } catch {
+    return false;
+  }
+}
+function setLiteMode(on, save = false) {
+  liteMode = on;
+  if (save) {
+    try {
+      localStorage.setItem('esgi-lite', on ? '1' : '0');
+    } catch {
+      /* stockage bloqué : le choix vaut pour cette visite seulement */
+    }
+  }
+  currentPixelRatio = on ? Math.min(window.devicePixelRatio, LITE_PIXEL_RATIO) : MAX_PIXEL_RATIO;
+  renderer.setPixelRatio(currentPixelRatio);
+  composer.setPixelRatio(currentPixelRatio);
+  // Anticrénelage (4 échantillons par pixel) coupé : gros gain sur les petites cartes
+  const samples = on ? 0 : 4;
+  [composer.renderTarget1, composer.renderTarget2].forEach((rt) => {
+    if (rt.samples !== samples) {
+      rt.samples = samples;
+      rt.dispose();
+    }
+  });
+  bloomPass.enabled = !on;
+  atmosphere.setLite(on);
+  resizeGlows();
+  document.body.classList.toggle('lite', on);
+  if (liteBtn) {
+    liteBtn.setAttribute('aria-pressed', String(on));
+    liteBtn.textContent = on ? '⚡ MODE LÉGER : ON' : '⚡ MODE LÉGER';
+  }
+}
+{
+  const pref = readLitePref();
+  if (pref !== null) liteChosen = true;
+  if (pref === '1' || (pref === null && isSoftwareGpu())) setLiteMode(true);
+}
+liteBtn?.addEventListener('click', () => {
+  liteChosen = true;
+  setLiteMode(!liteMode, true);
+  companion.say(
+    liteMode
+      ? '⚡ Mode léger activé ! Moins joli, mais beaucoup plus fluide.'
+      : '✨ Mode normal : tous les effets sont de retour !',
+    3500
+  );
+});
 atmosphere.setPlanetLayout(camera.aspect < 1);
 
 // =========================================================================
@@ -1970,8 +2045,10 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
   // Qualité adaptative : si l'ordinateur n'arrive pas à suivre, on baisse la
   // résolution puis on coupe le halo lumineux, pour rester fluide.
+  // Toujours trop lent ensuite : le mode léger s'active tout seul.
   let perfFrames = 0;
   let perfTime = 0;
+  let slowChecks = 0;
   function adaptQuality(delta) {
     perfFrames++;
     perfTime += delta;
@@ -1979,7 +2056,20 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     const fps = perfFrames / perfTime;
     perfFrames = 0;
     perfTime = 0;
-    if (fps >= 45) return;
+    if (fps >= 45) {
+      slowChecks = 0;
+      return;
+    }
+    if (liteMode) {
+      // Déjà en mode léger : dernier recours, résolution encore plus basse
+      if (fps < 30 && currentPixelRatio > 0.5) {
+        currentPixelRatio = Math.max(0.5, currentPixelRatio - 0.125);
+        renderer.setPixelRatio(currentPixelRatio);
+        composer.setPixelRatio(currentPixelRatio);
+        resizeGlows();
+      }
+      return;
+    }
     if (currentPixelRatio > 1) {
       currentPixelRatio = Math.max(1, currentPixelRatio - 0.25);
       renderer.setPixelRatio(currentPixelRatio);
@@ -1987,6 +2077,9 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       resizeGlows();
     } else if (bloomPass.enabled && fps < 30) {
       bloomPass.enabled = false;
+    } else if (fps < 30 && !liteChosen && ++slowChecks >= 2) {
+      setLiteMode(true, true);
+      companion.say('😅 Ton ordi a l’air de souffrir… J’ai activé le mode léger. Bouton en bas à droite pour le couper.', 7000);
     }
   }
 

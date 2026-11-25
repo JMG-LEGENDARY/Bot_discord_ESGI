@@ -1147,6 +1147,52 @@ body.in-underground #panel-prompt {
   }
 }
 
+/* Bouton du mode léger, à gauche du lien vers le code */
+#lite-toggle {
+  position: fixed;
+  right: 148px;
+  bottom: 18px;
+  padding: 7px 12px;
+  background: var(--bg-dark);
+  border: 1px solid rgba(255, 210, 80, 0.35);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  z-index: 22;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+}
+
+#lite-toggle:hover,
+#lite-toggle:focus-visible {
+  border-color: #ffd250;
+  box-shadow: 0 0 14px rgba(255, 210, 80, 0.35);
+}
+
+#lite-toggle[aria-pressed='true'] {
+  color: #ffd250;
+  border-color: #ffd250;
+}
+
+/* Mode léger : plus de flou d'arrière-plan (coûteux sur les petites cartes) */
+body.lite * {
+  backdrop-filter: none !important;
+}
+
+@media (max-width: 640px) {
+  #lite-toggle {
+    top: 96px;
+    bottom: auto;
+    right: 12px;
+    font-size: 0.62rem;
+    padding: 6px 10px;
+  }
+}
+
 
 /* Boutons du pied de fiche (GitHub + fermer) */
 .modal-footer-actions {

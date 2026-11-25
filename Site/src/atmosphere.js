@@ -506,6 +506,10 @@ export function createAtmosphere(scene, mainTowerHeight) {
   return {
     update,
     setPlanetLayout,
+    // Mode léger : 35 % des bouffées de nuages seulement
+    setLite: (on) => {
+      cloudPuffs.uniforms.uKeep.value = on ? 0.35 : 1;
+    },
     // La planète cliquable est celle du mode affiché
     getActivePlanet: () => (DAY_UNIFORM.value > 0.5 ? dayPlanetMesh : planetMesh),
     isPlanetVisible: () => Math.max(nightPlanet.opacity, dayPlanet.opacity) > 0.3
