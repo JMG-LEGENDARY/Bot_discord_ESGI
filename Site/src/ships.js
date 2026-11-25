@@ -308,6 +308,7 @@ export function buildSpaceFleet(scene, mainTowerHeight, glows) {
     flagship.rotation.z = -0.08;
 
     ships.forEach((s) => {
+      if (!s.mesh.visible) return;
       s.t = (s.t + s.speed * delta) % 1;
       const tNext = (s.t + 0.015) % 1;
 
@@ -324,5 +325,12 @@ export function buildSpaceFleet(scene, mainTowerHeight, glows) {
     });
   }
 
-  return { update };
+  // Mode léger : un vaisseau sur deux disparaît (ses lumières aussi)
+  function setLite(on) {
+    ships.forEach((s, i) => {
+      s.mesh.visible = !on || i % 2 === 0;
+    });
+  }
+
+  return { update, setLite };
 }

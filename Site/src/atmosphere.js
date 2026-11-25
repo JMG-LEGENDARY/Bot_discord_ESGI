@@ -322,6 +322,7 @@ export function createAtmosphere(scene, mainTowerHeight) {
       depthWrite: false
     });
     const points = new THREE.Points(geo, mat);
+    points.userData.thinnable = true; // mode léger : moins d'étoiles
     atmoGroup.add(points);
     return { points, mat, baseOpacity };
   }

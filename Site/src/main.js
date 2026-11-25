@@ -138,11 +138,11 @@ const atmosphere = createAtmosphere(scene, targetHeight);
 
 // =========================================================================
 // MODE LÉGER : pour les ordinateurs qui rament (portables sans vraie carte
-// graphique, PC de l'école...). Résolution réduite, pas d'anticrénelage ni de
+// graphique, PC de l'école...). Résolution 1,25x, pas d'anticrénelage ni de
 // halo lumineux, trois fois moins de nuages. Il s'active avec le bouton en bas
 // à droite, avec ?leger=1 dans l'adresse, ou tout seul si le site rame.
 // =========================================================================
-const LITE_PIXEL_RATIO = 0.75;
+const LITE_PIXEL_RATIO = 1.25;
 const liteBtn = document.getElementById('lite-toggle');
 let liteMode = false;
 let liteChosen = false; // le visiteur a choisi lui-même : plus de bascule automatique
@@ -2062,8 +2062,8 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     }
     if (liteMode) {
       // Déjà en mode léger : dernier recours, résolution encore plus basse
-      if (fps < 30 && currentPixelRatio > 0.5) {
-        currentPixelRatio = Math.max(0.5, currentPixelRatio - 0.125);
+      if (fps < 30 && currentPixelRatio > 1) {
+        currentPixelRatio = Math.max(1, currentPixelRatio - 0.125);
         renderer.setPixelRatio(currentPixelRatio);
         composer.setPixelRatio(currentPixelRatio);
         resizeGlows();
@@ -2083,8 +2083,65 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     }
   }
 
-  function animate() {
+  // ---- Mode léger appliqué au décor (une fois tout construit) ----
+  // Particules : on mélange une fois leurs points au hasard, puis on n'en
+  // dessine qu'une partie (les manquants sont répartis partout, pas groupés).
+  function thinPoints(points, keep) {
+    const geo = points.geometry;
+    const count = geo.attributes.position.count;
+    if (!points.userData.shuffled) {
+      const order = Array.from({ length: count }, (_, i) => i);
+      for (let i = count - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+      Object.values(geo.attributes).forEach((attr) => {
+        const size = attr.itemSize;
+        const src = attr.array.slice();
+        order.forEach((from, to) => {
+          for (let k = 0; k < size; k++) attr.array[to * size + k] = src[from * size + k];
+        });
+        attr.needsUpdate = true;
+      });
+      points.userData.shuffled = true;
+    }
+    geo.setDrawRange(0, Math.ceil(count * keep));
+  }
+  // Matériaux « luxe » (vernis, irisation, verre) : effets coupés, couleur gardée
+  const LUXURY = ['clearcoat', 'iridescence', 'sheen', 'transmission'];
+  function simplifyMaterial(mat, on) {
+    if (!mat || !mat.isMeshPhysicalMaterial) return;
+    if (on) {
+      if (!mat.userData.liteBackup) {
+        mat.userData.liteBackup = {};
+        LUXURY.forEach((k) => (mat.userData.liteBackup[k] = mat[k]));
+      }
+      LUXURY.forEach((k) => (mat[k] = 0));
+    } else if (mat.userData.liteBackup) {
+      LUXURY.forEach((k) => (mat[k] = mat.userData.liteBackup[k]));
+    }
+  }
+  let liteApplied = false;
+  function applyLiteToScene(on) {
+    scene.traverse((o) => {
+      if (o.isPoints && o.userData.thinnable) thinPoints(o, on ? 0.45 : 1);
+      if (o.isMesh) {
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => simplifyMaterial(m, on));
+      }
+    });
+    spaceFleet.setLite(on);
+    liteApplied = on;
+  }
+
+  // Limite d'images/s : 120 en mode normal, 60 en mode léger. Sur un écran
+  // 240 Hz, le site serait sinon redessiné 240 fois par seconde.
+  let lastFrameAt = 0;
+
+  function animate(now = performance.now()) {
     requestAnimationFrame(animate);
+    if (now - lastFrameAt < 1000 / (liteMode ? 60 : 120) - 1) return;
+    lastFrameAt = now;
+    if (liteApplied !== liteMode) applyLiteToScene(liteMode);
     const rawDelta = clock.getDelta();
     const delta = Math.min(rawDelta, 0.05);
     const elapsed = clock.elapsedTime;

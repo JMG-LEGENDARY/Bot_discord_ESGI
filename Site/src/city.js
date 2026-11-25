@@ -795,6 +795,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
   );
   neonLeaves.frustumCulled = false;
   neonLeaves.userData.dynamic = true;
+  neonLeaves.userData.thinnable = true; // mode léger : moins de feuilles
   cityGroup.add(neonLeaves);
 
   // Lampadaires autour du parvis

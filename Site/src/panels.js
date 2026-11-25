@@ -260,8 +260,8 @@ export function buildSkyPlatform(scene, topY) {
     roughness: 0.3,
     envMapIntensity: 0.35
   });
-  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 1.5, 1.9), toneMapped: false });
-  const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.7, 0.12, 1.0), toneMapped: false });
+  const cyanHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.0, 0.95, 1.2), toneMapped: false });
+  const pinkHdr = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 0.08, 0.65), toneMapped: false });
 
   // ---- Soucoupe en verre noir laqué (profil tourné, bord biseauté) ----
   const profile = [
@@ -286,7 +286,7 @@ export function buildSkyPlatform(scene, topY) {
     new THREE.CircleGeometry(6.85, 96),
     new THREE.MeshBasicMaterial({
       map: createDeckTexture(),
-      color: new THREE.Color(1.6, 1.6, 1.6),
+      color: new THREE.Color(1.05, 1.05, 1.05),
       transparent: true,
       depthWrite: false,
       toneMapped: false
@@ -309,7 +309,7 @@ export function buildSkyPlatform(scene, topY) {
   // Cœur d'énergie sous la soucoupe + faisceau qui la relie à la tour
   const core = new THREE.Mesh(
     new THREE.SphereGeometry(0.55, 32, 16),
-    new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 2.2, 2.8), toneMapped: false })
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(0.8, 1.45, 1.85), toneMapped: false })
   );
   core.position.y = -3.05;
   group.add(core);
@@ -366,7 +366,7 @@ export function buildSkyPlatform(scene, topY) {
           float t = fract(vUv.x - uTime * uSpeed);
           float tail = pow(t, 6.0);           // traînée qui s'estompe
           float base = 0.12;                  // anneau à peine visible
-          gl_FragColor = vec4(uColor * (base + tail * 1.6), 1.0);
+          gl_FragColor = vec4(uColor * (base + tail * 0.9), 1.0);
         }
       `
     });
@@ -421,12 +421,13 @@ export function buildSkyPlatform(scene, topY) {
           float d = length(gl_PointCoord - 0.5) * 2.0;
           if (d > 1.0) discard;
           vec3 col = mix(vec3(0.3, 0.9, 1.0), vec3(1.0, 0.35, 0.85), step(0.7, vHue));
-          gl_FragColor = vec4(col * pow(1.0 - d, 2.0) * vAlpha * 1.4, 1.0);
+          gl_FragColor = vec4(col * pow(1.0 - d, 2.0) * vAlpha * 1.0, 1.0);
         }
       `
     })
   );
   motes.frustumCulled = false;
+  motes.userData.thinnable = true; // mode léger : moins de poussières
   group.add(motes);
 
   // ---- Le nom ESGI BOT en hologramme ----
@@ -454,7 +455,7 @@ export function buildSkyPlatform(scene, topY) {
         float lines = 0.9 + 0.1 * sin(vUv.y * 420.0 + uTime * 4.0);
         float flicker = 0.96 + 0.04 * sin(uTime * 23.0) * sin(uTime * 7.0);
         vec3 col = tex.rgb * lines * flicker + vec3(0.6, 0.95, 1.0) * sweep * tex.a * 0.8;
-        gl_FragColor = vec4(col * 1.25, tex.a);
+        gl_FragColor = vec4(col * 1.0, tex.a);
         #include <colorspace_fragment>
       }
     `
