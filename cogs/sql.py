@@ -632,12 +632,11 @@ class SqlCog(commands.Cog):
         conn = self.connexion()
         curseur = conn.execute(
             """UPDATE devoirs
-               SET devoir      = ?,
-                   date = ?,
-                   matiere     = ?
+               SET devoir = ?
                WHERE guild_id = ?
                  AND classe_name = ?
-                 AND user_id = ?""",
+                 AND user_id = ?
+            AND matiere = ? AND date = ?""",
             (
                 devoir["sujet"],
                 devoir["date"],
@@ -656,8 +655,8 @@ class SqlCog(commands.Cog):
         conn = self.connexion()
         curseur = conn.execute(
             """UPDATE evaluations 
-               SET eval = ?, date = ?, matiere = ? 
-               WHERE guild_id = ? AND classe_name = ? AND user_id = ?""",
+               SET eval = ?
+               WHERE guild_id = ? AND classe_name = ? AND user_id = ? AND matiere = ? AND date = ?""",
             (
                 eval["sujet"],
                 eval["date"],
