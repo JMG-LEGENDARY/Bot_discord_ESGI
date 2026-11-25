@@ -83,13 +83,16 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
                             )
 
                     if autres_devoirs:
+                        logger.info("Des devoirs existants ont été trouvés.")
                         for devoir in autres_devoirs:
+                            logger.info(f"Devoir existant : {devoir['date']} - {devoir['sujet']} - {devoir['matiere']}")
                             if devoir["date"] == self.topic["date"] and devoir["matiere"] == self.topic["matiere"]:
                                 embed = discord.Embed(
                                     title=f"Ceci a déjà été enregistré",
                                     color=discord.Color.yellow(),
                                     description=f"{self.dico['le']} pour **{self.topic['matiere']}** est déjà enregistré pour le **{self.topic['date']}** ! \nVoulez vous le modifier ?"
                                 )
+                                logger.info(f"Devoir déjà existant pour {self.topic['matiere']} le {self.topic['date']}. Demande de modification par {interaction.user.name}")
                                 view = EmbedButtonAccepterRefuser()
                                 await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
                                 await view.wait()  # Attend que l'utilisateur clique sur un bouton
