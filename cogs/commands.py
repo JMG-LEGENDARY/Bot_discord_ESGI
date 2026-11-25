@@ -96,10 +96,9 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
                             )
 
                     if autres_devoirs:
-                        logger.info("Des devoirs existants ont été trouvés.")
                         for devoir in autres_devoirs:
-                            logger.info(f"Devoir existant : {devoir['date']} - {devoir['sujet']} - {devoir['matiere']}, \n comparaison avec le devoir à ajouter : {self.topic['date']} - {self.topic['sujet']} - {self.topic['matiere']}")
-                            if devoir["date"] == self.topic["date"] and devoir["matiere"] == self.topic["matiere"]:
+                            date_devoir = datetime.strptime(devoir["date"], "%Y-%m-%d").date()
+                            if date_devoir== self.topic["date"] and devoir["matiere"] == self.topic["matiere"]:
                                 embed = discord.Embed(
                                     title=f"Ceci a déjà été enregistré",
                                     color=discord.Color.yellow(),
@@ -150,7 +149,7 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
                                             title="Problème, veuillez contacter l'assistance",
                                             color=discord.Color.red(),
                                         )
-
+                            break
                         if is_devoir:
                             sql_cog.ajouter_devoir(
                                 guild_id=interaction.guild_id,
@@ -263,7 +262,7 @@ class CommandsCog(commands.Cog):
 
             # 2. Vérifie si le serveur a configuré au moins une classe
             if not guild_class_roles:
-                await interaction.response.send_message("Erreur, veuillez contacter un admin",
+                await interaction.response.send_message("Votre serveur n'a aucune classe configurée. Veuillez contacter un administrateur pour configurer les classes.",
                     ephemeral=True)
                 logger.warning(
                     f"[commands - get_classe_role] Le serveur {interaction.guild.name} ({interaction.guild_id}) n'a aucune classe configurée.")
@@ -320,7 +319,7 @@ class CommandsCog(commands.Cog):
                 embed=embed, view=view, ephemeral=True
             )
         else:
-            logger.error(
+            logger.warning(
                 f"[commands - ajouter_eval_devoir] Classe introuvable pour {interaction.user.name} ({interaction.user.id})")
             return
 
