@@ -806,8 +806,9 @@ body.in-underground #panel-prompt {
     width: calc(100% - 32px);
   }
 
+  /* Sous la rangée de boutons (mode léger à gauche, code source à droite) */
   #theme-hint {
-    top: 60px;
+    top: 100px;
     font-size: 0.62rem;
     max-width: calc(100% - 32px);
     white-space: normal;
@@ -815,7 +816,7 @@ body.in-underground #panel-prompt {
   }
 
   #pillar-tooltip {
-    top: 60px;
+    top: 100px;
   }
 
   /* Invite d'ouverture : en colonne, pleine largeur */
@@ -1185,9 +1186,10 @@ body.lite * {
 
 @media (max-width: 640px) {
   #lite-toggle {
-    top: 96px;
+    top: 60px;
     bottom: auto;
-    right: 12px;
+    left: 12px;
+    right: auto;
     font-size: 0.62rem;
     padding: 6px 10px;
   }
@@ -1226,5 +1228,13 @@ body.pillars-open #github-link {
 
   .modal-link-btn {
     justify-content: center;
+  }
+}
+
+/* Écran tactile : pas de survol, donc pas d'infobulle de survol (elle restait
+   affichée après un toucher et recouvrait l'indication de la planète) */
+@media (hover: none) {
+  #pillar-tooltip {
+    display: none;
   }
 }
