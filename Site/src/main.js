@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import './style.css';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -115,6 +116,11 @@ const bloomPass = new UnrealBloomPass(
   0.4,
   1.05
 );
+// Halo calculé en plus petit (il est flou de toute façon) : le bloom de three.js
+// travaille déjà en demi-taille, on lui donne encore moitié moins de pixels,
+// soit 4 fois moins de calcul pour un rendu quasi identique.
+bloomPass.setSize = (w, h) => UnrealBloomPass.prototype.setSize.call(bloomPass, Math.max(1, w / 2), Math.max(1, h / 2));
+bloomPass.setSize(window.innerWidth * currentPixelRatio, window.innerHeight * currentPixelRatio);
 composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
 
@@ -125,6 +131,8 @@ const targetHeight = 130;
 const glows = createGlowSystem(scene);
 // NOVA, le petit vaisseau compagnon qui suit le visiteur
 const companion = createCompanion(scene, camera, glows);
+// Halos lumineux et NOVA : toujours affichés, quelle que soit la zone
+const ALWAYS_ON = new Set(scene.children);
 if (import.meta.env.DEV) window.__nova = companion;
 const bufferSize = new THREE.Vector2();
 function resizeGlows() {
@@ -683,6 +691,8 @@ function getFacadeRadiusAtY(tower, y, fallbackRadius) {
 }
 
 const loader = new GLTFLoader();
+// Modèle de la tour compressé (meshopt) : 660 ko au lieu de 2,2 Mo
+loader.setMeshoptDecoder(MeshoptDecoder);
 const panelGroups = [];
 const interactivePanelScreens = [];
 
@@ -2083,6 +2093,46 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     }
   }
 
+  // ---- Zones : on ne calcule que ce que la caméra peut voir ----
+  // Dehors (ville, tour, ciel, vaisseaux), sous-sol, cabine d'ascenseur.
+  // Les lumières d'une zone cachée n'éclairent plus les autres : chaque pixel
+  // de la ville ne calcule plus les deux lampes du sous-sol.
+  const outsideZone = scene.children.filter(
+    (o) => !o.isLight && !ALWAYS_ON.has(o) && o !== underground.group && o !== elevator.group
+  );
+  let zoneUnder = true;
+  let zoneOutside = true;
+  function setZones(under, outside) {
+    if (under !== zoneUnder) {
+      underground.group.visible = under;
+      zoneUnder = under;
+    }
+    if (outside !== zoneOutside) {
+      outsideZone.forEach((o) => {
+        o.visible = outside;
+      });
+      zoneOutside = outside;
+    }
+  }
+
+  // ---- Shaders préparés pendant l'écran de chargement ----
+  // Sinon chaque matériau est compilé la première fois qu'il apparaît : petits
+  // blocages pendant la descente. On compile les deux combinaisons d'éclairage
+  // (sous-sol affiché ou non), en parallèle quand le navigateur le permet.
+  async function warmUpShaders() {
+    try {
+      setZones(true, true);
+      await renderer.compileAsync(scene, camera);
+      setZones(false, true);
+      await renderer.compileAsync(scene, camera);
+      setZones(true, false);
+      await renderer.compileAsync(scene, camera);
+    } catch (err) {
+      console.warn('Précompilation des shaders ignorée :', err);
+    }
+    setZones(true, true);
+  }
+
   // ---- Mode léger appliqué au décor (une fois tout construit) ----
   // Particules : on mélange une fois leurs points au hasard, puis on n'en
   // dessine qu'une partie (les manquants sont répartis partout, pas groupés).
@@ -2169,6 +2219,8 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
     // Dans la cabine d'ascenseur : caméra fixe face aux portes
     if (elevator.active) {
+      // Cabine fermée : ni la ville ni le sous-sol ne sont visibles
+      setZones(false, false);
       scene.environment = elevator.environment;
       scene.environmentIntensity = 1;
       // Même lumière dans la cabine, qu'il fasse jour ou nuit dehors
@@ -2193,6 +2245,9 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     }
 
     const currentY = THREE.MathUtils.lerp(camState.camY, camState.uy, camState.mode);
+    // Sous-sol : dès qu'on approche du sol ou qu'on plonge dans le puits.
+    // Dehors : tant qu'on n'est pas entièrement descendu.
+    setZones(camState.mode > 0.001 || currentY < 25, camState.mode < 0.98);
     atmosphere.update(delta, elapsed, currentY, camState.mode);
     ecoCity.update(delta, elapsed);
     spaceFleet.update(delta, elapsed);
@@ -2306,8 +2361,13 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
     composer.render();
   }
-  animate();
-  hideLoader();
+  // Shaders compilés derrière l'écran de chargement, puis la scène démarre
+  applyLiteToScene(liteMode);
+  if (loaderText) loaderText.textContent = 'PRÉPARATION DES EFFETS…';
+  warmUpShaders().then(() => {
+    animate();
+    hideLoader();
+  });
 
   // Easter egg : NOVA doré, 0,1 % de chance (comme les images Thomson du bot)
   if (Math.random() < 0.001) {

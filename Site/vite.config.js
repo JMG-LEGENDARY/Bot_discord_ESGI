@@ -8,5 +8,20 @@ export default defineConfig({
     proxy: {
       '/api': 'http://127.0.0.1:8787'
     }
+  },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Bibliothèques (three.js, GSAP) dans des fichiers à part : elles ne
+        // changent presque jamais, le navigateur les garde en cache. Après une
+        // mise à jour du site, le visiteur ne retélécharge que notre code.
+        codeSplitting: {
+          groups: [
+            { name: 'three', test: /node_modules[\\/]three[\\/]/, priority: 2 },
+            { name: 'gsap', test: /node_modules[\\/]gsap[\\/]/, priority: 1 }
+          ]
+        }
+      }
+    }
   }
 });

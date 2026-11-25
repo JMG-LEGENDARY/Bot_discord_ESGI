@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { api } from './api.js';
 import { createElevatorMusic } from './elevator-music.js';
-import { createDashboard } from './dashboard.js';
 
 // =========================================================================
 // L'ASCENSEUR EN 3D
@@ -1159,7 +1158,12 @@ export function createElevator3D(scene, { say, onExit, renderer }) {
   floorView.setAttribute('aria-label', 'Ton étage');
   floorView.setAttribute('aria-hidden', 'true');
   document.body.appendChild(floorView);
-  const dashboard = createDashboard(floorView, {
+  // Tableau de bord chargé seulement à la première visite de son étage :
+  // la page d'accueil n'a pas à télécharger ce code.
+  let dashboardReady = null;
+  const getDashboard = () =>
+    (dashboardReady ??= import('./dashboard.js').then(({ createDashboard }) => createDashboard(floorView, dashboardOptions)));
+  const dashboardOptions = {
     say: (text) => say(text, 3500),
     onElevator: () => backToCabin(),
     onLogout: async () => {
@@ -1177,7 +1181,7 @@ export function createElevator3D(scene, { say, onExit, renderer }) {
       await backToCabin(true);
       loadFloors('Déconnecté ! À bientôt 👋 Repasse ton badge quand tu veux.');
     }
-  });
+  };
 
   async function arriveAtMyFloor() {
     landingMat.map = floorTex;
@@ -1190,7 +1194,7 @@ export function createElevator3D(scene, { say, onExit, renderer }) {
     floorView.classList.add('open');
     floorView.setAttribute('aria-hidden', 'false');
     try {
-      await dashboard.load();
+      await (await getDashboard()).load();
     } catch (e) {
       say(e.message, 5000);
     }
@@ -1311,6 +1315,7 @@ export function createElevator3D(scene, { say, onExit, renderer }) {
       return active && !onFloor && music.playing;
     },
     cameraPose,
+    group,
     environment: cabinEnvironment,
     enter({ greeting } = {}) {
       active = true;
