@@ -279,9 +279,8 @@ class CommandsCog(commands.Cog):
                 if sql_cog:
                     if dico["commande"] == "lister_les_devoirs":
                         topics = sql_cog.recup_tous_devoirs(guild_id=interaction.guild.id, classe_name=classe)
-                    if dico["commande"] == "lister_les_eval":
+                    elif dico["commande"] == "lister_les_eval":
                         topics = sql_cog.recup_tous_evals(guild_id=interaction.guild.id, classe_name=classe)
-
                     if topics:
                         classe_name = interaction.guild.get_role(int(classe)).name if interaction.guild.get_role(int(classe)) else classe
                         embed = discord.Embed(
@@ -297,16 +296,21 @@ class CommandsCog(commands.Cog):
                                 value=topic['sujet'],
                                 inline=False
                             )
-                            await interaction.response.send_message(embed=embed, ephemeral=False)
+                        await interaction.response.send_message(embed=embed, ephemeral=False)
                     else:
-                        await interaction.response.send_message(
-                            "Aucun devoir trouvé pour votre classe.",
-                            ephemeral=True
-                        )
+                        await interaction.response.send_message(embed=discord.Embed(title="Il semble qu'il n'y ait rien de prévu...", description="Si c'est anormalement calme, il s'agit peut être d'un problème... Dans ce cas, veuillez contacter un admin."), ephemeral=False)
                 else:
                     logger.error("SqlCog introuvable.")
+                    await interaction.response.send_message(
+                        "Erreur, veuillez contacter un admin",
+                        ephemeral=True
+                    )
             else:
                 logger.error(f"[commands - lister_les_devoirs_eval] Classe introuvable pour {interaction.user.name} ({interaction.user.id})")
+                await interaction.response.send_message(
+                    "Erreur, veuillez contacter un admin",
+                    ephemeral=True
+                )
         except Exception as e:
             logger.error(f"[commands - lister_les_devoirs_eval] Erreur lors de la récupération des devoirs : {e}")
             await interaction.response.send_message(
