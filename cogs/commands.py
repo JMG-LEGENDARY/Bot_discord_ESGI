@@ -71,39 +71,20 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
                     if not autres_devoirs:
                         if is_devoir:
                             print(f"Ajout du devoir : {self.topic['date']} - {self.topic['sujet']} - {self.topic['matiere']} pour la classe {class_id} par {interaction.user.name}")
-                            sql_cog.ajouter_devoir(
-                                guild_id=interaction.guild_id,
-                                user_id=interaction.user.id,
-                                devoir=self.topic,
-                                classe_name=class_id)
-                            embed = discord.Embed(
-                                title="Devoir enregistré",
-                                color=discord.Color.blue(),
-                                description=f"Devoir enregistré : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !"
-                            )
+                            sql_cog.ajouter_devoir(guild_id=interaction.guild_id,user_id=interaction.user.id,devoir=self.topic,classe_name=class_id)
+                            embed = discord.Embed(title="Devoir enregistré",color=discord.Color.blue(),description=f"Devoir enregistré : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !"
+)
 
                         if not is_devoir:
                             print(f"Ajout de l'évaluation : {self.topic['date']} - {self.topic['sujet']} - {self.topic['matiere']} pour la classe {class_id} par {interaction.user.name}")
-                            sql_cog.ajouter_eval(
-                                guild_id=interaction.guild_id,
-                                user_id=interaction.user.id,
-                                eval=self.topic,
-                                classe_name=class_id)
-                            embed = discord.Embed(
-                                title="Évaluation enregistrée",
-                                color=discord.Color.blue(),
-                                description=f"Évaluation enregistrée : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !"
-                            )
+                            sql_cog.ajouter_eval(guild_id=interaction.guild_id,user_id=interaction.user.id,eval=self.topic,classe_name=class_id)
+                            embed = discord.Embed(title="Évaluation enregistrée",color=discord.Color.blue(),description=f"Évaluation enregistrée : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !")
 
                     if autres_devoirs:
                         for devoir in autres_devoirs:
                             date_devoir = datetime.strptime(devoir["date"], "%Y-%m-%d").date()
                             if date_devoir== self.topic["date"] and devoir["matiere"] == self.topic["matiere"]:
-                                embed = discord.Embed(
-                                    title=f"Ceci a déjà été enregistré",
-                                    color=discord.Color.yellow(),
-                                    description=f"{self.dico['le']} pour **{self.topic['matiere']}** est déjà enregistré pour le **{self.topic['date']}** ! \nVoulez vous le modifier ?"
-                                )
+                                embed = discord.Embed(title=f"Ceci a déjà été enregistré",color=discord.Color.yellow(),description=f"{self.dico['le']} pour **{self.topic['matiere']}** est déjà enregistré pour le **{self.topic['date']}** ! \nVoulez vous le modifier ?")
                                 logger.info(f"Devoir déjà existant pour {self.topic['matiere']} le {self.topic['date']}. Demande de modification par {interaction.user.name}")
                                 view = EmbedButtonAccepterRefuser()
                                 await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
@@ -117,73 +98,30 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
                                         rang = sql_cog.get_rang(interaction.user.id)
                                         if rang == "admin" or rang == "prof" or rang == "delegue" or self_user_id == interaction.user.id:
                                             if is_devoir:
-                                                sql_cog.modifier_devoir(
-                                                    guild_id=interaction.guild_id,
-                                                    user_id=interaction.user.id,
-                                                    devoir=self.topic,
-                                                    classe_name=class_id)
-                                                embed = discord.Embed(
-                                                    title="Devoir enregistré",
-                                                    color=discord.Color.blue(),
-                                                    description=f"Devoir enregistré : \n**Le {self.topic["date"]}**\n**en {self.topic["matiere"]}**\n**{self.topic["sujet"]}** !"
-                                                )
+                                                sql_cog.modifier_devoir(guild_id=interaction.guild_id, user_id=interaction.user.id,devoir=self.topic, classe_name=class_id)
+                                                embed = discord.Embed( title="Devoir enregistré",color=discord.Color.blue(),description=f"Devoir enregistré : \n**Le {self.topic["date"]}**\n**en {self.topic["matiere"]}**\n**{self.topic["sujet"]}** !")
                                             if not is_devoir:
-                                                sql_cog.modifier_eval(
-                                                    guild_id=interaction.guild_id,
-                                                    user_id=interaction.user.id,
-                                                    eval=self.topic,
-                                                    classe_name=class_id)
-                                                embed = discord.Embed(
-                                                    title="Évaluation enregistrée",
-                                                    color=discord.Color.blue(),
-                                                    description=f"Évaluation enregistrée : \n**Le {self.topic["date"]}**\n**en {self.topic["matiere"]}**\n**{self.topic["sujet"]}** !"
-                                                )
+                                                sql_cog.modifier_eval(guild_id=interaction.guild_id,user_id=interaction.user.id,eval=self.topic,classe_name=class_id)
+                                                embed = discord.Embed(title="Évaluation enregistrée",color=discord.Color.blue(),description=f"Évaluation enregistrée : \n**Le {self.topic["date"]}**\n**en {self.topic["matiere"]}**\n**{self.topic["sujet"]}** !")
                                         else :
-                                            embed = discord.Embed(
-                                                title=f"Vous n'avez pas les droits pour modifier {self.dico['le']}",
-                                                color=discord.Color.red(),
-                                            )
+                                            embed = discord.Embed(title=f"Vous n'avez pas les droits pour modifier {self.dico['le']}",color=discord.Color.red())
                                     except Exception as e:
                                         logger.error(f"-- [commande - on_submit] Erreur lors de la modification en BDD : {e}")
-                                        embed = discord.Embed(
-                                            title="Problème, veuillez contacter l'assistance",
-                                            color=discord.Color.red(),
-                                        )
+                                        embed = discord.Embed(title="Problème, veuillez contacter l'assistance", color=discord.Color.red())
                             break
                         if is_devoir:
-                            sql_cog.ajouter_devoir(
-                                guild_id=interaction.guild_id,
-                                user_id=interaction.user.id,
-                                devoir=self.topic,
-                                classe_name=class_id)
-                            embed = discord.Embed(
-                                title="Devoir enregistré",
-                                color=discord.Color.blue(),
-                                description=f"Devoir enregistré : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !"
-                            )
+                            sql_cog.ajouter_devoir(guild_id=interaction.guild_id,user_id=interaction.user.id,devoir=self.topic,classe_name=class_id)
+                            embed = discord.Embed(title="Devoir enregistré",color=discord.Color.blue(),description=f"Devoir enregistré : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !")
                         if not is_devoir:
-                            sql_cog.ajouter_eval(
-                                guild_id=interaction.guild_id,
-                                user_id=interaction.user.id,
-                                eval=self.topic,
-                                classe_name=class_id)
-                            embed = discord.Embed(
-                                title="Évaluation enregistrée",
-                                color=discord.Color.blue(),
-                                description=f"Évaluation enregistrée : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !"
-                            )
+                            sql_cog.ajouter_eval(guild_id=interaction.guild_id,user_id=interaction.user.id,eval=self.topic,classe_name=class_id)
+                            embed = discord.Embed(title="Évaluation enregistrée", color=discord.Color.blue(), description=f"Évaluation enregistrée : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !")
 
                 else:
                     logger.error("Le Cog SQL n'a pas été trouvé.")
-                    embed = discord.Embed(
-                        title="Problème, veuillez contacter l'assistance",
-                        color=discord.Color.red(),
-                    )
+                    embed = discord.Embed( title="Problème, veuillez contacter l'assistance", color=discord.Color.red(), )
         except Exception as e:
             logger.error(f"-- [commande - on_submit] Erreur lors de l'ajout en BDD : {e}")
-            embed = discord.Embed(
-                title="Problème, veuillez contacter l'assistance",
-                color=discord.Color.red(),
+            embed = discord.Embed(title="Problème, veuillez contacter l'assistance",color=discord.Color.red(),
             )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
