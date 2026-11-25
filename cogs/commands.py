@@ -82,10 +82,23 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
                                 description=f"Devoir enregistré : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !"
                             )
 
+                        if not is_devoir:
+                            print(f"Ajout de l'évaluation : {self.topic['date']} - {self.topic['sujet']} - {self.topic['matiere']} pour la classe {class_id} par {interaction.user.name}")
+                            sql_cog.ajouter_eval(
+                                guild_id=interaction.guild_id,
+                                user_id=interaction.user.id,
+                                eval=self.topic,
+                                classe_name=class_id)
+                            embed = discord.Embed(
+                                title="Évaluation enregistrée",
+                                color=discord.Color.blue(),
+                                description=f"Évaluation enregistrée : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !"
+                            )
+
                     if autres_devoirs:
                         logger.info("Des devoirs existants ont été trouvés.")
                         for devoir in autres_devoirs:
-                            logger.info(f"Devoir existant : {devoir['date']} - {devoir['sujet']} - {devoir['matiere']}")
+                            logger.info(f"Devoir existant : {devoir['date']} - {devoir['sujet']} - {devoir['matiere']}, \n comparaison avec le devoir à ajouter : {self.topic['date']} - {self.topic['sujet']} - {self.topic['matiere']}")
                             if devoir["date"] == self.topic["date"] and devoir["matiere"] == self.topic["matiere"]:
                                 embed = discord.Embed(
                                     title=f"Ceci a déjà été enregistré",
@@ -138,6 +151,17 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
                                             color=discord.Color.red(),
                                         )
 
+                        if is_devoir:
+                            sql_cog.ajouter_devoir(
+                                guild_id=interaction.guild_id,
+                                user_id=interaction.user.id,
+                                devoir=self.topic,
+                                classe_name=class_id)
+                            embed = discord.Embed(
+                                title="Devoir enregistré",
+                                color=discord.Color.blue(),
+                                description=f"Devoir enregistré : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !"
+                            )
                         if not is_devoir:
                             sql_cog.ajouter_eval(
                                 guild_id=interaction.guild_id,
