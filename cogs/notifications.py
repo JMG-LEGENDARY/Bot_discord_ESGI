@@ -25,42 +25,42 @@ class NotificationsCog(commands.Cog):
             return
 
         for guild in self.bot.guilds:
-            classes = sql_cog.recup_tous_classes_roles(guild)
+            logger.info(f"Scan des devoirs sur guild {guild.name}")
+            classes = sql_cog.recup_tous_classes_roles(guild.id)
             for classe in classes:
                 nom_de_classe = guild.get_role(int(classe))
-                devoirs = sql_cog.recup_tous_devoirs(guild.id, classe)
-                evals = sql_cog.recup_tous_evals(guild.id, classe)
+                devoirs = sql_cog.recup_tous_devoirs(guild.id, int(classe))
+                evals = sql_cog.recup_tous_evals(guild.id, int(classe))
                 possible_channel = []
 
                 for channel in guild.text_channels:
                     role_class = guild.get_role(int(classe))
-                    if role_class in channel.overwrites:
-                        if channel.overwrites[role_class].read_messages:
-                            logger.info(f"Salon trouvé pour la classe {nom_de_classe.name} : {channel.name}")
-                            possible_channel.append(channel)
+                    if channel.permissions_for(role_class).read_messages:
+                        logger.info(f"Salon trouvé pour la classe {nom_de_classe.name} : {channel.name}")
+                        possible_channel.append(channel.id)
 
+                channel_to_post = None
                 for channel in possible_channel:
-                    name_channel = self.bot.get_channel(int(channel)).name
+                    name_channel = self.bot.get_channel(channel).name
                     if "notif" in name_channel.lower():
                         channel_to_post = channel
                         break
-                    if "devoir" in name_channel.lower():
+                    elif "devoir" in name_channel.lower():
                         channel_to_post = channel
                         break
-                    if "général" in name_channel.lower() or "general" in name_channel.lower():
+                    elif "général" in name_channel.lower() or "general" in name_channel.lower():
                         channel_to_post = channel
-                        break
 
                 if not channel_to_post:
                     channel_to_post = possible_channel[0] if possible_channel else None
                     if channel_to_post:
-                        logger.info(f"Salon par défaut choisi pour la classe {nom_de_classe.name} : {channel_to_post.name}")
+                        logger.info(f"Salon par défaut choisi pour la classe {nom_de_classe.name} : {self.bot.get_channel(channel_to_post).name}")
                     else:
                         logger.warning(f"Aucun salon trouvé pour la classe {nom_de_classe.name} dans le serveur {guild.name}.")
                         continue
 
 
-
+                channel_to_post = self.bot.get_channel(channel_to_post) if channel_to_post else None
                 for devoir in devoirs:
                     logger.info(f"Itération sur {devoir}")
                     # Convertit la date texte de SQLite (format ex: "2026-10-31") en objet date
@@ -85,8 +85,8 @@ class NotificationsCog(commands.Cog):
                             description=f'En {devoir["matiere"]}, {devoir["sujet"]}',
                             color=discord.Color.orange()
                         )
-                        if channel:
-                            await channel.send(content=f"{nom_de_classe.mention}", embed=embed)
+                        if channel_to_post:
+                            await channel_to_post.send(content=f"{nom_de_classe.mention}", embed=embed)
                             logger.info(f"Notification de devoir envoyée")
 
                     if date == date.today():
@@ -95,8 +95,8 @@ class NotificationsCog(commands.Cog):
                             description=f'En {devoir["matiere"]}, {devoir["sujet"]}',
                             color=discord.Color.red()
                         )
-                        if channel:
-                            await channel.send(content=f"{nom_de_classe.mention}", embed=embed)
+                        if channel_to_post:
+                            await channel_to_post.send(content=f"{nom_de_classe.mention}", embed=embed)
                             logger.info(f"Notification de devoir envoyée")
 
 
@@ -129,8 +129,8 @@ class NotificationsCog(commands.Cog):
                             description=f'En {eval["matiere"]}, {eval["sujet"]}',
                             color=discord.Color.orange()
                         )
-                        if channel:
-                            await channel.send(content=f"{nom_de_classe.mention}", embed=embed)
+                        if channel_to_post:
+                            await channel_to_post.send(content=f"{nom_de_classe.mention}", embed=embed)
                             logger.info(f"Notification de évaluation envoyée")
 
                     if date == date.today():
@@ -139,8 +139,8 @@ class NotificationsCog(commands.Cog):
                             description=f'En {eval["matiere"]}, {eval["sujet"]}',
                             color=discord.Color.red()
                         )
-                        if channel:
-                            await channel.send(content=f"{nom_de_classe.mention}", embed=embed)
+                        if channel_to_post:
+                            await channel_to_post.send(content=f"{nom_de_classe.mention}", embed=embed)
                             logger.info(f"Notification de évaluation envoyée")
 
 
