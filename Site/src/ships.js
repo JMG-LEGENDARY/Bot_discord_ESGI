@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeStaticMeshes } from './merge-static.js';
 import { GLOW } from './glows.js';
 
 // Texture de coque : plaques de blindage, joints et trappes, pour que le métal
@@ -288,6 +289,8 @@ export function buildSpaceFleet(scene, mainTowerHeight, glows) {
     });
   }
 
+  // Chaque vaisseau : ses pièces fusionnées par matériau (il bouge d'un bloc)
+  fleetGroup.children.forEach((ship) => mergeStaticMeshes(ship));
   scene.add(fleetGroup);
 
   const posNow = new THREE.Vector3();
@@ -308,6 +311,7 @@ export function buildSpaceFleet(scene, mainTowerHeight, glows) {
     flagship.rotation.z = -0.08;
 
     ships.forEach((s) => {
+      if (!s.mesh.visible) return;
       s.t = (s.t + s.speed * delta) % 1;
       const tNext = (s.t + 0.015) % 1;
 
@@ -324,5 +328,12 @@ export function buildSpaceFleet(scene, mainTowerHeight, glows) {
     });
   }
 
-  return { update };
+  // Mode léger : un vaisseau sur deux disparaît (ses lumières aussi)
+  function setLite(on) {
+    ships.forEach((s, i) => {
+      s.mesh.visible = !on || i % 2 === 0;
+    });
+  }
+
+  return { group: fleetGroup, update, setLite };
 }

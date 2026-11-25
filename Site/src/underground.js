@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeStaticMeshes } from './merge-static.js';
 import { createHoloPanel } from './panels.js';
 
 function createUndergroundDeckTexture() {
@@ -338,6 +339,7 @@ export function buildUndergroundMasterclass(scene) {
   coreBeam.position.y = -1.0;
 
   coreGroup.add(coreCrystal, coreInner, gimbal1, gimbal2, coreBeam);
+  coreGroup.userData.dynamic = true; // réacteur animé
   underGroup.add(coreGroup);
 
   // Canal central d'eau réfléchissante
@@ -376,6 +378,7 @@ export function buildUndergroundMasterclass(scene) {
   );
   waterPulse.rotation.x = -Math.PI / 2;
   waterPulse.position.set(0, floorY + 0.09, -15);
+  waterPulse.userData.dynamic = true; // vague qui glisse sur l'eau
   underGroup.add(waterPulse);
 
   // Turbines du mur du fond
@@ -392,6 +395,7 @@ export function buildUndergroundMasterclass(scene) {
       blade.rotation.z = (b / 6) * Math.PI * 2;
       rotor.add(blade);
     }
+    rotor.userData.dynamic = true; // pales qui tournent
     underGroup.add(rotor);
     turbines.push({ mesh: rotor, dir: tIdx === 0 ? 1 : -1 });
   });
@@ -523,11 +527,13 @@ export function buildUndergroundMasterclass(scene) {
     const ringLower = new THREE.Mesh(new THREE.TorusGeometry(1.85, 0.07, 12, 32), ringMat);
     ringLower.rotation.x = Math.PI / 2;
     ringLower.position.y = 2.4;
+    ringLower.userData.dynamic = true;
     pGroup.add(ringLower);
 
     const ringUpper = new THREE.Mesh(new THREE.TorusGeometry(1.75, 0.07, 12, 32), ringMat);
     ringUpper.rotation.x = Math.PI / 2;
     ringUpper.position.y = 8.2;
+    ringUpper.userData.dynamic = true;
     pGroup.add(ringUpper);
 
     const topAnchor = new THREE.Vector3(p.pos.x, floorY + 21, p.pos.z);
@@ -556,6 +562,7 @@ export function buildUndergroundMasterclass(scene) {
     );
     plaque.position.set((dx / horizLen) * 2.05, 5.2, (dz / horizLen) * 2.05);
     plaque.rotation.set(0, yawAngle, 0);
+    plaque.userData.dynamic = true; // panneau cliquable
     pGroup.add(plaque);
 
     const hitBox = new THREE.Mesh(
@@ -564,6 +571,7 @@ export function buildUndergroundMasterclass(scene) {
     );
     hitBox.position.y = 7;
     hitBox.userData = { label: p.label };
+    hitBox.userData.dynamic = true;
     pGroup.add(hitBox);
     interactivePillarObjects.push(hitBox);
 
@@ -579,6 +587,8 @@ export function buildUndergroundMasterclass(scene) {
   });
 
   scene.add(underGroup);
+  // Murs, sols, racks, tuyaux, colonnes... fusionnés par matériau
+  mergeStaticMeshes(underGroup);
 
   function update(delta, elapsed) {
     pillarAnimItems.forEach((item) => {
@@ -596,5 +606,5 @@ export function buildUndergroundMasterclass(scene) {
     waterPulse.position.z = -35 + ((elapsed * 15) % 72);
   }
 
-  return { floorY, pillarsData, interactivePillarObjects, update };
+  return { group: underGroup, floorY, pillarsData, interactivePillarObjects, update };
 }

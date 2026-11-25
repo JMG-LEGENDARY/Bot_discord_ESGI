@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import './style.css';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -115,6 +116,11 @@ const bloomPass = new UnrealBloomPass(
   0.4,
   1.05
 );
+// Halo calculé en plus petit (il est flou de toute façon) : le bloom de three.js
+// travaille déjà en demi-taille, on lui donne encore moitié moins de pixels,
+// soit 4 fois moins de calcul pour un rendu quasi identique.
+bloomPass.setSize = (w, h) => UnrealBloomPass.prototype.setSize.call(bloomPass, Math.max(1, w / 2), Math.max(1, h / 2));
+bloomPass.setSize(window.innerWidth * currentPixelRatio, window.innerHeight * currentPixelRatio);
 composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
 
@@ -125,6 +131,8 @@ const targetHeight = 130;
 const glows = createGlowSystem(scene);
 // NOVA, le petit vaisseau compagnon qui suit le visiteur
 const companion = createCompanion(scene, camera, glows);
+// Halos lumineux et NOVA : toujours affichés, quelle que soit la zone
+const ALWAYS_ON = new Set(scene.children);
 if (import.meta.env.DEV) window.__nova = companion;
 const bufferSize = new THREE.Vector2();
 function resizeGlows() {
@@ -135,6 +143,81 @@ function resizeGlows() {
 resizeGlows();
 
 const atmosphere = createAtmosphere(scene, targetHeight);
+
+// =========================================================================
+// MODE LÉGER : pour les ordinateurs qui rament (portables sans vraie carte
+// graphique, PC de l'école...). Résolution 1,25x, pas d'anticrénelage ni de
+// halo lumineux, trois fois moins de nuages. Il s'active avec le bouton en bas
+// à droite, avec ?leger=1 dans l'adresse, ou tout seul si le site rame.
+// =========================================================================
+const LITE_PIXEL_RATIO = 1.25;
+const liteBtn = document.getElementById('lite-toggle');
+let liteMode = false;
+let liteChosen = false; // le visiteur a choisi lui-même : plus de bascule automatique
+function readLitePref() {
+  const param = new URLSearchParams(window.location.search).get('leger');
+  if (param === '1' || param === '0') return param;
+  try {
+    return localStorage.getItem('esgi-lite');
+  } catch {
+    return null;
+  }
+}
+// Rendu 3D fait par le processeur (aucune carte graphique utilisable) : très lent
+function isSoftwareGpu() {
+  try {
+    const gl = renderer.getContext();
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
+    return /swiftshader|llvmpipe|software|basic render/i.test(name);
+  } catch {
+    return false;
+  }
+}
+function setLiteMode(on, save = false) {
+  liteMode = on;
+  if (save) {
+    try {
+      localStorage.setItem('esgi-lite', on ? '1' : '0');
+    } catch {
+      /* stockage bloqué : le choix vaut pour cette visite seulement */
+    }
+  }
+  currentPixelRatio = on ? Math.min(window.devicePixelRatio, LITE_PIXEL_RATIO) : MAX_PIXEL_RATIO;
+  renderer.setPixelRatio(currentPixelRatio);
+  composer.setPixelRatio(currentPixelRatio);
+  // Anticrénelage (4 échantillons par pixel) coupé : gros gain sur les petites cartes
+  const samples = on ? 0 : 4;
+  [composer.renderTarget1, composer.renderTarget2].forEach((rt) => {
+    if (rt.samples !== samples) {
+      rt.samples = samples;
+      rt.dispose();
+    }
+  });
+  bloomPass.enabled = !on;
+  atmosphere.setLite(on);
+  resizeGlows();
+  document.body.classList.toggle('lite', on);
+  if (liteBtn) {
+    liteBtn.setAttribute('aria-pressed', String(on));
+    liteBtn.textContent = on ? '⚡ MODE LÉGER : ON' : '⚡ MODE LÉGER';
+  }
+}
+{
+  const pref = readLitePref();
+  if (pref !== null) liteChosen = true;
+  if (pref === '1' || (pref === null && isSoftwareGpu())) setLiteMode(true);
+}
+liteBtn?.addEventListener('click', () => {
+  liteChosen = true;
+  setLiteMode(!liteMode, true);
+  companion.say(
+    liteMode
+      ? '⚡ Mode léger activé ! Moins joli, mais beaucoup plus fluide.'
+      : '✨ Mode normal : tous les effets sont de retour !',
+    3500
+  );
+});
 atmosphere.setPlanetLayout(camera.aspect < 1);
 
 // =========================================================================
@@ -608,6 +691,8 @@ function getFacadeRadiusAtY(tower, y, fallbackRadius) {
 }
 
 const loader = new GLTFLoader();
+// Modèle de la tour compressé (meshopt) : 660 ko au lieu de 2,2 Mo
+loader.setMeshoptDecoder(MeshoptDecoder);
 const panelGroups = [];
 const interactivePanelScreens = [];
 
@@ -1970,8 +2055,10 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
   // Qualité adaptative : si l'ordinateur n'arrive pas à suivre, on baisse la
   // résolution puis on coupe le halo lumineux, pour rester fluide.
+  // Toujours trop lent ensuite : le mode léger s'active tout seul.
   let perfFrames = 0;
   let perfTime = 0;
+  let slowChecks = 0;
   function adaptQuality(delta) {
     perfFrames++;
     perfTime += delta;
@@ -1979,7 +2066,20 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     const fps = perfFrames / perfTime;
     perfFrames = 0;
     perfTime = 0;
-    if (fps >= 45) return;
+    if (fps >= 45) {
+      slowChecks = 0;
+      return;
+    }
+    if (liteMode) {
+      // Déjà en mode léger : dernier recours, résolution encore plus basse
+      if (fps < 30 && currentPixelRatio > 1) {
+        currentPixelRatio = Math.max(1, currentPixelRatio - 0.125);
+        renderer.setPixelRatio(currentPixelRatio);
+        composer.setPixelRatio(currentPixelRatio);
+        resizeGlows();
+      }
+      return;
+    }
     if (currentPixelRatio > 1) {
       currentPixelRatio = Math.max(1, currentPixelRatio - 0.25);
       renderer.setPixelRatio(currentPixelRatio);
@@ -1987,11 +2087,111 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       resizeGlows();
     } else if (bloomPass.enabled && fps < 30) {
       bloomPass.enabled = false;
+    } else if (fps < 30 && !liteChosen && ++slowChecks >= 2) {
+      setLiteMode(true, true);
+      companion.say('😅 Ton ordi a l’air de souffrir… J’ai activé le mode léger. Bouton en bas à droite pour le couper.', 7000);
     }
   }
 
-  function animate() {
+  // ---- Zones : on ne calcule que ce que la caméra peut voir ----
+  // Dehors (ville, tour, ciel, vaisseaux), sous-sol, cabine d'ascenseur.
+  // Les lumières d'une zone cachée n'éclairent plus les autres : chaque pixel
+  // de la ville ne calcule plus les deux lampes du sous-sol.
+  const outsideZone = scene.children.filter(
+    (o) => !o.isLight && !ALWAYS_ON.has(o) && o !== underground.group && o !== elevator.group
+  );
+  let zoneUnder = true;
+  let zoneOutside = true;
+  function setZones(under, outside) {
+    if (under !== zoneUnder) {
+      underground.group.visible = under;
+      zoneUnder = under;
+    }
+    if (outside !== zoneOutside) {
+      outsideZone.forEach((o) => {
+        o.visible = outside;
+      });
+      zoneOutside = outside;
+    }
+  }
+
+  // ---- Shaders préparés pendant l'écran de chargement ----
+  // Sinon chaque matériau est compilé la première fois qu'il apparaît : petits
+  // blocages pendant la descente. On compile les deux combinaisons d'éclairage
+  // (sous-sol affiché ou non), en parallèle quand le navigateur le permet.
+  async function warmUpShaders() {
+    try {
+      setZones(true, true);
+      await renderer.compileAsync(scene, camera);
+      setZones(false, true);
+      await renderer.compileAsync(scene, camera);
+      setZones(true, false);
+      await renderer.compileAsync(scene, camera);
+    } catch (err) {
+      console.warn('Précompilation des shaders ignorée :', err);
+    }
+    setZones(true, true);
+  }
+
+  // ---- Mode léger appliqué au décor (une fois tout construit) ----
+  // Particules : on mélange une fois leurs points au hasard, puis on n'en
+  // dessine qu'une partie (les manquants sont répartis partout, pas groupés).
+  function thinPoints(points, keep) {
+    const geo = points.geometry;
+    const count = geo.attributes.position.count;
+    if (!points.userData.shuffled) {
+      const order = Array.from({ length: count }, (_, i) => i);
+      for (let i = count - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+      Object.values(geo.attributes).forEach((attr) => {
+        const size = attr.itemSize;
+        const src = attr.array.slice();
+        order.forEach((from, to) => {
+          for (let k = 0; k < size; k++) attr.array[to * size + k] = src[from * size + k];
+        });
+        attr.needsUpdate = true;
+      });
+      points.userData.shuffled = true;
+    }
+    geo.setDrawRange(0, Math.ceil(count * keep));
+  }
+  // Matériaux « luxe » (vernis, irisation, verre) : effets coupés, couleur gardée
+  const LUXURY = ['clearcoat', 'iridescence', 'sheen', 'transmission'];
+  function simplifyMaterial(mat, on) {
+    if (!mat || !mat.isMeshPhysicalMaterial) return;
+    if (on) {
+      if (!mat.userData.liteBackup) {
+        mat.userData.liteBackup = {};
+        LUXURY.forEach((k) => (mat.userData.liteBackup[k] = mat[k]));
+      }
+      LUXURY.forEach((k) => (mat[k] = 0));
+    } else if (mat.userData.liteBackup) {
+      LUXURY.forEach((k) => (mat[k] = mat.userData.liteBackup[k]));
+    }
+  }
+  let liteApplied = false;
+  function applyLiteToScene(on) {
+    scene.traverse((o) => {
+      if (o.isPoints && o.userData.thinnable) thinPoints(o, on ? 0.45 : 1);
+      if (o.isMesh) {
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => simplifyMaterial(m, on));
+      }
+    });
+    spaceFleet.setLite(on);
+    liteApplied = on;
+  }
+
+  // Limite d'images/s : 120 en mode normal, 60 en mode léger. Sur un écran
+  // 240 Hz, le site serait sinon redessiné 240 fois par seconde.
+  let lastFrameAt = 0;
+
+  function animate(now = performance.now()) {
     requestAnimationFrame(animate);
+    if (now - lastFrameAt < 1000 / (liteMode ? 60 : 120) - 1) return;
+    lastFrameAt = now;
+    if (liteApplied !== liteMode) applyLiteToScene(liteMode);
     const rawDelta = clock.getDelta();
     const delta = Math.min(rawDelta, 0.05);
     const elapsed = clock.elapsedTime;
@@ -2019,6 +2219,8 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
     // Dans la cabine d'ascenseur : caméra fixe face aux portes
     if (elevator.active) {
+      // Cabine fermée : ni la ville ni le sous-sol ne sont visibles
+      setZones(false, false);
       scene.environment = elevator.environment;
       scene.environmentIntensity = 1;
       // Même lumière dans la cabine, qu'il fasse jour ou nuit dehors
@@ -2043,6 +2245,9 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     }
 
     const currentY = THREE.MathUtils.lerp(camState.camY, camState.uy, camState.mode);
+    // Sous-sol : dès qu'on approche du sol ou qu'on plonge dans le puits.
+    // Dehors : tant qu'on n'est pas entièrement descendu.
+    setZones(camState.mode > 0.001 || currentY < 25, camState.mode < 0.98);
     atmosphere.update(delta, elapsed, currentY, camState.mode);
     ecoCity.update(delta, elapsed);
     spaceFleet.update(delta, elapsed);
@@ -2156,8 +2361,13 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
     composer.render();
   }
-  animate();
-  hideLoader();
+  // Shaders compilés derrière l'écran de chargement, puis la scène démarre
+  applyLiteToScene(liteMode);
+  if (loaderText) loaderText.textContent = 'PRÉPARATION DES EFFETS…';
+  warmUpShaders().then(() => {
+    animate();
+    hideLoader();
+  });
 
   // Easter egg : NOVA doré, 0,1 % de chance (comme les images Thomson du bot)
   if (Math.random() < 0.001) {
