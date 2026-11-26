@@ -536,6 +536,64 @@ function applyWindowPattern(material) {
   material.customProgramCacheKey = () => 'tower-windows-v14';
 }
 
+// =========================================================================
+// ÉLÉMENTS DE LA FAÇADE
+// Dans le modèle, toute la façade est un seul bloc. On retrouve ses vrais
+// éléments face par face (direction, profondeur, hauteur) et on note leur
+// numéro sur chaque sommet (attribut aElem) : 4 socle du rez-de-chaussée,
+// 5 auvent de l'entrée, 8 parvis (les autres numéros gardent la façade
+// d'origine). Le bas de la tour reçoit ainsi sa propre matière grise.
+// =========================================================================
+function tagFacadeElements(mesh) {
+  // Une face = trois sommets à elle : pas de mélange de matières aux arêtes
+  if (mesh.geometry.index) mesh.geometry = mesh.geometry.toNonIndexed();
+  const geo = mesh.geometry;
+  const pos = geo.attributes.position;
+  mesh.updateWorldMatrix(true, false);
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  const e1 = new THREE.Vector3();
+  const e2 = new THREE.Vector3();
+  const faces = [];
+  const outer = new Map(); // face la plus en avant, par direction / mètre de hauteur / 2 m de largeur
+  for (let i = 0; i < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+    b.fromBufferAttribute(pos, i + 1).applyMatrix4(mesh.matrixWorld);
+    c.fromBufferAttribute(pos, i + 2).applyMatrix4(mesh.matrixWorld);
+    e1.subVectors(b, a);
+    e2.subVectors(c, a);
+    n.crossVectors(e1, e2).normalize();
+    const cy = (a.y + b.y + c.y) / 3;
+    const cx = (a.x + b.x + c.x) / 3;
+    const cz = (a.z + b.z + c.z) / 3;
+    const alongX = Math.abs(n.x) > Math.abs(n.z);
+    const dir = alongX ? (n.x > 0 ? 0 : 1) : n.z > 0 ? 2 : 3;
+    const depth = alongX ? cx * Math.sign(n.x) : cz * Math.sign(n.z);
+    const along = alongX ? cz : cx;
+    const area = e1.clone().cross(e2).length() / 2;
+    const tall = Math.max(a.y, b.y, c.y) - Math.min(a.y, b.y, c.y);
+    const f = { cy, ny: n.y, area, tall, r: Math.max(Math.abs(cx), Math.abs(cz)), depth, along, key: `${dir}|${Math.floor(cy)}|${Math.floor(along / 2)}` };
+    faces.push(f);
+    if (Math.abs(n.y) < 0.3) outer.set(f.key, Math.max(outer.get(f.key) ?? -1e9, depth));
+  }
+  const elem = new Float32Array(pos.count);
+  faces.forEach((f, t) => {
+    let k;
+    if (f.cy < 3.9 && f.ny > 0.7) k = 8;
+    else if (f.cy < 8.9) k = f.ny < -0.7 || (f.ny > 0.7 && f.cy > 6.5) ? 5 : 4;
+    else if (f.r < 7) k = 6;
+    else if (f.ny > 0.7) k = f.cy > 91 ? 7 : 2;
+    else if (f.ny < -0.7) k = 3;
+    // Grandes faces pleines (plus de 4 m² et plus de 3 m de haut) : les ailes sans fenêtres
+    else if (f.depth > outer.get(f.key) - 0.2) k = f.area > 4 && f.tall > 3 ? 9 : 0;
+    else k = 1;
+    elem[t * 3] = elem[t * 3 + 1] = elem[t * 3 + 2] = k;
+  });
+  geo.setAttribute('aElem', new THREE.BufferAttribute(elem, 1));
+}
+
 // Matières de la tour, par nom de matériau du modèle 3D
 const TOWER_MATERIALS = {
   // Façade : panneaux de pierre à revêtement métallisé (petits reflets du ciel et des néons)
@@ -559,9 +617,10 @@ const TOWER_MATERIALS = {
 function applySurfacePattern(material, pattern) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uDay = DAY_UNIFORM;
+    const elemAttr = pattern === 'stone';
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vSurfPos;\nvarying vec3 vSurfN;')
-      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvSurfN = normalize(mat3(modelMatrix) * objectNormal);')
+      .replace('#include <common>', `#include <common>\nvarying vec3 vSurfPos;\nvarying vec3 vSurfN;\nvarying float vElem;${elemAttr ? '\nattribute float aElem;' : ''}`)
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>\nvSurfN = normalize(mat3(modelMatrix) * objectNormal);\nvElem = ${elemAttr ? 'aElem' : '0.0'};`)
       .replace('#include <project_vertex>', '#include <project_vertex>\nvSurfPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     // Dallage du parvis : granit poli à grain fin, veines claires, dalles
     // biseautées aux joints sombres, et lignes néon encastrées toutes les
@@ -619,7 +678,30 @@ function applySurfacePattern(material, pattern) {
         diffuseColor.rgb *= 1.0 - underWin * streak * 0.22 * facadeMask;
         // Bandeau LED (au niveau d'une dalle, tous les 6 étages)
         float ledFloor = step(abs(mod(pCell.y, 6.0)), 0.5);
-        float ledBand = ledFloor * (1.0 - smoothstep(0.0, 0.03, abs(pLoc.y + 0.47))) * facadeMask;`;
+        float ledBand = ledFloor * (1.0 - smoothstep(0.0, 0.03, abs(pLoc.y + 0.47))) * facadeMask;
+        // Bas de la tour en gris : socle et parvis en pierre sombre polie
+        // (dalles de 1,2 m), auvent de l'entrée en métal sombre brossé
+        float el = floor(vElem + 0.5);
+        float bottom = 0.0;
+        float bottomMet = 0.15;
+        float bottomRough = 0.3;
+        if (el > 3.5 && el < 4.5 || el > 7.5 && el < 8.5) {
+          float faceU = abs(sN.x) > abs(sN.z) ? vSurfPos.z : vSurfPos.x;
+          vec2 sl = (el < 4.5 ? vec2(faceU, vSurfPos.y) : vSurfPos.xz) / 1.2;
+          vec2 slF = fract(sl);
+          float slJ = smoothstep(0.0, 0.02, min(min(slF.x, 1.0 - slF.x), min(slF.y, 1.0 - slF.y)));
+          float gr = sxNoise(sl * 9.0) * 0.6 + sxNoise(sl * 31.0) * 0.4;
+          diffuseColor.rgb = vec3(0.075, 0.075, 0.085) * (0.8 + sxHash(floor(sl)) * 0.35) * (0.85 + gr * 0.3) * mix(0.45, 1.0, slJ);
+          bottom = 1.0;
+          bottomRough = mix(0.8, 0.16, slJ);
+        } else if (el > 4.5 && el < 5.5) {
+          float faceU = abs(sN.x) > abs(sN.z) ? vSurfPos.z : vSurfPos.x;
+          diffuseColor.rgb = vec3(0.1, 0.105, 0.12) * (0.9 + sxNoise(vec2(faceU * 30.0, vSurfPos.z * 2.0)) * 0.2);
+          bottom = 1.0;
+          bottomMet = 0.85;
+          bottomRough = 0.35;
+        }
+        ledBand *= 1.0 - bottom;`;
     // Éclairage d'architecte : projecteurs chauds au pied de la façade,
     // couronne éclairée au sommet, flaque de lumière sur le parvis.
     const light = pattern === 'tiles'
@@ -634,12 +716,15 @@ function applySurfacePattern(material, pattern) {
         float crownWash = exp(-abs(vSurfPos.y - 124.0) / 5.0);
         totalEmissiveRadiance += vec3(1.0, 0.76, 0.5) * 0.55 * footWash * diffuseColor.rgb * (1.0 - uDay);
         totalEmissiveRadiance += vec3(0.4, 0.85, 1.0) * 0.45 * crownWash * diffuseColor.rgb * (1.0 - uDay);
-        totalEmissiveRadiance += vec3(0.13, 0.89, 1.0) * ledBand * mix(1.1, 0.12, uDay);`;
+        totalEmissiveRadiance += vec3(0.13, 0.89, 1.0) * ledBand * mix(1.1, 0.12, uDay);
+        // Sous l'auvent : spots chauds encastrés la nuit
+        float spot = (el > 4.5 && el < 5.5 && sN.y < -0.7) ? 1.0 - smoothstep(0.08, 0.22, length(fract(vSurfPos.xz / 1.6) - 0.5)) : 0.0;
+        totalEmissiveRadiance += vec3(1.0, 0.82, 0.6) * spot * 1.4 * (1.0 - uDay);`;
     // Petits reflets métalliques : chaque panneau de façade a son propre brillant
     // (certains très lisses, d'autres satinés), les reflets scintillent en bougeant.
     const shine = pattern === 'stone'
       ? `
-        roughnessFactor = mix(0.12, 0.42, sHash * sHash) + max(jointH, jointV) * 0.4;`
+        roughnessFactor = mix(mix(0.12, 0.42, sHash * sHash) + max(jointH, jointV) * 0.4, bottomRough, bottom);`
       : `
         // Dalles plus ou moins polies (reflets des néons), joints mats
         roughnessFactor = mix(0.9, mix(0.14, 0.42, tHash) + grain * 0.08, joint);
@@ -650,6 +735,7 @@ function applySurfacePattern(material, pattern) {
         `#include <common>
         varying vec3 vSurfPos;
         varying vec3 vSurfN;
+        varying float vElem;
         uniform float uDay;
         float sxHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float sxNoise(vec2 p) {
@@ -661,9 +747,10 @@ function applySurfacePattern(material, pattern) {
       )
       .replace('#include <color_fragment>', `#include <color_fragment>${body}`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>${shine}`)
+      .replace('#include <metalnessmap_fragment>', pattern === 'stone' ? '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, bottomMet, bottom);' : '#include <metalnessmap_fragment>')
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>${light}`);
   };
-  material.customProgramCacheKey = () => `tower-${pattern}-v6`;
+  material.customProgramCacheKey = () => `tower-${pattern}-v10`;
 }
 
 function getFacadeRadiusAtY(tower, y, fallbackRadius) {
@@ -746,6 +833,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       mat.envMapIntensity = look.env;
       mat.emissive.set(look.emissive || 0x000000);
       mat.emissiveIntensity = look.emissiveIntensity || 0;
+      if (mat.name === 'Marble') tagFacadeElements(child);
       if (look.pattern) applySurfacePattern(mat, look.pattern);
     }
     mat.needsUpdate = true;

@@ -1067,6 +1067,29 @@ body.in-underground #panel-prompt {
   text-align: center;
 }
 
+/* Logo du bot : apparaît puis « respire » doucement pendant le chargement */
+.loader-logo {
+  display: block;
+  width: 128px;
+  height: 128px;
+  margin: 0 auto 14px;
+  filter: drop-shadow(0 0 16px rgba(34, 140, 255, 0.55));
+  animation: loader-logo-in 0.7s ease-out both, loader-logo-pulse 2.4s ease-in-out 0.7s infinite;
+}
+
+@keyframes loader-logo-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes loader-logo-pulse {
+  50% { filter: drop-shadow(0 0 28px rgba(34, 200, 255, 0.85)); transform: scale(1.03); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-logo { animation: none; }
+}
+
 .loader-title {
   font-family: var(--font-sans);
   font-size: 2rem;

@@ -45,6 +45,7 @@ export function createDashboard(root, { say, onElevator, onLogout }) {
   root.innerHTML = `
     <div class="dash">
       <header class="dash-top">
+        <img class="dash-logo" src="${import.meta.env.BASE_URL}logo.png" alt="ESGI-Bot" width="40" height="40" />
         <div class="dash-who">
           <img class="dash-avatar" alt="" />
           <div>

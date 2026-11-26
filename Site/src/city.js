@@ -380,8 +380,15 @@ export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
   // La nuit, l'herbe devient bleu nuit et de petites spores lumineuses
   // (cyan et roses) scintillent près de la caméra, comme les lucioles des arbres.
   const terrainTime = { value: 0 };
+  // Photo de gazon (ambientCG Grass004, licence CC0), posée seulement sur la pelouse
+  const grassTex = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/grass.jpg`);
+  grassTex.wrapS = THREE.RepeatWrapping;
+  grassTex.wrapT = THREE.RepeatWrapping;
+  grassTex.colorSpace = THREE.SRGBColorSpace;
+  grassTex.anisotropy = 8;
   terrainMesh.material.onBeforeCompile = (shader) => {
     shader.uniforms.uDayMap = { value: dayDiffTex };
+    shader.uniforms.uGrass = { value: grassTex };
     shader.uniforms.uDay = DAY_UNIFORM;
     shader.uniforms.uTime = terrainTime;
     shader.vertexShader = shader.vertexShader
@@ -392,6 +399,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
         '#include <common>',
         `#include <common>
         uniform sampler2D uDayMap;
+        uniform sampler2D uGrass;
         uniform float uDay;
         uniform float uTime;
         varying vec3 vTerrPos;
@@ -413,7 +421,24 @@ export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
         float grassFine = gxNoise(vTerrPos.xz * 3.1) * 0.6 + gxNoise(vTerrPos.xz * 11.0) * 0.4;
         diffuseColor.rgb *= 0.74 + grassBig * 0.42 + (grassFine - 0.5) * 0.16;
         // Herbe un peu plus jaune sur les zones claires, plus bleue dans les creux (jour)
-        diffuseColor.rgb *= mix(vec3(1.0), mix(vec3(0.92, 0.98, 1.08), vec3(1.08, 1.04, 0.9), grassBig), uDay);`
+        diffuseColor.rgb *= mix(vec3(1.0), mix(vec3(0.92, 0.98, 1.08), vec3(1.08, 1.04, 0.9), grassBig), uDay);
+        // Pelouse (repérée par le vert de la carte jour) : vraie photo de gazon,
+        // à deux échelles pour casser la répétition, plaques claires/sombres.
+        // La nuit, le même gazon passe en bleu nuit (style néon du parc).
+        #ifdef USE_MAP
+          vec3 lawnRef = texture2D(uDayMap, vMapUv).rgb;
+          float lawn = smoothstep(0.01, 0.05, min(lawnRef.g - lawnRef.r, lawnRef.g - lawnRef.b));
+          vec3 grassA = texture2D(uGrass, vTerrPos.xz / 4.0).rgb;
+          vec3 grassB = texture2D(uGrass, vTerrPos.xz / 13.0 + vec2(0.37, 0.71)).rgb;
+          vec3 grassCol = mix(grassA, grassB, 0.4);
+          // Grandes plaques visibles de loin : herbe drue et sombre / plus sèche et dorée
+          float grassPatch = gxNoise(vTerrPos.xz * 0.035) * 0.6 + grassBig * 0.4;
+          grassCol *= mix(vec3(0.72, 0.86, 0.7), vec3(1.25, 1.15, 0.85), grassPatch);
+          float grassLum = dot(grassCol, vec3(0.3, 0.59, 0.11));
+          vec3 grassNight = grassLum * vec3(0.17, 0.3, 0.58) + vec3(0.004, 0.008, 0.02);
+          diffuseColor.rgb = mix(diffuseColor.rgb, mix(grassNight, grassCol, uDay), lawn);
+
+        #endif`
       )
       .replace(
         '#include <emissivemap_fragment>',
@@ -428,7 +453,7 @@ export function buildEcoCyberCity(scene, mainTowerHeight, glows) {
         totalEmissiveRadiance += sporeCol * spore * 0.9 * (1.0 - uDay);`
       );
   };
-  terrainMesh.material.customProgramCacheKey = () => 'terrain-day-night-v2';
+  terrainMesh.material.customProgramCacheKey = () => 'terrain-day-night-v3';
 
   // Bassins d'eau réfléchissants dans le parc
   const waterMat = new THREE.MeshPhysicalMaterial({

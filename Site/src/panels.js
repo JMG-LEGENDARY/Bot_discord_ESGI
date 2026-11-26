@@ -467,6 +467,43 @@ export function buildSkyPlatform(scene, topY) {
   title.renderOrder = 10;
   group.add(title);
 
+  // ---- Le logo du bot en hologramme, au-dessus du titre ----
+  const logoTex = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}logo.png`);
+  logoTex.colorSpace = THREE.SRGBColorSpace;
+  logoTex.anisotropy = 8;
+  const logoMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: time, map: { value: logoTex } },
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D map;
+      uniform float uTime;
+      varying vec2 vUv;
+      void main() {
+        vec4 tex = texture2D(map, vUv);
+        // Balayage de bas en haut, lignes d'hologramme, petit scintillement
+        float sweep = smoothstep(0.08, 0.0, abs(vUv.y - fract(uTime * 0.22) * 1.4 + 0.2));
+        float lines = 0.88 + 0.12 * sin(vUv.y * 300.0 - uTime * 5.0);
+        float flicker = 0.95 + 0.05 * sin(uTime * 19.0) * sin(uTime * 5.3);
+        vec3 col = tex.rgb * 1.25 * lines * flicker + vec3(0.6, 0.95, 1.0) * sweep * tex.a * 0.9;
+        gl_FragColor = vec4(col, tex.a * 0.95);
+        #include <colorspace_fragment>
+      }
+    `
+  });
+  const logo = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 5.6), logoMat);
+  logo.position.y = 8.9;
+  logo.renderOrder = 10;
+  group.add(logo);
+
   scene.add(group);
 
   // Satellites en orbite
@@ -503,6 +540,9 @@ export function buildSkyPlatform(scene, topY) {
     core.scale.setScalar(1 + Math.sin(elapsed * 2.6) * 0.08);
     // Le titre flotte doucement, indépendamment de la plateforme
     title.position.y = 3.6 + Math.sin(elapsed * 1.1) * 0.12;
+    // Le logo flotte et pivote doucement de gauche à droite
+    logo.position.y = 8.9 + Math.sin(elapsed * 0.9 + 1.0) * 0.18;
+    logo.rotation.y = Math.sin(elapsed * 0.45) * 0.35;
 
     satellites.forEach((sat) => {
       const a = sat.angle + elapsed * sat.speed;
