@@ -13,6 +13,7 @@ import { createAtmosphere } from './atmosphere.js';
 import { buildEcoCyberCity } from './city.js';
 import { buildSpaceFleet } from './ships.js';
 import { createHoloPanel, buildSkyPlatform } from './panels.js';
+import { createLandedShip } from './landed-ship.js';
 import { buildUndergroundMasterclass } from './underground.js';
 import { createNightEnvironment, createDayEnvironment } from './environment.js';
 import { DAY_UNIFORM } from './theme.js';
@@ -53,6 +54,8 @@ function showLoadError(message) {
 function hideLoader() {
   if (loaderEl) loaderEl.classList.add('done');
   markSiteReady();
+  // Arrivée depuis le cockpit : le vaisseau se pose sous nos yeux
+  if (siteControl.arriving) shipLanding();
 }
 
 // Navigateur sans 3D (WebGL) : on prévient au lieu d'afficher un écran noir
@@ -357,6 +360,27 @@ const underground = buildUndergroundMasterclass(scene);
 // Puits lumineux entre le pied de la tour et le plafond du sous-sol (y = -18)
 createDescentShaft(scene, { x: 0, z: 25.5, top: 1.5, bottom: -18.6, opening: { y: 2.5, tilt: 0.155 } });
 const skyPlatform = buildSkyPlatform(scene, targetHeight);
+// Le vaisseau posé sur la piste du sommet (clic : retour au cockpit)
+const landedShip = createLandedShip(skyPlatform.group);
+function shipLanding() {
+  siteControl.arriving = false;
+  landedShip.land().then(() => {
+    companion.say('Atterrissage réussi ! 🛬 Clique sur le vaisseau quand tu veux remonter à bord.', 5000);
+  });
+}
+// Le vaisseau (boot.js) prévient qu'on vient d'arriver : si la tour est déjà
+// chargée, l'atterrissage démarre tout de suite (sinon à la fin du chargement)
+window.addEventListener('esgi-ship-arrive', () => {
+  if (siteControl.ready) shipLanding();
+});
+if (import.meta.env.DEV) window.__site = { scene, camera, renderer, composer, landedShip, skyPlatform };
+function boardShip() {
+  if (landedShip.busy) return;
+  document.getElementById('pillar-tooltip')?.classList.remove('visible');
+  document.body.style.cursor = 'default';
+  companion.say('Embarquement ! 🚀 Direction le cockpit.', 2500);
+  landedShip.takeoff().then(() => window.dispatchEvent(new Event('esgi-board-ship')));
+}
 
 // Le verre du modèle est fait de longues bandes (une par étage et par
 // façade) ; la pierre posée devant découpe les fenêtres : vitres de 1,6 m
@@ -1893,12 +1917,15 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       const onPlanet = isPointerOnPlanet(raycaster);
       const onDoor = entranceDoor.isHit(raycaster);
       entranceDoor.setHover(onDoor);
+      const onShip = landedShip.isHit(raycaster);
+      landedShip.setHover(onShip);
       const panelHits = raycaster.intersectObjects(interactivePanelScreens, true);
-      document.body.style.cursor = onPlanet || onDoor || panelHits.length > 0 ? 'pointer' : 'default';
+      document.body.style.cursor = onPlanet || onDoor || onShip || panelHits.length > 0 ? 'pointer' : 'default';
       if (tooltip) {
-        if (onDoor) tooltip.textContent = 'CLIQUEZ POUR ENTRER DANS LA TOUR';
+        if (onShip) tooltip.textContent = 'CLIQUEZ POUR REMONTER DANS LE VAISSEAU';
+        else if (onDoor) tooltip.textContent = 'CLIQUEZ POUR ENTRER DANS LA TOUR';
         else tooltip.textContent = isDay ? 'CLIQUEZ : PASSER EN MODE NUIT' : 'CLIQUEZ : PASSER EN MODE JOUR';
-        tooltip.classList.toggle('visible', onPlanet || onDoor);
+        tooltip.classList.toggle('visible', onPlanet || onDoor || onShip);
       }
       return;
     }
@@ -1947,6 +1974,10 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     }
 
     if (camState.mode < 0.35) {
+      if (landedShip.isHit(raycaster)) {
+        boardShip();
+        return;
+      }
       if (isPointerOnPlanet(raycaster)) {
         onPlanetClick();
         return;
@@ -1980,7 +2011,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   // =========================================================================
   const openHint = IS_TOUCH ? 'Touche « Ouvrir le dossier »' : 'Appuie sur Entrée';
   const NOVA_MESSAGES = {
-    top: 'Salut, moi c\'est NOVA ! 🛰️ Fais défiler pour descendre la tour, je te suis.',
+    top: 'Salut, moi c\'est NOVA ! 🛰️ Fais défiler pour descendre la tour, je te suis. Clique sur le vaisseau pour remonter à bord.',
     'panel-0': `Les fonctionnalités du bot sont ici. ${openHint} pour en savoir plus !`,
     'panel-1': 'Toutes les commandes slash du bot, à découvrir dans ce dossier.',
     'panel-2': 'Côté technique : Python, SQLite… le cœur du bot ⚙️',
@@ -2384,6 +2415,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     ecoCity.update(delta, elapsed);
     spaceFleet.update(delta, elapsed);
     skyPlatform.update(elapsed);
+    landedShip.update(delta, elapsed);
     underground.update(delta, elapsed);
 
     const parallaxAngle = camState.angle + mouseCurrent.x * 0.06;

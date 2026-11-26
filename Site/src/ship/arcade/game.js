@@ -23,9 +23,9 @@ export const SECTORS = [
     nebula: ['rgba(34,120,255,0.16)', 'rgba(120,60,255,0.1)'],
     unlock: 'labo',
     waves: [
-      { type: 'asteroids', count: 4 },
-      { type: 'mixed', count: 3, rows: 2, cols: 5 },
-      { type: 'asteroids', count: 6 }
+      { type: 'mixed', count: 2, rows: 2, cols: 6 },
+      { type: 'mixed', count: 3, rows: 3, cols: 6, divers: true },
+      { type: 'formation', rows: 3, cols: 7, divers: true }
     ]
   },
   {
@@ -34,9 +34,9 @@ export const SECTORS = [
     nebula: ['rgba(140,70,255,0.18)', 'rgba(255,61,187,0.08)'],
     unlock: 'qg',
     waves: [
-      { type: 'formation', rows: 3, cols: 6 },
-      { type: 'mixed', count: 3, rows: 3, cols: 7 },
-      { type: 'formation', rows: 4, cols: 7, divers: true }
+      { type: 'formation', rows: 3, cols: 7, divers: true },
+      { type: 'mixed', count: 3, rows: 4, cols: 7, divers: true },
+      { type: 'formation', rows: 4, cols: 8, divers: true }
     ]
   },
   {
@@ -45,8 +45,8 @@ export const SECTORS = [
     nebula: ['rgba(255,61,140,0.16)', 'rgba(255,140,60,0.08)'],
     unlock: 'esgi-bot',
     waves: [
-      { type: 'mixed', count: 4, rows: 3, cols: 7, divers: true },
-      { type: 'boss' }
+      { type: 'mixed', count: 3, rows: 4, cols: 8, divers: true },
+      { type: 'formation', rows: 5, cols: 8, divers: true }
     ]
   }
 ];
@@ -54,7 +54,7 @@ export const SECTORS = [
 export const PORTAL_INFO = {
   labo: { label: 'LABORATOIRE', color: '#ff3dbb' },
   qg: { label: 'QG · MISSIONS', color: '#a78bfa' },
-  'esgi-bot': { label: 'ESGI-BOT', color: '#22e4ff' },
+  'esgi-bot': { label: 'LA TOUR', color: '#22e4ff' },
   next: { label: 'SECTEUR SUIVANT', color: '#ffd166' }
 };
 
@@ -120,7 +120,11 @@ export function createGame({ sprites, events }) {
     return { x: g.W / 2, y: g.H * 0.78, vx: 0, vy: 0, a: -Math.PI / 2, r: 5, cool: 0, inv: 2.2, triple: 0, rapid: 0, alive: true, thrust: 0 };
   }
 
-  function start() {
+  // target : destination choisie dans le cockpit. Le vol s'arrête au
+  // secteur qui ouvre son portail (Labo : 1, QG : 2, la Tour : 3).
+  function start(target = 'esgi-bot') {
+    g.target = target;
+    g.lastSector = Math.max(0, SECTORS.findIndex((s) => s.unlock === target));
     g.score = 0;
     g.lives = 3;
     g.shield = 100;
@@ -128,6 +132,7 @@ export function createGame({ sprites, events }) {
     g.sector = 0;
     g.wave = -1;
     g.unlocked = [];
+    g.bossDone = false;
     bullets = [];
     enemyBullets = [];
     enemies = [];
@@ -189,16 +194,28 @@ export function createGame({ sprites, events }) {
     }
   }
 
+  const BOSSES = {
+    labo: { name: 'NOVA ALCHIMISTE', hp: 40, crown: '#ff3dbb', line: 'La NOVA Alchimiste garde le labo ! Vise sa visière 🧪' },
+    qg: { name: 'AMIRALE NOVA', hp: 60, crown: '#a78bfa', line: 'L’Amirale NOVA bloque l’accès au QG… on fonce 💪' },
+    'esgi-bot': { name: 'MÉGA-NOVA', hp: 85, crown: '#ffd166', line: 'C’est la MÉGA-NOVA ! Vise sa visière, je t’encourage d’ici 💪' }
+  };
   function spawnBoss() {
-    boss = { x: g.W / 2, y: -40, ty: 48, r: 22, hp: 70, max: 70, t: 0, fire: 2, spawn: 5, burst: 3.5, hit: 0, enter: true };
-    events.boss(true, 1);
-    events.say('C’est la MÉGA-NOVA ! Vise sa visière, je t’encourage d’ici 💪');
+    const info = BOSSES[g.target] || BOSSES['esgi-bot'];
+    boss = { x: g.W / 2, y: -40, ty: 48, r: 22, hp: info.hp, max: info.hp, t: 0, fire: 2, spawn: 5, burst: 3.5, hit: 0, enter: true, crown: info.crown, name: info.name };
+    events.boss(true, 1, info.name);
+    events.wave('BOSS', 0);
+    events.say(info.line);
   }
 
   function nextWave() {
     const sector = SECTORS[g.sector];
     g.wave++;
     if (g.wave >= sector.waves.length) {
+      // Dernier secteur du vol : le boss, puis la destination
+      if (g.sector >= g.lastSector && !g.bossDone) {
+        if (!boss) spawnBoss();
+        return;
+      }
       sectorCleared();
       return;
     }
@@ -212,8 +229,6 @@ export function createGame({ sprites, events }) {
     } else if (w.type === 'mixed') {
       for (let i = 0; i < w.count; i++) spawnRock('big');
       spawnFormation(w.rows, w.cols, w.divers);
-    } else if (w.type === 'boss') {
-      spawnBoss();
     }
     waveTimer = 0;
   }
@@ -224,19 +239,12 @@ export function createGame({ sprites, events }) {
     g.state = 'clear';
     enemyBullets = [];
     sfx.portal();
-    // Portails : destinations débloquées + secteur suivant
-    const ids = [...g.unlocked];
-    if (g.sector < SECTORS.length - 1) ids.push('next');
-    const n = ids.length;
-    portals = ids.map((id, i) => ({
-      id,
-      x: g.W * ((i + 1) / (n + 1)),
-      y: g.H * 0.3,
-      r: 0,
-      tr: 17,
-      t: rand(0, TAU)
-    }));
-    events.cleared(sector, g.sector === SECTORS.length - 1);
+    // Portail : la destination choisie au bout du vol, sinon le secteur suivant
+    const arrived = g.sector >= g.lastSector;
+    portals = arrived
+      ? [{ id: g.target, dest: true, x: g.W / 2, y: -50, ty: g.H * 0.3, r: 0, tr: 26, t: 0 }]
+      : [{ id: 'next', x: g.W / 2, y: g.H * 0.3, r: 0, tr: 17, t: rand(0, TAU) }];
+    events.cleared(sector, arrived, g.target);
   }
 
   // ------------------------------------------------------------------ effets
@@ -614,10 +622,13 @@ export function createGame({ sprites, events }) {
       const by = boss.y;
       setTimeout(() => {
         explode(bx, by, ['#ffffff', '#ff3dbb', '#22e4ff'], 80, 160);
+        const name = boss ? boss.name : 'Le boss';
         boss = null;
         enemies = [];
+        enemyBullets = [];
+        g.bossDone = true;
         events.boss(false, 0);
-        events.say('MÉGA-NOVA vaincue ! Tous les portails sont ouverts 🎉');
+        events.say(`${name} vaincue ! La destination est en vue 🎉`);
       }, 800);
       boss.hp = Infinity; // n'explose qu'une fois
       boss.dying = true;
@@ -660,7 +671,8 @@ export function createGame({ sprites, events }) {
       });
       // Portails
       portals.forEach((p) => {
-        if (g.state === 'clear' && p.r > 10 && Math.hypot(p.x - player.x, p.y - player.y) < p.r) enterPortal(p);
+        const ready = !p.dest || Math.abs(p.y - p.ty) < 4;
+        if (g.state === 'clear' && ready && p.r > 10 && Math.hypot(p.x - player.x, p.y - player.y) < p.r) enterPortal(p);
       });
     }
     events.shield(Math.max(0, g.shield), g.special);
@@ -682,6 +694,7 @@ export function createGame({ sprites, events }) {
     portals.forEach((p) => {
       p.r += (p.tr - p.r) * dt * 3;
       p.t += dt;
+      if (p.dest) p.y += (p.ty - p.y) * Math.min(1, dt * 1.1); // la destination approche
     });
 
     // Vague terminée ?
@@ -782,6 +795,35 @@ export function createGame({ sprites, events }) {
     // Portails
     portals.forEach((p) => {
       const info = PORTAL_INFO[p.id];
+      if (p.dest) {
+        // Halo qui pulse, puis la planète ou la station en pixels
+        const img = p.id === 'esgi-bot' ? sprites.destinations.planet : sprites.destinations[p.id];
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const pulse = 0.5 + 0.5 * Math.sin(p.t * 3);
+        const gr = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, 44 + pulse * 6);
+        gr.addColorStop(0, `${info.color}55`);
+        gr.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gr;
+        ctx.fillRect(p.x - 52, p.y - 52, 104, 104);
+        ctx.restore();
+        drawSprite(ctx, img, p.x, p.y + Math.sin(p.t * 1.2) * 1.5);
+        if (Math.abs(p.y - p.ty) < 4) {
+          ctx.strokeStyle = info.color;
+          ctx.globalAlpha = 0.5 + pulse * 0.5;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r + 6, 0, TAU);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 1;
+        }
+        ctx.font = '700 7px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = info.color;
+        ctx.fillText(p.id === 'esgi-bot' ? 'ATTERRIR · LA TOUR' : `S’AMARRER · ${info.label}`, Math.round(p.x), Math.round(p.y + 42));
+        return;
+      }
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       for (let i = 0; i < 3; i++) {
@@ -789,7 +831,7 @@ export function createGame({ sprites, events }) {
         ctx.globalAlpha = 0.9 - i * 0.25;
         ctx.lineWidth = 2 - i * 0.5;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r - i * 4, p.t * (i % 2 ? -2 : 2) + i, p.t * (i % 2 ? -2 : 2) + i + Math.PI * 1.5);
+        ctx.arc(p.x, p.y, Math.max(0.5, p.r - i * 4), p.t * (i % 2 ? -2 : 2) + i, p.t * (i % 2 ? -2 : 2) + i + Math.PI * 1.5);
         ctx.stroke();
       }
       const gr = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
@@ -834,7 +876,7 @@ export function createGame({ sprites, events }) {
       const wob = boss.dying ? rand(-2, 2) : 0;
       drawSprite(ctx, sprites.boss[Math.floor(boss.t * 3) % 2], boss.x + wob, boss.y, 0, s, boss.hit > 0);
       // Couronne
-      ctx.fillStyle = '#ffd166';
+      ctx.fillStyle = boss.crown || '#ffd166';
       const cx = Math.round(boss.x - 10);
       const cy = Math.round(boss.y - 30);
       ctx.fillRect(cx, cy + 4, 20, 3);

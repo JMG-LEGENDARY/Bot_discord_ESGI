@@ -92,8 +92,8 @@ export function createRoom({ renderer, accent, accentHdr, layout, camPos, camTar
   const H = 6.2;
   const metal = new THREE.MeshStandardMaterial({ color: 0x1c2233, metalness: 0.8, roughness: 0.45 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x0c101b, metalness: 0.7, roughness: 0.42 });
-  const led = new THREE.MeshBasicMaterial({ color: hdr(...accentHdr).multiplyScalar(0.55), toneMapped: false });
-  const ledViolet = new THREE.MeshBasicMaterial({ color: hdr(0.5, 0.16, 1.0), toneMapped: false });
+  const led = new THREE.MeshBasicMaterial({ color: hdr(...accentHdr).multiplyScalar(0.3), toneMapped: false });
+  const ledViolet = new THREE.MeshBasicMaterial({ color: hdr(0.3, 0.1, 0.6), toneMapped: false });
 
   const group = new THREE.Group();
   scene.add(group);

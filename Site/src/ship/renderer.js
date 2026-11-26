@@ -87,10 +87,19 @@ export function createShipRenderer(canvas) {
   const renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
   composer.addPass(renderPass);
 
-  const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.6, 0.45, 0.95);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.32, 0.4, 1.15);
   // Halo calculé en quart de résolution : il est flou de toute façon
   bloom.setSize = (w, h) => UnrealBloomPass.prototype.setSize.call(bloom, Math.max(1, w / 2), Math.max(1, h / 2));
   bloom.setSize(window.innerWidth * pixelRatio, window.innerHeight * pixelRatio);
+  // Filet de sécurité : un seul pixel invalide (NaN, infini) étalé par le halo
+  // suffit à noircir tout l'écran. On l'ignore à l'entrée du halo.
+  bloom.materialHighPassFilter.fragmentShader = bloom.materialHighPassFilter.fragmentShader.replace(
+    'vec4 texel = texture2D( tDiffuse, vUv );',
+    `vec4 texel = texture2D( tDiffuse, vUv );
+      if ( any( isnan( texel ) ) || any( isinf( texel ) ) ) texel = vec4( 0.0 );
+      texel = clamp( texel, 0.0, 64.0 );`
+  );
+  bloom.materialHighPassFilter.needsUpdate = true;
   composer.addPass(bloom);
 
   const warpPass = new ShaderPass(WarpShader);

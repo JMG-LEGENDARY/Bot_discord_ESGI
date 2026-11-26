@@ -48,7 +48,7 @@ export function createArcade({ root, onExit, onPortal }) {
       <div class="am-box">
         <div class="am-kicker">ESGI-01 // PILOTAGE MANUEL</div>
         <h1 class="am-title">CONVOI NOVA</h1>
-        <p class="am-sub">Traverse la ceinture d’astéroïdes, la flotte des NOVA rebelles et la forteresse de la MÉGA-NOVA. Chaque secteur nettoyé ouvre un portail : <b style="color:#ff3dbb">LABO</b>, <b style="color:#a78bfa">QG</b>, puis <b style="color:#22e4ff">ESGI-BOT</b>.</p>
+        <p class="am-sub am-route"></p>
         <ul class="am-keys">
           ${
             IS_TOUCH
@@ -131,19 +131,27 @@ export function createArcade({ root, onExit, onPortal }) {
       if (i === 0) say('C’est parti ! Détruis les astéroïdes, ils se cassent en morceaux ☄️');
       if (i === 2) say('La forteresse de la MÉGA-NOVA… reste en mouvement !');
     },
-    wave: (n, total) => ($('.ah-wave').textContent = `VAGUE ${n} / ${total}`),
-    boss: (on, hp) => {
+    wave: (n, total) => ($('.ah-wave').textContent = n === 'BOSS' ? 'BOSS DE FIN DE VOL' : `VAGUE ${n} / ${total}`),
+    boss: (on, hp, name) => {
       $('.ah-boss').hidden = !on;
+      if (name) $('.ah-boss > span').textContent = name;
       $('.ah-boss-hp').style.width = `${Math.round(hp * 100)}%`;
+      if (on && name) showBanner('ALERTE', name, '#ff3dbb', 2600);
     },
     say,
     pickup: (k) => {
       const t = { shield: 'BOUCLIER +40', triple: 'TIR TRIPLE', rapid: 'TIR RAPIDE' }[k];
       showBanner('BONUS', t, k === 'shield' ? '#22e4ff' : k === 'triple' ? '#ffd166' : '#ff3dbb', 1200);
     },
-    cleared: (sector, last) => {
-      showBanner(last ? 'VICTOIRE' : 'SECTEUR NETTOYÉ', last ? 'TOUS LES PORTAILS SONT OUVERTS' : `PORTAIL ${PORTAL_INFO[sector.unlock].label} OUVERT`, last ? '#ffd166' : PORTAL_INFO[sector.unlock].color, 3200);
-      say(last ? 'Choisis ta destination, pilote ! 🌌' : 'Traverse un portail pour y aller, ou continue vers le secteur suivant ✨', 5000);
+    cleared: (sector, arrived, target) => {
+      const info = PORTAL_INFO[target];
+      if (arrived) {
+        showBanner('DESTINATION EN VUE', target === 'esgi-bot' ? 'LA TOUR · ATTERRISSAGE' : `${info.label} · AMARRAGE`, info.color, 3200);
+        say(target === 'esgi-bot' ? 'La planète de la Tour ! Vole dessus pour atterrir 🪐' : 'La station est là : vole jusqu’au sas pour t’amarrer 🛰️', 5000);
+      } else {
+        showBanner('SECTEUR NETTOYÉ', 'PORTAIL VERS LE SECTEUR SUIVANT', '#ffd166', 3000);
+        say(`Encore un effort, ${info.label} est plus loin ✨`, 4500);
+      }
     },
     gameOver: (score, best) => openMenu('over', { score, best }),
     portal: (id, score) => {
@@ -336,6 +344,11 @@ export function createArcade({ root, onExit, onPortal }) {
     } else {
       box.innerHTML = titleHTML;
       $('.am-best span').textContent = best;
+      // Le trajet jusqu'à la destination choisie
+      const n = SECTORS.findIndex((x) => x.unlock === target) + 1;
+      const info = PORTAL_INFO[target];
+      const route = SECTORS.slice(0, n).map((x) => x.name.toLowerCase()).join(', puis ');
+      $('.am-route').innerHTML = `Destination : <b style="color:${info.color}">${info.label}</b> · ${n} secteur${n > 1 ? 's' : ''} à traverser (${route}), puis un boss garde l’arrivée. Bats-le et rejoins ${target === 'esgi-bot' ? 'la planète de la Tour' : 'la station'} !`;
     }
     menu.classList.add('open');
     menu.querySelector('.am-btn.primary')?.focus({ preventScroll: true });
@@ -354,7 +367,7 @@ export function createArcade({ root, onExit, onPortal }) {
       paused = false;
       running = true;
       renderLives(3);
-      game.start();
+      game.start(target);
       events.score(0);
       $('.ah-best span').textContent = game.g.best.toLocaleString('fr-FR');
       el.classList.add('playing');
@@ -378,14 +391,26 @@ export function createArcade({ root, onExit, onPortal }) {
     if (!visible) return;
     if (running && !paused) game.update(delta);
     else game.update(0.016 * 0.3); // fond étoilé qui défile doucement dans les menus
+    // État de dessin remis à zéro à chaque image : une erreur de dessin ne
+    // peut plus laisser le mode « lumière additive » actif (écran blanc)
+    bctx.setTransform(1, 0, 0, 1, 0, 0);
+    bctx.globalCompositeOperation = 'source-over';
+    bctx.globalAlpha = 1;
+    bctx.filter = 'none';
     bctx.imageSmoothingEnabled = false;
-    game.render(bctx);
+    try {
+      game.render(bctx);
+    } catch (err) {
+      if (import.meta.env.DEV) console.error(err);
+    }
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(buffer, 0, 0, canvas.width, canvas.height);
   }
 
   // ---- Allumage / extinction façon écran cathodique ----
-  function show() {
+  let target = 'esgi-bot';
+  function show(opts = {}) {
+    target = opts.target || 'esgi-bot';
     visible = true;
     el.classList.add('visible');
     resize();
@@ -395,7 +420,7 @@ export function createArcade({ root, onExit, onPortal }) {
     el.classList.add('crt-on');
     openMenu('title');
     $('.am-best span').textContent = game.g.best.toLocaleString('fr-FR');
-    say('Prends le manche ! Je reste dans ta radio 📡', 3500);
+    say(`Cap sur ${PORTAL_INFO[target].label} ! Je reste dans ta radio 📡`, 3500);
     return new Promise((r) => setTimeout(r, 700));
   }
   function hide() {

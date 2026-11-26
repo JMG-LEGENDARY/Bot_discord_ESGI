@@ -194,8 +194,8 @@ export function createCockpit(ship) {
   const chrome = new THREE.MeshStandardMaterial({ color: 0x9aa6c2, metalness: 0.9, roughness: 0.35 });
   const panelTex = createPanelTexture();
   const wallMat = new THREE.MeshStandardMaterial({ map: panelTex, color: 0x8b95b0, metalness: 0.55, roughness: 0.55, side: THREE.BackSide });
-  const ledCyan = new THREE.MeshBasicMaterial({ color: hdr(0.08, 0.5, 0.8), toneMapped: false });
-  const ledViolet = new THREE.MeshBasicMaterial({ color: hdr(0.4, 0.13, 0.8), toneMapped: false });
+  const ledCyan = new THREE.MeshBasicMaterial({ color: hdr(0.05, 0.32, 0.5), toneMapped: false });
+  const ledViolet = new THREE.MeshBasicMaterial({ color: hdr(0.26, 0.08, 0.5), toneMapped: false });
   // Intensité des néons du cockpit (allumage, alertes du saut)
   const ledCyanBase = ledCyan.color.clone();
   const ledVioletBase = ledViolet.color.clone();
@@ -333,10 +333,10 @@ export function createCockpit(ship) {
   room.add(lipLed);
 
   // ---- Écrans (canvas animés) ----
-  const status = { hover: null, selected: null, hyper: 0, engine: 0, power: 0, time: 0 };
+  const status = { hover: null, selected: null, target: null, hyper: 0, engine: 0, power: 0, time: 0 };
   const screens = [];
-  function addScreen(phi, r, y, w, h, drawFn, tilt = -0.35) {
-    const scr = createCanvasScreen(512, Math.round((512 * h) / w), drawFn);
+  function addScreen(phi, r, y, w, h, drawFn, tilt = -0.35, cw = 512) {
+    const scr = createCanvasScreen(cw, Math.round((cw * h) / w), drawFn);
     const frame = new THREE.Group();
     const bezel = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, h + 0.04, 0.03), darkMetal);
     const face = new THREE.Mesh(
@@ -350,7 +350,8 @@ export function createCockpit(ship) {
     frame.lookAt(EYE.x, y, EYE.z);
     frame.rotateX(tilt);
     room.add(frame);
-    screens.push({ scr, face, every: 0.11 + screens.length * 0.013, acc: Math.random() * 0.1 });
+    // ~25 images/s pour des courbes et radars fluides (le grand écran de droite : ~12/s)
+    screens.push({ scr, face, every: cw > 512 ? 0.08 : 0.04, acc: Math.random() * 0.04 });
     return frame;
   }
 
@@ -425,13 +426,13 @@ export function createCockpit(ship) {
     ctx.globalAlpha = 1;
   });
 
-  // Écran droit : carte de navigation (les trois destinations)
+  // Écran central : carte de navigation (les trois destinations), sur un pied
   const navPoints = {
     'esgi-bot': [0.72, 0.3],
     qg: [0.28, 0.32],
     labo: [0.5, 0.78]
   };
-  addScreen(Math.PI - 0.56, 1.42, DESK_Y + 0.2, 0.52, 0.31, (ctx, w, h, t) => {
+  const navScreen = addScreen(Math.PI, 1.66, DESK_Y + 0.4, 0.8, 0.45, (ctx, w, h, t) => {
     const p = status.power;
     ctx.fillStyle = 'rgba(6,6,24,0.96)';
     ctx.fillRect(0, 0, w, h);
@@ -461,7 +462,7 @@ export function createCockpit(ship) {
     const W = w - 44;
     const H = h - 76;
     const ship = [0.5, 0.52];
-    const target = status.selected || status.hover;
+    const target = status.selected || status.hover || status.target;
     Object.entries(navPoints).forEach(([id, [x, y]]) => {
       const d = DESTINATIONS[id];
       const X = ox + x * W;
@@ -506,6 +507,17 @@ export function createCockpit(ship) {
     ctx.restore();
     ctx.globalAlpha = 1;
   });
+
+  const navStand = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.05), darkMetal);
+  navStand.position.copy(polar(1.7, Math.PI, DESK_Y + 0.1));
+  room.add(navStand);
+  const navFoot = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.02, 24), darkMetal);
+  navFoot.position.copy(polar(1.7, Math.PI, DESK_Y + 0.01));
+  room.add(navFoot);
+  void navScreen;
+
+  // Écran droit : la destination choisie (ou survolée)
+  addScreen(Math.PI - 0.56, 1.42, DESK_Y + 0.2, 0.52, 0.31, (ctx, w, h, t) => drawHolo(ctx, w, h, t), -0.35, 1024);
 
   // Petits écrans latéraux : liaison et journal de bord
   const logLines = [
@@ -573,8 +585,10 @@ export function createCockpit(ship) {
   // ---- Boutons de commande (AUTOPILOT, MISSIONS, LABORATOIRE) ----
   const buttons = {};
   const hitTargets = [];
+  // Bouton « ENGAGER » : lance l'autopilote vers la destination choisie
+  const ENGAGE = { id: 'engage', command: 'AUTOPILOTE', name: 'ENGAGER', color: '#3dffa8', hdr: [0.3, 1.5, 0.8] };
   function addButton(id, phi, r, size) {
-    const d = DESTINATIONS[id];
+    const d = DESTINATIONS[id] || ENGAGE;
     const group = new THREE.Group();
     const p = polar(r, phi, DESK_Y);
     group.position.copy(p);
@@ -603,7 +617,7 @@ export function createCockpit(ship) {
     const icon = new THREE.Mesh(
       new THREE.CircleGeometry(size * 0.8, 32),
       new THREE.MeshBasicMaterial({
-        map: createLabelTexture(d.command === 'AUTOPILOT' ? '➤' : d.command === 'MISSIONS' ? '◎' : '⬡', { color: '#ffffff', size: 92, width: 128, height: 128 }),
+        map: createLabelTexture(d.id === 'esgi-bot' ? '▲' : d.id === 'qg' ? '◎' : d.id === 'engage' ? '▶' : '⬡', { color: '#ffffff', size: 92, width: 128, height: 128 }),
         transparent: true,
         toneMapped: false
       })
@@ -635,36 +649,99 @@ export function createCockpit(ship) {
     glows.add(ring, new THREE.Vector3(0, 0, 0), d.hdr.map((v) => v * 0.8), 0.06);
     buttons[id] = { group, cap, capMat, ringMat, ring, hover: 0, press: 0, base: new THREE.Color(...d.hdr) };
   }
-  addButton('esgi-bot', Math.PI, 1.02, 0.07);
-  addButton('qg', Math.PI + 0.36, 1.0, 0.058);
-  addButton('labo', Math.PI - 0.36, 1.0, 0.058);
+  // Sur les côtés, loin des leviers : destinations à gauche et à droite,
+  // et le bouton ENGAGER (autopilote) à droite
+  addButton('esgi-bot', Math.PI + 0.52, 0.98, 0.062);
+  addButton('qg', Math.PI + 0.82, 0.98, 0.058);
+  addButton('labo', Math.PI - 0.52, 0.98, 0.062);
+  addButton('engage', Math.PI - 0.82, 0.98, 0.058);
 
-  // ---- Manche du pilotage manuel (à droite) ----
-  const stick = new THREE.Group();
-  stick.position.copy(polar(0.98, Math.PI - 0.78, DESK_Y));
-  stick.rotation.y = Math.PI - 0.78;
-  room.add(stick);
-  const stickBase = new THREE.Mesh(new THREE.SphereGeometry(0.075, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), gunmetal);
-  stick.add(stickBase);
-  const gimbal = new THREE.Group();
-  gimbal.position.y = 0.04;
-  stick.add(gimbal);
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.018, 0.2, 12), chrome);
-  shaft.position.y = 0.1;
-  gimbal.add(shaft);
-  const gripMat = new THREE.MeshStandardMaterial({ color: 0x232a3d, metalness: 0.4, roughness: 0.55 });
-  const grip = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.09, 6, 12), gripMat);
-  grip.position.y = 0.22;
-  grip.rotation.x = -0.25;
-  gimbal.add(grip);
-  const trigger = new THREE.Mesh(new THREE.SphereGeometry(0.016, 12, 8), new THREE.MeshBasicMaterial({ color: hdr(2.2, 1.5, 0.3), toneMapped: false }));
-  trigger.position.set(0, 0.275, 0.012);
-  gimbal.add(trigger);
-  const stickRing = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.006, 6, 48), new THREE.MeshBasicMaterial({ color: hdr(2.0, 1.4, 0.3), toneMapped: false }));
-  stickRing.rotation.x = Math.PI / 2;
-  stickRing.position.y = 0.004;
-  stick.add(stickRing);
-  const stickLabel = new THREE.Mesh(
+  // ---- Console centrale (radar) et leviers de pilotage ----
+  // Un bloc avance vers le pilote, avec un radar rond. De chaque côté, un
+  // levier : on les prend pour piloter soi-même vers la destination choisie.
+  const pedestal = new THREE.Group();
+  pedestal.position.set(0, 0, -0.64);
+  room.add(pedestal);
+  const pedBody = new THREE.Mesh(new THREE.BoxGeometry(0.34, DESK_Y - 0.04, 0.3), gunmetal);
+  pedBody.position.y = (DESK_Y - 0.04) / 2;
+  pedestal.add(pedBody);
+  const pedTop = new THREE.Group();
+  pedTop.position.y = DESK_Y - 0.02;
+  pedTop.rotation.x = 0.28;
+  pedestal.add(pedTop);
+  const pedPlate = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.03, 0.33), darkMetal);
+  pedTop.add(pedPlate);
+  const radar = createCanvasScreen(256, 256, (ctx, w, h, t) => {
+    const p = status.power;
+    const c = w / 2;
+    ctx.fillStyle = '#030a14';
+    ctx.beginPath();
+    ctx.arc(c, c, c - 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = p;
+    ctx.strokeStyle = 'rgba(34,228,255,0.45)';
+    ctx.lineWidth = 2;
+    [0.92, 0.66, 0.4, 0.14].forEach((k) => {
+      ctx.beginPath();
+      ctx.arc(c, c, (c - 4) * k, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+    ctx.beginPath();
+    ctx.moveTo(c, 6);
+    ctx.lineTo(c, w - 6);
+    ctx.moveTo(6, c);
+    ctx.lineTo(w - 6, c);
+    ctx.stroke();
+    // La destination choisie apparaît sur le radar
+    const id = status.target || status.hover;
+    Object.entries(navPoints).forEach(([k, [x, y]]) => {
+      const d = DESTINATIONS[k];
+      ctx.fillStyle = d.color;
+      ctx.globalAlpha = p * (k === id ? 1 : 0.45);
+      ctx.beginPath();
+      ctx.arc(c + (x - 0.5) * c * 1.4, c + (y - 0.52) * c * 1.4, k === id ? 9 : 5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  });
+  screens.push({ scr: radar, every: 0.2, acc: 0 });
+  const radarFace = new THREE.Mesh(
+    new THREE.CircleGeometry(0.11, 48),
+    new THREE.MeshBasicMaterial({ map: radar.texture, toneMapped: false, color: new THREE.Color(1.2, 1.2, 1.2) })
+  );
+  radarFace.rotation.x = -Math.PI / 2;
+  radarFace.position.set(0, 0.017, -0.02);
+  pedTop.add(radarFace);
+  // Faisceau du radar : tourne à chaque image (parfaitement fluide)
+  const sweepMat = new THREE.ShaderMaterial({
+    uniforms: { uAngle: { value: 0 }, uPower: { value: 0 } },
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: 'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `
+      uniform float uAngle;
+      uniform float uPower;
+      varying vec2 vP;
+      void main() {
+        float a = atan(vP.y, vP.x + 1e-6);
+        float d = mod(uAngle - a, 6.28318);
+        float trail = exp(-d * 2.6) * 0.55 + smoothstep(0.03, 0.0, d) * 0.9;
+        float r = length(vP) / 0.11;
+        gl_FragColor = vec4(vec3(0.15, 0.85, 1.0) * trail * (1.0 - smoothstep(0.92, 1.0, r)) * uPower, 1.0);
+      }
+    `
+  });
+  const sweep = new THREE.Mesh(new THREE.CircleGeometry(0.108, 64), sweepMat);
+  sweep.rotation.x = -Math.PI / 2;
+  sweep.position.set(0, 0.0185, -0.02);
+  pedTop.add(sweep);
+  const radarRing = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.008, 8, 48), chrome);
+  radarRing.rotation.x = Math.PI / 2;
+  radarRing.position.set(0, 0.018, -0.02);
+  pedTop.add(radarRing);
+  // Plaque « PILOTAGE MANUEL » sur la face avant (côté pilote)
+  const pedLabel = new THREE.Mesh(
     new THREE.PlaneGeometry(0.3, 0.075),
     new THREE.MeshBasicMaterial({
       map: createLabelTexture('PILOTAGE', { color: MANUAL.color, size: 54, width: 512, height: 128, sub: 'MANUEL' }),
@@ -673,111 +750,56 @@ export function createCockpit(ship) {
       toneMapped: false
     })
   );
-  stickLabel.rotation.x = -Math.PI / 2 - 0.5;
-  stickLabel.rotation.z = Math.PI;
-  stickLabel.position.set(0, 0.035, -0.17);
-  stick.add(stickLabel);
-  const stickHit = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.5, 12), new THREE.MeshBasicMaterial({ visible: false }));
-  stickHit.position.y = 0.2;
-  stickHit.userData.command = 'jeu';
-  stick.add(stickHit);
-  hitTargets.push(stickHit);
-  buttons.jeu = { group: stick, cap: grip, capMat: gripMat, ringMat: stickRing.material, ring: stickRing, hover: 0, press: 0, base: hdr(2.0, 1.4, 0.3) };
+  pedLabel.rotation.x = -Math.PI / 2;
+  pedLabel.position.set(0, 0.018, 0.125);
+  pedLabel.scale.setScalar(0.85);
+  pedTop.add(pedLabel);
 
-  // ---- Manette des gaz (à gauche) : avance pendant le saut ----
-  const throttle = new THREE.Group();
-  throttle.position.copy(polar(0.98, Math.PI + 0.78, DESK_Y));
-  throttle.rotation.y = Math.PI + 0.78;
-  room.add(throttle);
-  const slot = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.24), darkMetal);
-  slot.position.y = 0.01;
-  throttle.add(slot);
-  const lever = new THREE.Group();
-  throttle.add(lever);
-  const leverArm = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.16, 0.018), chrome);
-  leverArm.position.y = 0.08;
-  lever.add(leverArm);
-  const leverHead = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.035, 0.05), new THREE.MeshStandardMaterial({ color: 0x2a3148, metalness: 0.5, roughness: 0.4, emissive: 0x22e4ff, emissiveIntensity: 0.15 }));
-  leverHead.position.y = 0.165;
-  lever.add(leverHead);
-  lever.position.z = -0.08;
-
-  // ---- Projecteur holographique (au centre, devant la vitre) ----
-  const holo = createCanvasScreen(1024, 560, (ctx, w, h, t) => drawHolo(ctx, w, h, t));
-  const holoMat = new THREE.ShaderMaterial({
-    uniforms: { map: { value: holo.texture }, uTime: { value: 0 }, uPower: { value: 0 } },
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform sampler2D map;
-      uniform float uTime;
-      uniform float uPower;
-      varying vec2 vUv;
-      void main() {
-        // Petites ondulations horizontales, lignes de balayage, scintillement
-        vec2 uv = vUv;
-        uv.x += sin(uv.y * 80.0 + uTime * 9.0) * 0.0012;
-        vec4 tex = texture2D(map, uv);
-        float lines = 0.82 + 0.18 * sin(vUv.y * 420.0 - uTime * 6.0);
-        float flicker = 0.94 + 0.06 * sin(uTime * 31.0) * sin(uTime * 7.3);
-        float edge = smoothstep(0.0, 0.04, vUv.y) * smoothstep(1.0, 0.94, vUv.y);
-        vec3 col = tex.rgb * lines * flicker * edge * uPower * 1.9;
-        gl_FragColor = vec4(col, 1.0);
-        #include <colorspace_fragment>
-      }
-    `
+  // Les deux leviers
+  const gripMat = new THREE.MeshStandardMaterial({ color: 0x3a4058, metalness: 0.5, roughness: 0.45, emissive: 0xffd166, emissiveIntensity: 0.12 });
+  const knobMat = new THREE.MeshBasicMaterial({ color: hdr(1.2, 0.8, 0.2), toneMapped: false });
+  const levers = [];
+  [-1, 1].forEach((side) => {
+    const base = new THREE.Group();
+    base.position.set(side * 0.255, DESK_Y, -0.6);
+    room.add(base);
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.03, 0.26), darkMetal);
+    slot.position.y = 0.015;
+    base.add(slot);
+    const slotLed = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.004, 0.22), ledCyan);
+    slotLed.position.set(side * -0.03, 0.032, 0);
+    base.add(slotLed);
+    const pivot = new THREE.Group();
+    pivot.position.y = 0.02;
+    base.add(pivot);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.16, 0.022), chrome);
+    arm.position.y = 0.08;
+    pivot.add(arm);
+    const grip = new THREE.Mesh(new THREE.CapsuleGeometry(0.024, 0.09, 6, 12), gripMat);
+    grip.rotation.z = Math.PI / 2;
+    grip.position.y = 0.17;
+    pivot.add(grip);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.014, 12, 8), knobMat);
+    knob.position.set(side * 0.058, 0.17, 0);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.26, 0.2), new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.y = 0.12;
+    hit.userData.command = 'jeu';
+    base.add(hit);
+    hitTargets.push(hit);
+    pivot.add(knob);
+    levers.push({ pivot, side });
   });
-  const holoPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.98, 0.536), holoMat);
-  holoPlane.position.copy(polar(1.78, Math.PI, DESK_Y + 0.42));
-  holoPlane.lookAt(EYE.x, EYE.y - 0.05, EYE.z);
-  holoPlane.renderOrder = 20;
-  room.add(holoPlane);
-  // Émetteur et cône de lumière
-  const emitter = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.025, 32), chrome);
-  emitter.position.copy(polar(1.72, Math.PI, DESK_Y + 0.0125));
-  room.add(emitter);
-  const emitterGlow = new THREE.Mesh(new THREE.CircleGeometry(0.075, 32), ledCyan);
-  emitterGlow.rotation.x = -Math.PI / 2;
-  emitterGlow.position.copy(polar(1.72, Math.PI, DESK_Y + 0.026));
-  room.add(emitterGlow);
-  const coneMat = new THREE.ShaderMaterial({
-    uniforms: { uPower: { value: 0 }, uColor: { value: new THREE.Color(0.2, 0.9, 1.4) } },
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-    vertexShader: `
-      varying vec2 vUv;
-      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
-    `,
-    fragmentShader: `
-      uniform float uPower;
-      uniform vec3 uColor;
-      varying vec2 vUv;
-      void main() {
-        float a = (1.0 - vUv.y) * 0.16 * uPower;
-        gl_FragColor = vec4(uColor * a, 1.0);
-      }
-    `
-  });
-  const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.07, 0.3, 32, 1, true), coneMat);
-  cone.position.copy(polar(1.72, Math.PI, DESK_Y + 0.17));
-  room.add(cone);
+  buttons.jeu = { group: pedestal, cap: null, capMat: gripMat, ringMat: knobMat, ring: null, hover: 0, press: 0, base: hdr(1.2, 0.8, 0.2) };
 
   // Contenu de l'hologramme : destination survolée ou choisie
   function drawHolo(ctx, w, h, t) {
-    const id = status.selected || status.hover;
+    const id = status.selected || status.hover || status.target;
     const d = id ? (id === 'jeu' ? MANUAL : DESTINATIONS[id]) : null;
     const col = d ? d.color : '#22e4ff';
+    const locked = Boolean(status.selected) || (status.target && status.target === id);
+    ctx.fillStyle = 'rgba(6,6,24,0.97)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalAlpha = status.power;
     ctx.strokeStyle = col;
     ctx.lineWidth = 3;
     // Cadre à coins coupés
@@ -790,9 +812,9 @@ export function createCockpit(ship) {
     ctx.lineTo(m, h - m);
     ctx.lineTo(m, m + 30);
     ctx.closePath();
-    ctx.globalAlpha = 0.6;
+    ctx.globalAlpha = 0.6 * status.power;
     ctx.stroke();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = status.power;
     // Anneaux qui tournent (à gauche)
     const cx = 200;
     const cy = h / 2 + 10;
@@ -808,7 +830,7 @@ export function createCockpit(ship) {
       ctx.stroke();
     }
     ctx.restore();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = status.power;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.font = '700 88px "Space Grotesk", sans-serif';
@@ -817,7 +839,7 @@ export function createCockpit(ship) {
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = col;
     ctx.shadowBlur = 24;
-    ctx.fillText(d ? (id === 'esgi-bot' ? '➤' : id === 'qg' ? '◎' : id === 'labo' ? '⬡' : '✜') : '◇', 0, 4);
+    ctx.fillText(d ? (id === 'esgi-bot' ? '▲' : id === 'qg' ? '◎' : id === 'labo' ? '⬡' : '✜') : '◇', 0, 4);
     ctx.restore();
     // Textes
     ctx.textAlign = 'left';
@@ -825,7 +847,7 @@ export function createCockpit(ship) {
     if ('letterSpacing' in ctx) ctx.letterSpacing = '4px';
     ctx.font = '600 26px "JetBrains Mono", monospace';
     ctx.fillStyle = col;
-    ctx.fillText(d ? (status.selected ? 'CAP VERROUILLÉ' : 'DESTINATION') : 'ORDINATEUR DE BORD', 380, 96);
+    ctx.fillText(d ? (locked ? 'CAP VERROUILLÉ' : 'DESTINATION') : 'ORDINATEUR DE BORD', 380, 96);
     if ('letterSpacing' in ctx) ctx.letterSpacing = '2px';
     ctx.font = '700 62px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#ffffff';
@@ -857,15 +879,16 @@ export function createCockpit(ship) {
       const blink = Math.floor(t * 2.5) % 2;
       ctx.fillStyle = blink ? '#ffffff' : col;
       ctx.textAlign = 'right';
-      ctx.fillText(status.selected ? 'SAUT EN COURS ▶▶' : `[ ${d.command} ]`, w - 50, h - 70);
+      ctx.fillText(status.selected ? 'SAUT EN COURS ▶▶' : locked ? 'AUTOPILOTE OU LEVIERS' : `[ ${d.command} ]`, w - 50, h - 70);
       ctx.textAlign = 'left';
     } else {
       ctx.font = '500 24px "JetBrains Mono", monospace';
       ctx.fillStyle = 'rgba(169,179,214,0.85)';
-      ctx.fillText('AUTOPILOT · MISSIONS · LABORATOIRE', 380, 300);
-      ctx.fillText('ou prends le manche : PILOTAGE MANUEL', 380, 336);
+      ctx.fillText('LA TOUR · MISSIONS · LABORATOIRE', 380, 300);
+      ctx.fillText('puis autopilote ou leviers de pilotage', 380, 336);
     }
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+    ctx.globalAlpha = 1;
   }
 
   // ---- Éclairage ----
@@ -894,11 +917,30 @@ export function createCockpit(ship) {
   let onHover = () => {};
   let hovered = null;
 
+  const navFace = navScreen.children[1];
   function pick(clientX, clientY) {
     pointer.set((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObjects(hitTargets, false)[0];
-    return hit ? hit.object.userData.command : null;
+    const hit = raycaster.intersectObjects([...hitTargets, navFace], false)[0];
+    if (!hit) return null;
+    if (hit.object === navFace && hit.uv) {
+      // Même placement que le dessin de la carte (canvas 512 × 288)
+      const cw = 512;
+      const ch = 288;
+      const u = hit.uv.x * cw;
+      const v = (1 - hit.uv.y) * ch;
+      let best = null;
+      let bestD = 46;
+      Object.entries(navPoints).forEach(([id, [x, y]]) => {
+        const d = Math.hypot(u - (22 + x * (cw - 44)), v - (60 + y * (ch - 76)));
+        if (d < bestD) {
+          bestD = d;
+          best = id;
+        }
+      });
+      return best;
+    }
+    return hit.object.userData.command;
   }
 
   function setHover(id) {
@@ -997,23 +1039,23 @@ export function createCockpit(ship) {
     deskMat.emissiveIntensity = status.power * 0.32 * glowBoost.value;
     deskLight.intensity = 2.2 * status.power;
     ceilingLight.intensity = 2.6 * status.power;
-    holoMat.uniforms.uTime.value = t;
-    holoMat.uniforms.uPower.value = status.power;
-    coneMat.uniforms.uPower.value = status.power;
 
     // Boutons : survol (le bouton s'allume et monte), appui
     Object.entries(buttons).forEach(([id, b]) => {
-      const want = hovered === id || status.selected === id ? 1 : 0;
+      const want = hovered === id || status.selected === id || status.target === id || (id === 'engage' && status.target) ? 1 : 0;
       b.hover += (want - b.hover) * (1 - Math.exp(-delta * 10));
       b.press = Math.max(0, b.press - delta * 2.5);
       const pulse = 0.75 + 0.25 * Math.sin(t * 3 + id.length);
       const glow = (0.35 + b.hover * 1.3) * pulse * status.power;
       b.ringMat.color.copy(b.base).multiplyScalar(glow);
       if (id === 'jeu') {
-        gimbal.rotation.x = look.y * 0.25 + b.press * 0.3;
-        gimbal.rotation.z = -look.x * 0.3;
-        b.capMat.emissive.set(0xffd166);
-        b.capMat.emissiveIntensity = b.hover * 0.25;
+        // Leviers : suivent un peu la souris, tirés quand on les prend,
+        // poussés vers l'avant pendant le saut
+        levers.forEach((l) => {
+          l.pivot.rotation.x = -0.3 + status.engine * 0.65 - b.press * 0.35 + look.y * 0.12 * l.side * 0 + b.hover * 0.06;
+          l.pivot.rotation.z = -look.x * 0.12;
+        });
+        b.capMat.emissiveIntensity = 0.12 + b.hover * 0.4;
       } else {
         b.cap.position.y = 0.045 + b.hover * 0.006 - b.press * 0.022;
         b.capMat.emissiveIntensity = (0.45 + b.hover * 1.4) * status.power;
@@ -1043,23 +1085,15 @@ export function createCockpit(ship) {
         s.scr.redraw(t);
       }
     });
-    holoAcc += delta;
-    if (holoAcc > 0.07) {
-      holoAcc = 0;
-      holo.redraw(t);
-    }
 
-    // Manette des gaz poussée vers l'avant pendant le saut
-    lever.position.z = -0.08 + status.engine * 0.16;
-    lever.rotation.x = status.engine * 0.5;
-
+    sweepMat.uniforms.uAngle.value = (t * 1.8) % (Math.PI * 2);
+    sweepMat.uniforms.uPower.value = status.power;
     space.update(t, camera);
     warp.update(delta, t);
     nova.update(delta, t, { anchor: novaAnchor, portrait: camera.aspect < 1, progress: 0, idle: 0, verticalSpeed: 0 });
     scene.updateMatrixWorld();
     glows.update(t);
   }
-  let holoAcc = 0;
 
   return {
     scene,

@@ -1,1 +1,0 @@
-var e={suspended:!1,ready:!1};function t(){e.ready=!0,window.dispatchEvent(new Event(`esgi-site-ready`))}export{e as n,t};

@@ -32,30 +32,64 @@ export async function createShip({ onCommand }) {
   const ship = createShipRenderer(canvas);
   const cockpit = createCockpit(ship);
 
-  const hud = createHud(ui, {
-    onCommand: (id) => {
-      sfx.unlock();
+  // ---- Choix de la destination, puis autopilote ou leviers ----
+  // Les boutons (LA TOUR, MISSIONS, LABORATOIRE) choisissent la cible.
+  // Ensuite : engager l'autopilote (second appui, Entrée) ou prendre les
+  // leviers (pilotage manuel : le mini-jeu mène à cette cible).
+  let target = null;
+  function setTarget(id) {
+    target = id;
+    cockpit.status.target = id;
+    hud.setTarget(id ? DESTINATIONS[id] : null);
+  }
+  function command(id) {
+    sfx.unlock();
+    if (id === 'engage') {
+      if (target) {
+        sfx.click();
+        onCommand(target);
+      }
+      return;
+    }
+    if (id === 'jeu') {
+      if (!target) {
+        sfx.countdown();
+        hud.show('PILOTAGE MANUEL', 'CHOISIS UNE DESTINATION', 'La Tour · Missions · Laboratoire, puis les leviers', '#ffd166', 2800);
+        cockpit.nova.say('Choisis d’abord où on va avec les boutons, puis prends les leviers 🕹️', 4000);
+        return;
+      }
       sfx.click();
-      onCommand(id);
-    },
+      onCommand('jeu');
+      return;
+    }
+    if (!DESTINATIONS[id]) return;
+    if (id === target) {
+      sfx.click();
+      onCommand(id); // second appui : autopilote
+      return;
+    }
+    setTarget(id);
+    cockpit.press(id);
+    sfx.confirm();
+    cockpit.nova.say(`Cap sur ${DESTINATIONS[id].name} ! Autopilote ou leviers, à toi de voir 🚀`, 4200);
+  }
+
+  const hud = createHud(ui, {
+    onCommand: command,
     onHover: (id) => cockpit.setHover(id),
     onLite: (on) => ship.setLite(on),
     liteOn: ship.lite
   });
-  cockpit.onCommand = (id) => {
-    sfx.unlock();
-    sfx.click();
-    onCommand(id);
-  };
+  cockpit.onCommand = command;
   cockpit.onHover = (id) => {
     hud.highlight(id);
     if (id) sfx.hover();
   };
   const travel = createTravel({ ship, cockpit, hud, flash });
-  if (import.meta.env.DEV) window.__ship = { ship, cockpit, hud, travel };
 
   // ---- Destinations embarquées (chargées au premier voyage) ----
   const places = {};
+  if (import.meta.env.DEV) window.__ship = { ship, cockpit, hud, travel, places };
   async function getPlace(id) {
     if (places[id]) return places[id];
     if (id === 'qg') {
@@ -164,6 +198,7 @@ export async function createShip({ onCommand }) {
   }
 
   async function jump(dest, { onFlash } = {}) {
+    setTarget(null);
     // Le décor de destination se prépare pendant le saut
     const ready = dest.id === 'esgi-bot' ? null : getPlace(dest.id);
     await travel.depart(dest);
@@ -203,11 +238,17 @@ export async function createShip({ onCommand }) {
     visible = true;
     layer.classList.remove('away');
     gsap.set(flash, { opacity: 1 });
+    // Vaisseau créé à la volée (arrivée directe sur le site) : il n'a jamais
+    // fait sa séquence d'allumage, on allume les écrans tout de suite
+    cockpit.status.power = 1;
     showView('cockpit');
     await travel.arriveInCockpit();
   }
 
   async function startGame() {
+    // Destination du vol (par défaut : la Tour, tout le parcours)
+    const gameTarget = target || 'esgi-bot';
+    setTarget(null);
     cockpit.enabled = false;
     hud.lock(true);
     cockpit.press('jeu');
@@ -216,12 +257,13 @@ export async function createShip({ onCommand }) {
     const game = await getPlace('jeu');
     // La caméra plonge vers l'hologramme, puis l'écran du jeu s'allume
     await gsap.to(cockpit.fov, { extra: -24, duration: 0.9, ease: 'power2.in' });
+    cockpit.nova.hide(); // la NOVA du jeu parle dans sa radio
     showView('jeu');
     cockpit.fov.extra = 0;
     cockpit.enabled = true;
     hud.lock(false);
     hud.hideAnnounce();
-    await game.show();
+    await game.show({ target: gameTarget });
   }
 
   async function openDirect(id) {

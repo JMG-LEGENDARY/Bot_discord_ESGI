@@ -41,7 +41,7 @@
 
 .place-back {
   padding: 9px 14px;
-  background: rgba(8, 10, 26, 0.72);
+  background: rgba(8, 10, 26, 0.94);
   border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
   border-radius: 9px;
   color: var(--text);
@@ -50,7 +50,6 @@
   font-weight: 700;
   letter-spacing: 0.12em;
   cursor: pointer;
-  backdrop-filter: blur(10px);
   transition: border-color 0.2s, transform 0.2s;
 }
 
@@ -86,7 +85,9 @@
   background: rgba(30, 22, 4, 0.55);
 }
 
-/* Panneau holographique : verre sombre, coins coupés, lignes de balayage */
+/* Panneau holographique : verre sombre, coins coupés, lignes de balayage.
+   Pas de flou d'arrière-plan (backdrop-filter) : au-dessus de la 3D, il fait
+   clignoter l'image en noir sur certaines cartes graphiques. */
 .holo-panel {
   position: relative;
   padding: 16px 18px 18px;
@@ -96,7 +97,6 @@
   border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
   border-radius: 4px;
   clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
-  backdrop-filter: blur(12px);
   box-shadow: inset 0 0 40px color-mix(in srgb, var(--accent) 10%, transparent);
   min-width: 0;
 }
@@ -615,8 +615,5 @@
   }
   .place-badge {
     margin-left: 0;
-  }
-  .holo-panel {
-    backdrop-filter: blur(6px);
   }
 }

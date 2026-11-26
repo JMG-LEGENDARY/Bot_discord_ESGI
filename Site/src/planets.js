@@ -63,7 +63,7 @@ function makeLut(stops) {
  * stops : dégradé parcouru par les bandes ; bands : nombre de bandes ;
  * storms : [{ u, v, ru, rv, color: [r,g,b], swirl }] (u, v dans [0,1])
  */
-function createGasGiantTexture({ stops, bands = 9, turbulence = 0.06, storms = [], width = 1024, height = 512 }) {
+export function createGasGiantTexture({ stops, bands = 9, turbulence = 0.06, storms = [], width = 1024, height = 512 }) {
   const fbm = makeNoise();
   const lut = makeLut(stops);
   const cvs = document.createElement('canvas');

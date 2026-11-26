@@ -8,7 +8,9 @@ export const siteControl = {
   /** true : le cockpit ou une autre destination est affiché par-dessus */
   suspended: false,
   /** true : la tour est chargée et le site est affiché */
-  ready: false
+  ready: false,
+  /** true : on arrive du cockpit, le vaisseau doit se poser sur la piste */
+  arriving: false
 };
 
 /** Prévient le vaisseau que le site est prêt (fin de l'écran de chargement) */

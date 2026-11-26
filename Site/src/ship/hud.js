@@ -43,7 +43,12 @@ export function createHud(root, { onCommand, onHover, onLite, liteOn }) {
       <div class="sh-announce-title"></div>
       <div class="sh-announce-sub"></div>
     </div>
-    <div class="sh-hint">Survole les commandes du tableau de bord ou utilise la barre ci-dessous</div>
+    <div class="sh-hint">Choisis une destination, puis engage l’autopilote ou prends les leviers</div>
+    <div class="sh-go" hidden>
+      <span class="sh-go-target"></span>
+      <button type="button" class="sh-go-btn" data-cmd="engage"><kbd>ENTRÉE</kbd> ENGAGER L’AUTOPILOTE</button>
+      <button type="button" class="sh-go-btn manual" data-cmd="jeu"><kbd>M</kbd> PRENDRE LES LEVIERS</button>
+    </div>
     <nav class="sh-nav" aria-label="Destinations du vaisseau">
       ${items
         .map(
@@ -67,6 +72,9 @@ export function createHud(root, { onCommand, onHover, onLite, liteOn }) {
   const headingEl = el.querySelector('.sh-heading');
   const clockEl = el.querySelector('.sh-clock');
   const cmdButtons = [...el.querySelectorAll('.sh-cmd')];
+  const go = el.querySelector('.sh-go');
+  const goTarget = el.querySelector('.sh-go-target');
+  go.querySelectorAll('.sh-go-btn').forEach((b) => b.addEventListener('click', () => !locked && onCommand(b.dataset.cmd)));
   let locked = false;
 
   cmdButtons.forEach((b) => {
@@ -99,7 +107,7 @@ export function createHud(root, { onCommand, onHover, onLite, liteOn }) {
   function onKey(e) {
     if (locked || !el.isConnected || el.classList.contains('hidden')) return;
     if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
-    const map = { 1: 'esgi-bot', 2: 'qg', 3: 'labo', m: 'jeu', M: 'jeu' };
+    const map = { 1: 'esgi-bot', 2: 'qg', 3: 'labo', m: 'jeu', M: 'jeu', Enter: 'engage' };
     if (map[e.key]) {
       e.preventDefault();
       onCommand(map[e.key]);
@@ -135,6 +143,15 @@ export function createHud(root, { onCommand, onHover, onLite, liteOn }) {
     setState(text, alert = false) {
       stateText.textContent = text;
       el.classList.toggle('alert', alert);
+    },
+    setTarget(dest) {
+      go.hidden = !dest;
+      el.classList.toggle('has-target', Boolean(dest));
+      if (dest) {
+        goTarget.innerHTML = `CAP SUR <b style="color:${dest.color}">${dest.name}</b>`;
+        go.style.setProperty('--c', dest.color);
+      }
+      cmdButtons.forEach((b) => b.classList.toggle('target', dest && b.dataset.cmd === dest.id));
     },
     highlight(id) {
       cmdButtons.forEach((b) => b.classList.toggle('active', b.dataset.cmd === id));

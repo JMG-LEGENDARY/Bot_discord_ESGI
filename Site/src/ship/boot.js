@@ -38,12 +38,16 @@ function setHash(id) {
 // Le site ESGI-BOT (tour, ville, sous-sol)
 // ---------------------------------------------------------------------------
 function showSite() {
+  // On arrive du cockpit : retour au sommet, le vaisseau se pose sur la piste
+  siteControl.arriving = true;
+  savedScroll = 0;
   siteControl.suspended = false;
   html.classList.remove('ship-mode');
   html.classList.add('site-mode');
   if (ship) ship.hide();
   window.scrollTo(0, savedScroll);
   window.dispatchEvent(new Event('resize'));
+  window.dispatchEvent(new Event('esgi-ship-arrive'));
 }
 
 function leaveSite() {
@@ -64,9 +68,8 @@ if (startRoute === 'esgi-bot') {
   startShip(startRoute);
 }
 
-// Bouton « retour au cockpit » sur le site
-const cockpitBtn = document.getElementById('cockpit-return');
-cockpitBtn?.addEventListener('click', () => goTo('cockpit'));
+// Sur le site, un clic sur le vaisseau posé au sommet : retour au cockpit
+window.addEventListener('esgi-board-ship', () => goTo('cockpit'));
 
 // Boutons précédent / suivant du navigateur
 window.addEventListener('popstate', () => {

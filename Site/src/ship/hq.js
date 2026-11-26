@@ -15,6 +15,40 @@ import { esc } from '../api.js';
 
 const KIND_LABEL = { cours: 'COURS', td: 'TD', tp: 'TP', projet: 'PROJET', exam: 'ÉVALUATION' };
 
+// Écran holographique des consoles : courbes, barres et lignes de texte
+function consoleScreenTexture(color, seed) {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 140;
+  const g = c.getContext('2d');
+  let s = seed;
+  const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+  g.strokeStyle = color;
+  g.fillStyle = color;
+  g.globalAlpha = 0.9;
+  g.lineWidth = 2;
+  g.strokeRect(3, 3, 250, 134);
+  g.globalAlpha = 0.25;
+  for (let x = 16; x < 250; x += 20) g.fillRect(x, 10, 1, 120);
+  g.globalAlpha = 0.9;
+  g.beginPath();
+  for (let x = 12; x < 150; x += 6) {
+    const y = 70 + Math.sin(x * 0.08 + seed) * 22 + (rnd() - 0.5) * 10;
+    if (x === 12) g.moveTo(x, y);
+    else g.lineTo(x, y);
+  }
+  g.stroke();
+  for (let i = 0; i < 6; i++) {
+    const h = 15 + rnd() * 55;
+    g.fillRect(166 + i * 13, 120 - h, 8, h);
+  }
+  g.globalAlpha = 0.6;
+  for (let i = 0; i < 3; i++) g.fillRect(12, 104 + i * 10, 40 + rnd() * 90, 4);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function holoMaterial(color, opacity = 1) {
   return new THREE.MeshBasicMaterial({
     color: new THREE.Color(color).multiplyScalar(1.6),
@@ -47,7 +81,7 @@ export function createHQ({ ship, root, onBack }) {
   const top = new THREE.Mesh(new THREE.CylinderGeometry(2.25, 2.1, 0.12, 64), room.dark);
   top.position.y = 1.06;
   table.add(top);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(2.24, 0.03, 8, 128), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.55, 2.2), toneMapped: false }));
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(2.24, 0.03, 8, 128), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.5, 0.28, 1.1), toneMapped: false }));
   rim.rotation.x = Math.PI / 2;
   rim.position.y = 1.12;
   table.add(rim);
@@ -139,7 +173,9 @@ export function createHQ({ ship, root, onBack }) {
     const desk = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.9, 0.6), room.metal);
     desk.position.y = 0.45;
     c.add(desk);
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.7), holoMaterial(i % 2 ? '#22e4ff' : '#a78bfa', 0.35));
+    const screenMat = holoMaterial('#ffffff', 0.55);
+    screenMat.map = consoleScreenTexture(i % 2 ? '#22e4ff' : '#a78bfa', i * 7 + 3);
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.71), screenMat);
     screen.position.set(0, 1.45, 0.05);
     screen.rotation.x = -0.25;
     c.add(screen);

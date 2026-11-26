@@ -6,7 +6,7 @@
 export const DESTINATIONS = {
   'esgi-bot': {
     id: 'esgi-bot',
-    command: 'AUTOPILOT',
+    command: 'LA TOUR',
     name: 'ESGI-BOT',
     tagline: 'Citadelle orbitale du bot Discord',
     description: 'La tour du bot, sa ville et son sous-sol : fonctionnalités, architecture et tableau de bord.',

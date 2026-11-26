@@ -119,7 +119,8 @@ export function createHoloPanel(tag, title, lines, accentColor = '#22e4ff', widt
 // nom ESGI BOT en hologramme (sans fond opaque, il flotte dans le ciel).
 // =========================================================================
 
-// Gravure lumineuse du dessus de la plateforme
+// Piste d'atterrissage gravée sur le dessus de la plateforme : couronne
+// graduée, bande de balisage, chevrons d'approche, cible centrale, numéro
 function createDeckTexture() {
   const S = 1024;
   const cvs = document.createElement('canvas');
@@ -127,17 +128,20 @@ function createDeckTexture() {
   cvs.height = S;
   const ctx = cvs.getContext('2d');
   const c = S / 2;
+  const CYAN = 'rgba(80, 235, 255, 0.85)';
+  const PINK = 'rgba(255, 90, 200, 0.8)';
   ctx.clearRect(0, 0, S, S);
   ctx.lineCap = 'round';
-  // Cercles concentriques fins
-  [0.94, 0.86, 0.62, 0.42, 0.24].forEach((r, i) => {
-    ctx.strokeStyle = i % 2 ? 'rgba(255, 90, 200, 0.75)' : 'rgba(80, 235, 255, 0.85)';
-    ctx.lineWidth = i === 0 ? 6 : 3;
+  const ring = (r, col, w) => {
+    ctx.strokeStyle = col;
+    ctx.lineWidth = w;
     ctx.beginPath();
     ctx.arc(c, c, r * c, 0, Math.PI * 2);
     ctx.stroke();
-  });
-  // Graduations entre les deux cercles extérieurs
+  };
+  // Couronne extérieure et graduations
+  ring(0.95, CYAN, 6);
+  ring(0.87, PINK, 3);
   ctx.strokeStyle = 'rgba(80, 235, 255, 0.6)';
   ctx.lineWidth = 3;
   for (let i = 0; i < 120; i++) {
@@ -149,27 +153,57 @@ function createDeckTexture() {
     ctx.lineTo(c + Math.cos(a) * r1, c + Math.sin(a) * r1);
     ctx.stroke();
   }
-  // Six rayons et arcs de circuit
-  ctx.strokeStyle = 'rgba(80, 235, 255, 0.45)';
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+  // Bande de balisage : segments cyan / rose en alternance
+  ctx.lineWidth = 0.05 * c;
+  ctx.lineCap = 'butt';
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    ctx.strokeStyle = i % 2 ? 'rgba(255, 90, 200, 0.55)' : 'rgba(80, 235, 255, 0.6)';
     ctx.beginPath();
-    ctx.moveTo(c + Math.cos(a) * 0.26 * c, c + Math.sin(a) * 0.26 * c);
-    ctx.lineTo(c + Math.cos(a) * 0.6 * c, c + Math.sin(a) * 0.6 * c);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(c, c, 0.52 * c, a - 0.25, a + 0.25);
+    ctx.arc(c, c, 0.7 * c, a + 0.03, a + (Math.PI * 2) / 24 - 0.03);
     ctx.stroke();
   }
-  // Halo doux au centre
-  const g = ctx.createRadialGradient(c, c, 0, c, c, 0.24 * c);
-  g.addColorStop(0, 'rgba(120, 240, 255, 0.55)');
-  g.addColorStop(1, 'rgba(120, 240, 255, 0)');
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.arc(c, c, 0.24 * c, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.lineCap = 'round';
+  // Chevrons d'approche qui pointent vers le centre
+  ctx.strokeStyle = 'rgba(80, 235, 255, 0.75)';
+  ctx.lineWidth = 6;
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+    for (let n = 0; n < 3; n++) {
+      const r = (0.6 - n * 0.06) * c;
+      const tip = r - 0.05 * c;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      ctx.globalAlpha = 0.45 + n * 0.25;
+      ctx.beginPath();
+      ctx.moveTo(c + ca * r - sa * 0.05 * c, c + sa * r + ca * 0.05 * c);
+      ctx.lineTo(c + ca * tip, c + sa * tip);
+      ctx.lineTo(c + ca * r + sa * 0.05 * c, c + sa * r - ca * 0.05 * c);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+  // Cible centrale : cercle, croix de visée, coins
+  ring(0.34, CYAN, 5);
+  ring(0.29, 'rgba(80, 235, 255, 0.35)', 2);
+  ctx.strokeStyle = 'rgba(80, 235, 255, 0.55)';
+  ctx.lineWidth = 3;
+  [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([x, y]) => {
+    ctx.beginPath();
+    ctx.moveTo(c + x * 0.38 * c, c + y * 0.38 * c);
+    ctx.lineTo(c + x * 0.47 * c, c + y * 0.47 * c);
+    ctx.stroke();
+  });
+  // Lettres EB au centre (comme le logo), lisibles depuis l'arrivée
+  ctx.fillStyle = 'rgba(120, 240, 255, 0.85)';
+  ctx.font = '800 150px "JetBrains Mono", "Consolas", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('EB', c, c + 6);
+  ctx.font = '700 34px "JetBrains Mono", "Consolas", monospace';
+  ctx.fillStyle = 'rgba(255, 120, 210, 0.85)';
+  ctx.fillText('PISTE 01', c, c + 0.78 * c);
+  ctx.fillText('ESGI · BOT', c, c - 0.78 * c);
   const tex = new THREE.CanvasTexture(cvs);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
@@ -533,7 +567,6 @@ export function buildSkyPlatform(scene, topY) {
   function update(elapsed) {
     time.value = elapsed;
     group.position.y = baseY + Math.sin(elapsed * 1.8) * 0.16;
-    deck.rotation.z = elapsed * 0.06;
     hull.rotation.y = elapsed * 0.06;
     orbitA.rotation.z = elapsed * 0.05;
     orbitB.rotation.z = -elapsed * 0.04;
