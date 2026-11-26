@@ -1,0 +1,523 @@
+/* ==========================================================================
+   LE VAISSEAU (cockpit, sauts, interfaces des destinations)
+   Mêmes couleurs et polices que le site : cyan, violet, rose, nuit.
+   ========================================================================== */
+
+/* Dans le vaisseau : la page du site ne défile pas (elle est en pause dessous) */
+html.ship-mode,
+html.ship-mode body {
+  overflow: hidden;
+  height: 100%;
+}
+
+html.ship-mode #companion-bubble {
+  z-index: 950;
+}
+
+#ship-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: #03040b;
+  overflow: hidden;
+}
+
+#ship-layer.away {
+  display: none;
+}
+
+#ship-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+#ship-ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--font-sans);
+}
+
+#ship-ui > * {
+  pointer-events: none;
+}
+
+/* Éclair blanc des sauts (au-dessus de tout, site compris) */
+#warp-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, #ffffff 0%, #dff8ff 35%, #9fe9ff 70%, #7b5cff 100%);
+}
+
+/* Bouton « retour au cockpit », affiché sur le site */
+#cockpit-return {
+  display: none;
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 60;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 7px 8px;
+  background: var(--bg-dark);
+  border: 1px solid rgba(34, 228, 255, 0.45);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 16px rgba(34, 228, 255, 0.18);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+#cockpit-return img {
+  width: 22px;
+  height: 22px;
+}
+
+#cockpit-return:hover,
+#cockpit-return:focus-visible {
+  border-color: var(--cyan);
+  box-shadow: 0 0 22px rgba(34, 228, 255, 0.45);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+html.site-mode #cockpit-return {
+  display: inline-flex;
+}
+
+body.pillars-open #cockpit-return {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  #cockpit-return {
+    top: 60px;
+    bottom: auto;
+    left: 12px;
+    font-size: 0.62rem;
+    padding: 5px 10px 5px 6px;
+  }
+}
+
+/* ==========================================================================
+   HUD DU COCKPIT
+   ========================================================================== */
+.ship-hud {
+  position: absolute;
+  inset: 0;
+  color: var(--text);
+  transition: opacity 0.5s ease;
+}
+
+.ship-hud.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.ship-hud.booting .sh-top,
+.ship-hud.booting .sh-nav {
+  animation: sh-boot 1.6s steps(8, end) both;
+}
+
+@keyframes sh-boot {
+  0% { opacity: 0; }
+  30% { opacity: 0.6; }
+  40% { opacity: 0.1; }
+  60% { opacity: 0.9; }
+  70% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+/* Coins de la verrière */
+.sh-frame {
+  position: absolute;
+  inset: 14px;
+}
+
+.sh-corner {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-color: rgba(34, 228, 255, 0.55);
+  border-style: solid;
+  border-width: 0;
+}
+
+.sh-corner.tl { top: 0; left: 0; border-top-width: 2px; border-left-width: 2px; }
+.sh-corner.tr { top: 0; right: 0; border-top-width: 2px; border-right-width: 2px; }
+.sh-corner.bl { bottom: 0; left: 0; border-bottom-width: 2px; border-left-width: 2px; }
+.sh-corner.br { bottom: 0; right: 0; border-bottom-width: 2px; border-right-width: 2px; }
+
+.ship-hud.alert .sh-corner {
+  border-color: rgba(255, 61, 187, 0.75);
+}
+
+.sh-top {
+  position: absolute;
+  top: 24px;
+  left: 32px;
+  right: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sh-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sh-id img {
+  filter: drop-shadow(0 0 8px rgba(34, 140, 255, 0.6));
+}
+
+.sh-name {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+}
+
+.sh-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  color: var(--text-soft);
+}
+
+.sh-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3dffa8;
+  box-shadow: 0 0 8px #3dffa8;
+  animation: sh-pulse 1.6s ease-in-out infinite;
+}
+
+.ship-hud.alert .sh-dot {
+  background: var(--pink);
+  box-shadow: 0 0 10px var(--pink);
+  animation-duration: 0.4s;
+}
+
+@keyframes sh-pulse {
+  50% { opacity: 0.35; }
+}
+
+.sh-telemetry {
+  display: flex;
+  gap: 18px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+}
+
+.sh-telemetry b {
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+.sh-clock {
+  color: var(--text-soft);
+}
+
+.sh-tools {
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.sh-tool {
+  pointer-events: auto;
+  padding: 6px 10px;
+  background: rgba(8, 12, 30, 0.6);
+  border: 1px solid rgba(34, 228, 255, 0.3);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.sh-tool:hover,
+.sh-tool:focus-visible {
+  border-color: var(--cyan);
+  outline: none;
+}
+
+.sh-tool[data-tool='lite'][aria-pressed='true'] {
+  background: rgba(255, 209, 102, 0.18);
+  border-color: #ffd166;
+  color: #ffd166;
+}
+
+/* Réticule discret au centre */
+.sh-reticle {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  width: 46px;
+  height: 46px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(34, 228, 255, 0.25);
+  border-radius: 50%;
+}
+
+.sh-reticle::before,
+.sh-reticle::after {
+  content: '';
+  position: absolute;
+  background: rgba(34, 228, 255, 0.35);
+}
+
+.sh-reticle::before { left: 50%; top: -10px; bottom: -10px; width: 1px; }
+.sh-reticle::after { top: 50%; left: -10px; right: -10px; height: 1px; }
+
+.sh-reticle span {
+  position: absolute;
+  inset: 19px;
+  border-radius: 50%;
+  background: rgba(34, 228, 255, 0.6);
+}
+
+/* Annonces de l'ordinateur de bord */
+.sh-announce {
+  --c: #22e4ff;
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  text-align: center;
+  opacity: 0;
+  white-space: nowrap;
+}
+
+.sh-announce.on {
+  animation: sh-announce 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+@keyframes sh-announce {
+  from { opacity: 0; transform: translateX(-50%) scale(1.15); filter: blur(6px); }
+  to { opacity: 1; transform: translateX(-50%) scale(1); filter: blur(0); }
+}
+
+.sh-announce-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.4em;
+  color: var(--c);
+  text-shadow: 0 0 10px var(--c);
+}
+
+.sh-announce-title {
+  margin: 6px 0 4px;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: clamp(1.8rem, 5vw, 3.4rem);
+  letter-spacing: 0.08em;
+  color: #fff;
+  text-shadow: 0 0 22px var(--c), 0 0 2px #fff;
+}
+
+.sh-announce-sub {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  color: var(--text-soft);
+}
+
+.sh-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 118px;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+  white-space: nowrap;
+  animation: sh-hint 1s 4s ease both;
+}
+
+@keyframes sh-hint {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ship-hud.locked .sh-hint {
+  opacity: 0;
+}
+
+/* Barre des commandes */
+.sh-nav {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.sh-cmd {
+  --c: #22e4ff;
+  pointer-events: auto;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  align-items: center;
+  min-width: 170px;
+  padding: 10px 16px 10px 12px;
+  background: linear-gradient(180deg, rgba(14, 18, 42, 0.78), rgba(6, 8, 22, 0.86));
+  border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+  border-radius: 10px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  transition: transform 0.2s ease, background 0.2s, border-color 0.2s;
+}
+
+.sh-cmd::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 2px;
+  background: var(--c);
+  box-shadow: 0 0 12px var(--c);
+  transform: scaleX(0.25);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.sh-cmd kbd {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid color-mix(in srgb, var(--c) 60%, transparent);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--c);
+}
+
+.sh-cmd-name {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--c);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--c) 60%, transparent);
+}
+
+.sh-cmd-dest {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--text-soft);
+}
+
+.sh-cmd:hover,
+.sh-cmd:focus-visible,
+.sh-cmd.active {
+  transform: translateY(-3px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 22%, rgba(14, 18, 42, 0.8)), rgba(6, 8, 22, 0.9));
+  border-color: var(--c);
+  outline: none;
+}
+
+.sh-cmd:hover::after,
+.sh-cmd:focus-visible::after,
+.sh-cmd.active::after {
+  transform: scaleX(1);
+}
+
+.ship-hud.locked .sh-nav {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.ship-hud.locked .sh-cmd.active {
+  opacity: 1;
+}
+
+@media (max-width: 900px) {
+  .sh-telemetry {
+    display: none;
+  }
+  .sh-nav {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    bottom: 14px;
+  }
+  .sh-cmd {
+    min-width: 0;
+    padding: 8px 10px;
+  }
+  .sh-hint {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .sh-top {
+    top: 16px;
+    left: 18px;
+    right: 18px;
+  }
+  .sh-name {
+    font-size: 0.7rem;
+  }
+  .sh-tool span {
+    display: none;
+  }
+  .sh-cmd-name {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+  }
+  .sh-cmd-dest {
+    font-size: 0.62rem;
+  }
+  .sh-cmd kbd {
+    display: none;
+  }
+  .sh-cmd {
+    grid-template-columns: 1fr;
+  }
+  .sh-reticle {
+    display: none;
+  }
+}

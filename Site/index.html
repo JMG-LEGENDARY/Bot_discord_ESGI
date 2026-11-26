@@ -22,7 +22,16 @@
     <style>
       /* Fond de nuit dès le premier affichage, avant le chargement de la 3D */
       html, body { background: #060814; }
+      /* Arrivée dans le vaisseau : on masque le site (en pause dessous) */
+      html.ship-mode body > :not(#ship-layer):not(#companion-bubble):not(script) { visibility: hidden; }
     </style>
+    <script>
+      // Arrivée sur le vaisseau, sauf lien direct vers le site ou retour de connexion Discord
+      (function () {
+        var direct = /^#\/esgi-bot/.test(location.hash) || /[?&]ascenseur=/.test(location.search);
+        document.documentElement.classList.add(direct ? 'site-mode' : 'ship-mode');
+      })();
+    </script>
   </head>
   <body>
     <canvas id="bg"></canvas>
@@ -36,6 +45,12 @@
         <div id="loader-text">CHARGEMENT DE LA TOUR… 0 %</div>
       </div>
     </div>
+
+    <!-- Retour au cockpit du vaisseau (visible sur le site) -->
+    <button type="button" id="cockpit-return" title="Remonter dans le vaisseau">
+      <img src="/logo.png" alt="" width="22" height="22" />
+      COCKPIT
+    </button>
 
     <!-- Lien vers le code source -->
     <a id="github-link" href="https://github.com/JMG-LEGENDARY/Bot_discord_ESGI" target="_blank" rel="noopener noreferrer">
@@ -158,6 +173,6 @@
     </section>
 
     <main class="scroll-container"></main>
-    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/ship/boot.js"></script>
   </body>
 </html>

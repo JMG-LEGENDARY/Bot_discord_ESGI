@@ -18,9 +18,11 @@ import { createNightEnvironment, createDayEnvironment } from './environment.js';
 import { DAY_UNIFORM } from './theme.js';
 import { createGlowSystem, GLOW } from './glows.js';
 import { createCompanion } from './companion.js';
+import { createCollisionWorld } from './collide.js';
 import { createEntranceDoor } from './entrance-door.js';
 import { createElevator3D } from './elevator3d.js';
 import { createDescentShaft } from './descent-shaft.js';
+import { siteControl, markSiteReady } from './site-control.js';
 import './elevator.css';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -50,6 +52,7 @@ function showLoadError(message) {
 }
 function hideLoader() {
   if (loaderEl) loaderEl.classList.add('done');
+  markSiteReady();
 }
 
 // Navigateur sans 3D (WebGL) : on prévient au lieu d'afficher un écran noir
@@ -131,6 +134,12 @@ const targetHeight = 130;
 const glows = createGlowSystem(scene);
 // NOVA, le petit vaisseau compagnon qui suit le visiteur
 const companion = createCompanion(scene, camera, glows);
+// Site en pause (on est dans le vaisseau) : la NOVA du site se tait, c'est
+// celle du cockpit qui parle dans la bulle
+{
+  const sayOnSite = companion.say;
+  companion.say = (...args) => (siteControl.suspended ? undefined : sayOnSite(...args));
+}
 // Halos lumineux et NOVA : toujours affichés, quelle que soit la zone
 const ALWAYS_ON = new Set(scene.children);
 if (import.meta.env.DEV) window.__nova = companion;
@@ -1466,6 +1475,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   modalBackdrop.addEventListener('click', closeDossierModal);
 
   window.addEventListener('keydown', (e) => {
+    if (siteControl.suspended) return;
     if (e.key === 'Enter' && !isModalOpen && !insideTower && activeDossier) {
       e.preventDefault();
       activatePrompt();
@@ -2188,6 +2198,33 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   const outsideZone = scene.children.filter(
     (o) => !o.isLight && !ALWAYS_ON.has(o) && o !== underground.group && o !== elevator.group
   );
+
+  // ---- Collisions de NOVA : les surfaces pleines (tour, ville, sous-sol) ----
+  // Seuls les objets opaques comptent (pas les hologrammes, halos, nuages).
+  // Ils reçoivent un calque à part, puis sont rangés dans une grille rapide
+  // (collide.js) une fois qu'on sait lesquels bougent.
+  const NOVA_COLLIDER_LAYER = 2;
+  const novaColliders = [];
+  scene.updateMatrixWorld(true);
+  scene.children.forEach((root) => {
+    if (root === companion.ship || root === elevator.group || root.isLight) return;
+    let solid = false;
+    root.traverse((o) => {
+      if (!o.isMesh || !o.geometry) return;
+      const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (!m || m.transparent || m.depthWrite === false || m.blending !== THREE.NormalBlending) return;
+      if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+      // Ciel, planètes, dômes géants : trop loin pour gêner NOVA
+      if (o.geometry.boundingSphere.radius * o.matrixWorld.getMaxScaleOnAxis() > 400) return;
+      o.layers.enable(NOVA_COLLIDER_LAYER);
+      solid = true;
+    });
+    if (solid) novaColliders.push(root);
+  });
+  const novaCollision = createCollisionWorld(novaColliders, NOVA_COLLIDER_LAYER);
+  companion.setCollision(novaCollision);
+  if (import.meta.env.DEV) window.__novaCollision = novaCollision;
+  // (la grille est construite après 1,5 s d'animation : voir animate)
   let zoneUnder = true;
   let zoneOutside = true;
   function setZones(under, outside) {
@@ -2277,6 +2314,11 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
   function animate(now = performance.now()) {
     requestAnimationFrame(animate);
+    // Dans le vaisseau : le site est en pause, aucun calcul
+    if (siteControl.suspended) {
+      clock.getDelta();
+      return;
+    }
     if (now - lastFrameAt < 1000 / (liteMode ? 60 : 120) - 1) return;
     lastFrameAt = now;
     if (liteApplied !== liteMode) applyLiteToScene(liteMode);
@@ -2290,6 +2332,8 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     if (elevator.coversScreen) return;
 
     if (document.visibilityState === 'visible' && rawDelta < 0.5) adaptQuality(rawDelta);
+    // Collisions de NOVA : on sait maintenant quels objets bougent
+    if (!novaCollision.ready && elapsed > 1.5) novaCollision.finalize();
 
     // Jour/nuit : reflets adaptés et halo lumineux plus discret en plein jour
     const day = DAY_UNIFORM.value;

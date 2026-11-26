@@ -512,7 +512,7 @@ export function createCompanion(scene, camera, glows) {
   trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3).setUsage(THREE.DynamicDrawUsage));
   trailGeo.setAttribute('age', new THREE.BufferAttribute(trailAge, 1).setUsage(THREE.DynamicDrawUsage));
   const trailMat = new THREE.ShaderMaterial({
-    uniforms: { uScale: { value: window.innerHeight } },
+    uniforms: { uScale: { value: window.innerHeight }, uShip: { value: 1 } },
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -520,11 +520,12 @@ export function createCompanion(scene, camera, glows) {
     vertexShader: `
       attribute float age;
       uniform float uScale;
+      uniform float uShip;
       varying float vAge;
       void main() {
         vAge = age;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = clamp((0.09 * (1.0 - age) + 0.02) * uScale / -mv.z, 0.0, 64.0);
+        gl_PointSize = clamp((0.09 * (1.0 - age) + 0.02) * uShip * uScale / -mv.z, 0.0, 64.0);
         gl_Position = projectionMatrix * mv;
       }
     `,
@@ -569,6 +570,40 @@ export function createCompanion(scene, camera, glows) {
   let initialized = false;
   let roll = 0;
   let wanderPhase = 0;
+
+  // Collisions : NOVA ne traverse ni les murs, ni le sol, ni la tour.
+  // On lance 5 rayons depuis la caméra vers son centre et ses bords
+  // (haut, bas, gauche, droite). Si une surface pleine est devant elle, on la
+  // rapproche de la caméra en la rétrécissant d'autant : elle garde la même
+  // place et la même taille à l'écran, mais reste devant le mur.
+  let collision = null;
+  const camPos = new THREE.Vector3();
+  const camUp = new THREE.Vector3();
+  const probe = new THREE.Vector3();
+  const probeDir = new THREE.Vector3();
+  const PROBES = [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]];
+  let fit = 1; // 1 = place normale, plus petit = rapprochée de la caméra
+  function setCollision(world) {
+    collision = world;
+  }
+  function clearance(radius) {
+    if (!collision) return 1;
+    camUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
+    camRight.set(1, 0, 0).applyQuaternion(camera.quaternion);
+    let k = 1;
+    for (const [ox, oy] of PROBES) {
+      probe.copy(pos).addScaledVector(camRight, ox * radius).addScaledVector(camUp, oy * radius);
+      probeDir.subVectors(probe, camPos);
+      const len = probeDir.length();
+      if (len < 1e-3) continue;
+      probeDir.divideScalar(len);
+      // Rayon du centre : on garde aussi l'épaisseur de NOVA vers l'arrière
+      const reach = ox === 0 && oy === 0 ? len + radius : len;
+      const hit = collision.cast(camPos, probeDir, reach);
+      if (hit < reach) k = Math.min(k, (hit * 0.97) / reach);
+    }
+    return Math.max(k, 0.12);
+  }
 
   // ---------------------------------------------------------------------
   // BULLE DE BD
@@ -619,7 +654,7 @@ export function createCompanion(scene, camera, glows) {
   const bubbleEdge = new THREE.Vector3();
   function placeBubble() {
     if (!bubble || !bubbleVisible) return;
-    screenPos.copy(pos).project(camera);
+    screenPos.copy(ship.position).project(camera);
     if (screenPos.z > 1) {
       bubble.style.opacity = '0';
       return;
@@ -632,7 +667,7 @@ export function createCompanion(scene, camera, glows) {
     const bw = bubble.offsetWidth;
     const bh = bubble.offsetHeight;
     // Rayon de NOVA à l'écran (pour coller la bulle juste à côté de lui)
-    bubbleEdge.set(1, 0, 0).applyQuaternion(camera.quaternion).multiplyScalar(0.36 * ship.scale.x).add(pos).project(camera);
+    bubbleEdge.set(1, 0, 0).applyQuaternion(camera.quaternion).multiplyScalar(0.36 * ship.scale.x).add(ship.position).project(camera);
     const r = Math.max(Math.abs((bubbleEdge.x + 1) * 0.5 * w - sx), 14);
     // La bulle se met à CÔTÉ de NOVA, à hauteur de sa bouche (jamais au-dessus
     // de sa tête : on voit la couronne et ses expressions), la pointe vers lui.
@@ -669,17 +704,28 @@ export function createCompanion(scene, camera, glows) {
     const halfW = halfH * camera.aspect;
     const baseX = cabin ? -halfW * (portrait ? 0.45 : 0.62) : halfW * (portrait ? 0.55 : 0.74);
     const baseY = -halfH * (cabin ? (portrait ? 0.72 : 0.42) : portrait ? 0.5 : 0.6);
-    ship.scale.setScalar(cabin ? 0.15 : 1.05);
-    local.set(
-      baseX + Math.sin(p * 41) * halfW * 0.08,
-      baseY + Math.sin(p * 27 + 1.2) * halfH * 0.07 + Math.sin(elapsed * 1.4) * 0.05,
-      baseZ + Math.cos(p * 33) * 0.35
-    );
-    // En descente il plonge un peu en avant, en montée il passe au-dessus
-    local.y += THREE.MathUtils.clamp(-info.verticalSpeed * 0.01, -0.3, 0.25);
+    // Point d'ancrage imposé (cockpit, QG, laboratoire) : position devant la
+    // caméra { x, y, z } et taille { scale }, avec un léger flottement.
+    const anchor = info.anchor || null;
+    ship.scale.setScalar(anchor ? anchor.scale : cabin ? 0.15 : 1.05);
+    if (anchor) {
+      local.set(
+        anchor.x + Math.sin(elapsed * 0.6) * anchor.scale * 0.25,
+        anchor.y + Math.sin(elapsed * 1.4) * anchor.scale * 0.12,
+        anchor.z + Math.cos(elapsed * 0.45) * anchor.scale * 0.2
+      );
+    } else {
+      local.set(
+        baseX + Math.sin(p * 41) * halfW * 0.08,
+        baseY + Math.sin(p * 27 + 1.2) * halfH * 0.07 + Math.sin(elapsed * 1.4) * 0.05,
+        baseZ + Math.cos(p * 33) * 0.35
+      );
+      // En descente il plonge un peu en avant, en montée il passe au-dessus
+      local.y += THREE.MathUtils.clamp(-(info.verticalSpeed || 0) * 0.01, -0.3, 0.25);
+    }
 
     // 2) Après 10 s d'inactivité : balade en boucles devant l'écran
-    const wanderMix = cabin ? 0 : THREE.MathUtils.smoothstep(info.idle, 10, 12.5);
+    const wanderMix = cabin || anchor ? 0 : THREE.MathUtils.smoothstep(info.idle || 0, 10, 12.5);
     if (wanderMix > 0) {
       wanderPhase += delta;
       const t = wanderPhase;
@@ -723,6 +769,11 @@ export function createCompanion(scene, camera, glows) {
       forward.addScaledVector(travel, Math.min(localSpeed, 2) * 0.9);
     }
     forward.normalize();
+    // Posée dans une pièce (cockpit, QG, labo) : elle nous regarde en face
+    if (anchor) {
+      camera.getWorldPosition(camPos);
+      forward.subVectors(camPos, pos).normalize();
+    }
 
     helper.position.copy(pos);
     helper.up.copy(camera.up).applyQuaternion(camera.quaternion);
@@ -736,7 +787,18 @@ export function createCompanion(scene, camera, glows) {
     helper.rotateZ(roll + Math.sin(elapsed * 1.7) * 0.04);
     targetQuat.copy(helper.quaternion);
 
-    ship.position.copy(pos);
+    // Collisions : rentre vite devant un mur, ressort doucement ensuite
+    camera.getWorldPosition(camPos);
+    const k = cabin || anchor ? 1 : clearance(0.62 * ship.scale.x);
+    fit = k < fit ? k : fit + (k - fit) * (1 - Math.exp(-delta * 3));
+    if (fit < 0.999) {
+      ship.position.subVectors(pos, camPos).multiplyScalar(fit).add(camPos);
+      ship.scale.multiplyScalar(fit);
+    } else {
+      ship.position.copy(pos);
+    }
+    // Traînée à la taille de NOVA (plus petite dans le cockpit et l'ascenseur)
+    trailMat.uniforms.uShip.value = ship.scale.x / 1.05;
     ship.quaternion.slerp(targetQuat, 1 - Math.exp(-delta * 7));
 
     // Clignement des yeux toutes les 2 à 5 s ; yeux plissés (sourire) quand il parle
@@ -838,7 +900,7 @@ export function createCompanion(scene, camera, glows) {
   // Zone cliquable autour du vaisseau
   const hitSphere = new THREE.Sphere();
   function isHit(raycaster) {
-    hitSphere.center.copy(pos);
+    hitSphere.center.copy(ship.position);
     hitSphere.radius = 0.7 * ship.scale.x; // suit la taille de NOVA (plus petit dans l'ascenseur)
     return raycaster.ray.intersectsSphere(hitSphere);
   }
@@ -908,7 +970,7 @@ export function createCompanion(scene, camera, glows) {
   }
 
   return {
-    update, say, hide, resize, isHit, ship,
+    update, say, hide, resize, isHit, ship, setCollision,
     setGolden, spin, sleep, setSleepy, setCrown, setMood,
     get sleeping() {
       return performance.now() < sleepUntil;

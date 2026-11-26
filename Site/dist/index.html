@@ -19,12 +19,20 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Marcellus&family=Space+Grotesk:wght@400;500;700&display=swap"
     />
-    <style>html,body{background:#060814}</style>
-    <script type="module" crossorigin src="/assets/index-BmlwJ7T7.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/three-BmKDYpYW.js">
-    <link rel="modulepreload" crossorigin href="/assets/gsap-BZVPcu9T.js">
-    <link rel="modulepreload" crossorigin href="/assets/api-CBo1b3_v.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-CchMN4Hb.css">
+    <style>html,body{background:#060814}html.ship-mode body>:not(#ship-layer):not(#companion-bubble):not(script){visibility:hidden}</style>
+    <script>
+      // Arrivée sur le vaisseau, sauf lien direct vers le site ou retour de connexion Discord
+      (function () {
+        var direct = /^#\/esgi-bot/.test(location.hash) || /[?&]ascenseur=/.test(location.search);
+        document.documentElement.classList.add(direct ? 'site-mode' : 'ship-mode');
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-DukwE_Nx.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/site-control-0C8Xvxff.js">
+    <link rel="modulepreload" crossorigin href="/assets/destinations--FtcJH8T.js">
+    <link rel="modulepreload" crossorigin href="/assets/preload-helper-7y9sWmk5.js">
+    <link rel="stylesheet" crossorigin href="/assets/site-control-CZbPq28e.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-D0RXgzFk.css">
   </head>
   <body>
     <canvas id="bg"></canvas>
@@ -38,6 +46,12 @@
         <div id="loader-text">CHARGEMENT DE LA TOUR… 0 %</div>
       </div>
     </div>
+
+    <!-- Retour au cockpit du vaisseau (visible sur le site) -->
+    <button type="button" id="cockpit-return" title="Remonter dans le vaisseau">
+      <img src="/logo.png" alt="" width="22" height="22" />
+      COCKPIT
+    </button>
 
     <!-- Lien vers le code source -->
     <a id="github-link" href="https://github.com/JMG-LEGENDARY/Bot_discord_ESGI" target="_blank" rel="noopener noreferrer">
@@ -159,6 +173,6 @@
       </div>
     </section>
 
-    <main class="scroll-container"></main>
+    <main class="scroll-container"></main>
   </body>
 </html>
