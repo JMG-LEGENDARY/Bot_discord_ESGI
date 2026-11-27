@@ -1099,14 +1099,14 @@ export function createElevator3D(scene, { say, onExit, renderer }) {
     travelling = true;
     doorTarget = 0;
     dirty = true;
-    await wait(1000);
+    await wait(400); // portes qui se ferment
     music.start();
     travelDir = dir;
     const span = Math.max(1, floors.length - 1);
     drawArrowSign(dir, current / span);
     const distance = Math.abs(target - current);
-    // Trajet entre 3 et 8 secondes selon le nombre d'étages
-    const total = Math.min(8000, Math.max(3000, 1800 + distance * 380));
+    // Trajet rapide : 2 secondes au plus en tout (portes comprises)
+    const total = Math.min(1300, 300 + distance * 150);
     for (let i = 1; i <= distance; i++) {
       await wait(total / distance);
       current += dir;
@@ -1114,7 +1114,7 @@ export function createElevator3D(scene, { say, onExit, renderer }) {
       setScreen(floors[current].nom, true);
       page = Math.floor(current / ROWS_PER_PAGE);
     }
-    await wait(400);
+    await wait(250);
     travelDir = 0;
     drawArrowSign(0, current / span);
     music.ding();
@@ -1375,7 +1375,7 @@ export function createElevator3D(scene, { say, onExit, renderer }) {
     },
     update(delta) {
       if (!active) return;
-      doorOpen += (doorTarget - doorOpen) * (1 - Math.exp(-delta * 3.2));
+      doorOpen += (doorTarget - doorOpen) * (1 - Math.exp(-delta * 6.5));
       leaves.forEach((leaf) => {
         leaf.position.x = leaf.userData.closedX + leaf.userData.side * doorOpen * leafW * 0.98;
       });

@@ -13,14 +13,17 @@ import { createAtmosphere } from './atmosphere.js';
 import { buildEcoCyberCity } from './city.js';
 import { buildSpaceFleet } from './ships.js';
 import { createHoloPanel, buildSkyPlatform } from './panels.js';
+import { createLandedShip } from './landed-ship.js';
 import { buildUndergroundMasterclass } from './underground.js';
 import { createNightEnvironment, createDayEnvironment } from './environment.js';
 import { DAY_UNIFORM } from './theme.js';
 import { createGlowSystem, GLOW } from './glows.js';
 import { createCompanion } from './companion.js';
+import { createCollisionWorld } from './collide.js';
 import { createEntranceDoor } from './entrance-door.js';
 import { createElevator3D } from './elevator3d.js';
 import { createDescentShaft } from './descent-shaft.js';
+import { siteControl, markSiteReady } from './site-control.js';
 import './elevator.css';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -50,6 +53,9 @@ function showLoadError(message) {
 }
 function hideLoader() {
   if (loaderEl) loaderEl.classList.add('done');
+  markSiteReady();
+  // Arrivée depuis le cockpit : le vaisseau se pose sous nos yeux
+  if (siteControl.arriving) shipLanding();
 }
 
 // Navigateur sans 3D (WebGL) : on prévient au lieu d'afficher un écran noir
@@ -131,6 +137,12 @@ const targetHeight = 130;
 const glows = createGlowSystem(scene);
 // NOVA, le petit vaisseau compagnon qui suit le visiteur
 const companion = createCompanion(scene, camera, glows);
+// Site en pause (on est dans le vaisseau) : la NOVA du site se tait, c'est
+// celle du cockpit qui parle dans la bulle
+{
+  const sayOnSite = companion.say;
+  companion.say = (...args) => (siteControl.suspended ? undefined : sayOnSite(...args));
+}
 // Halos lumineux et NOVA : toujours affichés, quelle que soit la zone
 const ALWAYS_ON = new Set(scene.children);
 if (import.meta.env.DEV) window.__nova = companion;
@@ -348,6 +360,27 @@ const underground = buildUndergroundMasterclass(scene);
 // Puits lumineux entre le pied de la tour et le plafond du sous-sol (y = -18)
 createDescentShaft(scene, { x: 0, z: 25.5, top: 1.5, bottom: -18.6, opening: { y: 2.5, tilt: 0.155 } });
 const skyPlatform = buildSkyPlatform(scene, targetHeight);
+// Le vaisseau posé sur la piste du sommet (clic : retour au cockpit)
+const landedShip = createLandedShip(skyPlatform.group);
+function shipLanding() {
+  siteControl.arriving = false;
+  landedShip.land().then(() => {
+    companion.say('Atterrissage réussi ! 🛬 Clique sur le vaisseau quand tu veux remonter à bord.', 5000);
+  });
+}
+// Le vaisseau (boot.js) prévient qu'on vient d'arriver : si la tour est déjà
+// chargée, l'atterrissage démarre tout de suite (sinon à la fin du chargement)
+window.addEventListener('esgi-ship-arrive', () => {
+  if (siteControl.ready) shipLanding();
+});
+if (import.meta.env.DEV) window.__site = { scene, camera, renderer, composer, landedShip, skyPlatform };
+function boardShip() {
+  if (landedShip.busy) return;
+  document.getElementById('pillar-tooltip')?.classList.remove('visible');
+  document.body.style.cursor = 'default';
+  companion.say('Embarquement ! 🚀 Direction le cockpit.', 2500);
+  landedShip.takeoff().then(() => window.dispatchEvent(new Event('esgi-board-ship')));
+}
 
 // Le verre du modèle est fait de longues bandes (une par étage et par
 // façade) ; la pierre posée devant découpe les fenêtres : vitres de 1,6 m
@@ -536,6 +569,64 @@ function applyWindowPattern(material) {
   material.customProgramCacheKey = () => 'tower-windows-v14';
 }
 
+// =========================================================================
+// ÉLÉMENTS DE LA FAÇADE
+// Dans le modèle, toute la façade est un seul bloc. On retrouve ses vrais
+// éléments face par face (direction, profondeur, hauteur) et on note leur
+// numéro sur chaque sommet (attribut aElem) : 4 socle du rez-de-chaussée,
+// 5 auvent de l'entrée, 8 parvis (les autres numéros gardent la façade
+// d'origine). Le bas de la tour reçoit ainsi sa propre matière grise.
+// =========================================================================
+function tagFacadeElements(mesh) {
+  // Une face = trois sommets à elle : pas de mélange de matières aux arêtes
+  if (mesh.geometry.index) mesh.geometry = mesh.geometry.toNonIndexed();
+  const geo = mesh.geometry;
+  const pos = geo.attributes.position;
+  mesh.updateWorldMatrix(true, false);
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  const e1 = new THREE.Vector3();
+  const e2 = new THREE.Vector3();
+  const faces = [];
+  const outer = new Map(); // face la plus en avant, par direction / mètre de hauteur / 2 m de largeur
+  for (let i = 0; i < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+    b.fromBufferAttribute(pos, i + 1).applyMatrix4(mesh.matrixWorld);
+    c.fromBufferAttribute(pos, i + 2).applyMatrix4(mesh.matrixWorld);
+    e1.subVectors(b, a);
+    e2.subVectors(c, a);
+    n.crossVectors(e1, e2).normalize();
+    const cy = (a.y + b.y + c.y) / 3;
+    const cx = (a.x + b.x + c.x) / 3;
+    const cz = (a.z + b.z + c.z) / 3;
+    const alongX = Math.abs(n.x) > Math.abs(n.z);
+    const dir = alongX ? (n.x > 0 ? 0 : 1) : n.z > 0 ? 2 : 3;
+    const depth = alongX ? cx * Math.sign(n.x) : cz * Math.sign(n.z);
+    const along = alongX ? cz : cx;
+    const area = e1.clone().cross(e2).length() / 2;
+    const tall = Math.max(a.y, b.y, c.y) - Math.min(a.y, b.y, c.y);
+    const f = { cy, ny: n.y, area, tall, r: Math.max(Math.abs(cx), Math.abs(cz)), depth, along, key: `${dir}|${Math.floor(cy)}|${Math.floor(along / 2)}` };
+    faces.push(f);
+    if (Math.abs(n.y) < 0.3) outer.set(f.key, Math.max(outer.get(f.key) ?? -1e9, depth));
+  }
+  const elem = new Float32Array(pos.count);
+  faces.forEach((f, t) => {
+    let k;
+    if (f.cy < 3.9 && f.ny > 0.7) k = 8;
+    else if (f.cy < 8.9) k = f.ny < -0.7 || (f.ny > 0.7 && f.cy > 6.5) ? 5 : 4;
+    else if (f.r < 7) k = 6;
+    else if (f.ny > 0.7) k = f.cy > 91 ? 7 : 2;
+    else if (f.ny < -0.7) k = 3;
+    // Grandes faces pleines (plus de 4 m² et plus de 3 m de haut) : les ailes sans fenêtres
+    else if (f.depth > outer.get(f.key) - 0.2) k = f.area > 4 && f.tall > 3 ? 9 : 0;
+    else k = 1;
+    elem[t * 3] = elem[t * 3 + 1] = elem[t * 3 + 2] = k;
+  });
+  geo.setAttribute('aElem', new THREE.BufferAttribute(elem, 1));
+}
+
 // Matières de la tour, par nom de matériau du modèle 3D
 const TOWER_MATERIALS = {
   // Façade : panneaux de pierre à revêtement métallisé (petits reflets du ciel et des néons)
@@ -559,9 +650,10 @@ const TOWER_MATERIALS = {
 function applySurfacePattern(material, pattern) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uDay = DAY_UNIFORM;
+    const elemAttr = pattern === 'stone';
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vSurfPos;\nvarying vec3 vSurfN;')
-      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvSurfN = normalize(mat3(modelMatrix) * objectNormal);')
+      .replace('#include <common>', `#include <common>\nvarying vec3 vSurfPos;\nvarying vec3 vSurfN;\nvarying float vElem;${elemAttr ? '\nattribute float aElem;' : ''}`)
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>\nvSurfN = normalize(mat3(modelMatrix) * objectNormal);\nvElem = ${elemAttr ? 'aElem' : '0.0'};`)
       .replace('#include <project_vertex>', '#include <project_vertex>\nvSurfPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     // Dallage du parvis : granit poli à grain fin, veines claires, dalles
     // biseautées aux joints sombres, et lignes néon encastrées toutes les
@@ -619,7 +711,30 @@ function applySurfacePattern(material, pattern) {
         diffuseColor.rgb *= 1.0 - underWin * streak * 0.22 * facadeMask;
         // Bandeau LED (au niveau d'une dalle, tous les 6 étages)
         float ledFloor = step(abs(mod(pCell.y, 6.0)), 0.5);
-        float ledBand = ledFloor * (1.0 - smoothstep(0.0, 0.03, abs(pLoc.y + 0.47))) * facadeMask;`;
+        float ledBand = ledFloor * (1.0 - smoothstep(0.0, 0.03, abs(pLoc.y + 0.47))) * facadeMask;
+        // Bas de la tour en gris : socle et parvis en pierre sombre polie
+        // (dalles de 1,2 m), auvent de l'entrée en métal sombre brossé
+        float el = floor(vElem + 0.5);
+        float bottom = 0.0;
+        float bottomMet = 0.15;
+        float bottomRough = 0.3;
+        if (el > 3.5 && el < 4.5 || el > 7.5 && el < 8.5) {
+          float faceU = abs(sN.x) > abs(sN.z) ? vSurfPos.z : vSurfPos.x;
+          vec2 sl = (el < 4.5 ? vec2(faceU, vSurfPos.y) : vSurfPos.xz) / 1.2;
+          vec2 slF = fract(sl);
+          float slJ = smoothstep(0.0, 0.02, min(min(slF.x, 1.0 - slF.x), min(slF.y, 1.0 - slF.y)));
+          float gr = sxNoise(sl * 9.0) * 0.6 + sxNoise(sl * 31.0) * 0.4;
+          diffuseColor.rgb = vec3(0.075, 0.075, 0.085) * (0.8 + sxHash(floor(sl)) * 0.35) * (0.85 + gr * 0.3) * mix(0.45, 1.0, slJ);
+          bottom = 1.0;
+          bottomRough = mix(0.8, 0.16, slJ);
+        } else if (el > 4.5 && el < 5.5) {
+          float faceU = abs(sN.x) > abs(sN.z) ? vSurfPos.z : vSurfPos.x;
+          diffuseColor.rgb = vec3(0.1, 0.105, 0.12) * (0.9 + sxNoise(vec2(faceU * 30.0, vSurfPos.z * 2.0)) * 0.2);
+          bottom = 1.0;
+          bottomMet = 0.85;
+          bottomRough = 0.35;
+        }
+        ledBand *= 1.0 - bottom;`;
     // Éclairage d'architecte : projecteurs chauds au pied de la façade,
     // couronne éclairée au sommet, flaque de lumière sur le parvis.
     const light = pattern === 'tiles'
@@ -634,12 +749,15 @@ function applySurfacePattern(material, pattern) {
         float crownWash = exp(-abs(vSurfPos.y - 124.0) / 5.0);
         totalEmissiveRadiance += vec3(1.0, 0.76, 0.5) * 0.55 * footWash * diffuseColor.rgb * (1.0 - uDay);
         totalEmissiveRadiance += vec3(0.4, 0.85, 1.0) * 0.45 * crownWash * diffuseColor.rgb * (1.0 - uDay);
-        totalEmissiveRadiance += vec3(0.13, 0.89, 1.0) * ledBand * mix(1.1, 0.12, uDay);`;
+        totalEmissiveRadiance += vec3(0.13, 0.89, 1.0) * ledBand * mix(1.1, 0.12, uDay);
+        // Sous l'auvent : spots chauds encastrés la nuit
+        float spot = (el > 4.5 && el < 5.5 && sN.y < -0.7) ? 1.0 - smoothstep(0.08, 0.22, length(fract(vSurfPos.xz / 1.6) - 0.5)) : 0.0;
+        totalEmissiveRadiance += vec3(1.0, 0.82, 0.6) * spot * 1.4 * (1.0 - uDay);`;
     // Petits reflets métalliques : chaque panneau de façade a son propre brillant
     // (certains très lisses, d'autres satinés), les reflets scintillent en bougeant.
     const shine = pattern === 'stone'
       ? `
-        roughnessFactor = mix(0.12, 0.42, sHash * sHash) + max(jointH, jointV) * 0.4;`
+        roughnessFactor = mix(mix(0.12, 0.42, sHash * sHash) + max(jointH, jointV) * 0.4, bottomRough, bottom);`
       : `
         // Dalles plus ou moins polies (reflets des néons), joints mats
         roughnessFactor = mix(0.9, mix(0.14, 0.42, tHash) + grain * 0.08, joint);
@@ -650,6 +768,7 @@ function applySurfacePattern(material, pattern) {
         `#include <common>
         varying vec3 vSurfPos;
         varying vec3 vSurfN;
+        varying float vElem;
         uniform float uDay;
         float sxHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float sxNoise(vec2 p) {
@@ -661,9 +780,10 @@ function applySurfacePattern(material, pattern) {
       )
       .replace('#include <color_fragment>', `#include <color_fragment>${body}`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>${shine}`)
+      .replace('#include <metalnessmap_fragment>', pattern === 'stone' ? '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, bottomMet, bottom);' : '#include <metalnessmap_fragment>')
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>${light}`);
   };
-  material.customProgramCacheKey = () => `tower-${pattern}-v6`;
+  material.customProgramCacheKey = () => `tower-${pattern}-v10`;
 }
 
 function getFacadeRadiusAtY(tower, y, fallbackRadius) {
@@ -746,6 +866,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       mat.envMapIntensity = look.env;
       mat.emissive.set(look.emissive || 0x000000);
       mat.emissiveIntensity = look.emissiveIntensity || 0;
+      if (mat.name === 'Marble') tagFacadeElements(child);
       if (look.pattern) applySurfacePattern(mat, look.pattern);
     }
     mat.needsUpdate = true;
@@ -1378,6 +1499,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   modalBackdrop.addEventListener('click', closeDossierModal);
 
   window.addEventListener('keydown', (e) => {
+    if (siteControl.suspended) return;
     if (e.key === 'Enter' && !isModalOpen && !insideTower && activeDossier) {
       e.preventDefault();
       activatePrompt();
@@ -1795,12 +1917,15 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
       const onPlanet = isPointerOnPlanet(raycaster);
       const onDoor = entranceDoor.isHit(raycaster);
       entranceDoor.setHover(onDoor);
+      const onShip = landedShip.isHit(raycaster);
+      landedShip.setHover(onShip);
       const panelHits = raycaster.intersectObjects(interactivePanelScreens, true);
-      document.body.style.cursor = onPlanet || onDoor || panelHits.length > 0 ? 'pointer' : 'default';
+      document.body.style.cursor = onPlanet || onDoor || onShip || panelHits.length > 0 ? 'pointer' : 'default';
       if (tooltip) {
-        if (onDoor) tooltip.textContent = 'CLIQUEZ POUR ENTRER DANS LA TOUR';
+        if (onShip) tooltip.textContent = 'CLIQUEZ POUR REMONTER DANS LE VAISSEAU';
+        else if (onDoor) tooltip.textContent = 'CLIQUEZ POUR ENTRER DANS LA TOUR';
         else tooltip.textContent = isDay ? 'CLIQUEZ : PASSER EN MODE NUIT' : 'CLIQUEZ : PASSER EN MODE JOUR';
-        tooltip.classList.toggle('visible', onPlanet || onDoor);
+        tooltip.classList.toggle('visible', onPlanet || onDoor || onShip);
       }
       return;
     }
@@ -1849,6 +1974,10 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     }
 
     if (camState.mode < 0.35) {
+      if (landedShip.isHit(raycaster)) {
+        boardShip();
+        return;
+      }
       if (isPointerOnPlanet(raycaster)) {
         onPlanetClick();
         return;
@@ -1882,7 +2011,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   // =========================================================================
   const openHint = IS_TOUCH ? 'Touche « Ouvrir le dossier »' : 'Appuie sur Entrée';
   const NOVA_MESSAGES = {
-    top: 'Salut, moi c\'est NOVA ! 🛰️ Fais défiler pour descendre la tour, je te suis.',
+    top: 'Salut, moi c\'est NOVA ! 🛰️ Fais défiler pour descendre la tour, je te suis. Clique sur le vaisseau pour remonter à bord.',
     'panel-0': `Les fonctionnalités du bot sont ici. ${openHint} pour en savoir plus !`,
     'panel-1': 'Toutes les commandes slash du bot, à découvrir dans ce dossier.',
     'panel-2': 'Côté technique : Python, SQLite… le cœur du bot ⚙️',
@@ -2100,6 +2229,33 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
   const outsideZone = scene.children.filter(
     (o) => !o.isLight && !ALWAYS_ON.has(o) && o !== underground.group && o !== elevator.group
   );
+
+  // ---- Collisions de NOVA : les surfaces pleines (tour, ville, sous-sol) ----
+  // Seuls les objets opaques comptent (pas les hologrammes, halos, nuages).
+  // Ils reçoivent un calque à part, puis sont rangés dans une grille rapide
+  // (collide.js) une fois qu'on sait lesquels bougent.
+  const NOVA_COLLIDER_LAYER = 2;
+  const novaColliders = [];
+  scene.updateMatrixWorld(true);
+  scene.children.forEach((root) => {
+    if (root === companion.ship || root === elevator.group || root.isLight) return;
+    let solid = false;
+    root.traverse((o) => {
+      if (!o.isMesh || !o.geometry) return;
+      const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (!m || m.transparent || m.depthWrite === false || m.blending !== THREE.NormalBlending) return;
+      if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+      // Ciel, planètes, dômes géants : trop loin pour gêner NOVA
+      if (o.geometry.boundingSphere.radius * o.matrixWorld.getMaxScaleOnAxis() > 400) return;
+      o.layers.enable(NOVA_COLLIDER_LAYER);
+      solid = true;
+    });
+    if (solid) novaColliders.push(root);
+  });
+  const novaCollision = createCollisionWorld(novaColliders, NOVA_COLLIDER_LAYER);
+  companion.setCollision(novaCollision);
+  if (import.meta.env.DEV) window.__novaCollision = novaCollision;
+  // (la grille est construite après 1,5 s d'animation : voir animate)
   let zoneUnder = true;
   let zoneOutside = true;
   function setZones(under, outside) {
@@ -2189,6 +2345,11 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
 
   function animate(now = performance.now()) {
     requestAnimationFrame(animate);
+    // Dans le vaisseau : le site est en pause, aucun calcul
+    if (siteControl.suspended) {
+      clock.getDelta();
+      return;
+    }
     if (now - lastFrameAt < 1000 / (liteMode ? 60 : 120) - 1) return;
     lastFrameAt = now;
     if (liteApplied !== liteMode) applyLiteToScene(liteMode);
@@ -2202,6 +2363,8 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     if (elevator.coversScreen) return;
 
     if (document.visibilityState === 'visible' && rawDelta < 0.5) adaptQuality(rawDelta);
+    // Collisions de NOVA : on sait maintenant quels objets bougent
+    if (!novaCollision.ready && elapsed > 1.5) novaCollision.finalize();
 
     // Jour/nuit : reflets adaptés et halo lumineux plus discret en plein jour
     const day = DAY_UNIFORM.value;
@@ -2252,6 +2415,7 @@ loader.load(`${import.meta.env.BASE_URL}skyscraper.glb`, (gltf) => {
     ecoCity.update(delta, elapsed);
     spaceFleet.update(delta, elapsed);
     skyPlatform.update(elapsed);
+    landedShip.update(delta, elapsed);
     underground.update(delta, elapsed);
 
     const parallaxAngle = camState.angle + mouseCurrent.x * 0.06;

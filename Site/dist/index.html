@@ -9,7 +9,9 @@
     <meta property="og:description" content="Bot Discord en Python pour les étudiants ESGI — Devoirs, évaluations et suivi de classe." />
     <meta property="og:type" content="website" />
     <meta name="description" content="ESGI-Bot : bot Discord en Python pour les étudiants de l'ESGI Reims — devoirs, évaluations, rappels automatiques et gestion des classes." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:image" content="/logo.png" />
     <meta name="theme-color" content="#060814" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,12 +19,20 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Marcellus&family=Space+Grotesk:wght@400;500;700&display=swap"
     />
-    <style>html,body{background:#060814}</style>
-    <script type="module" crossorigin src="/assets/index-KsrYPttw.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/three-DawyQHRy.js">
-    <link rel="modulepreload" crossorigin href="/assets/gsap-BZVPcu9T.js">
-    <link rel="modulepreload" crossorigin href="/assets/api-CBo1b3_v.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-DPVoZnkb.css">
+    <style>html,body{background:#060814}html.ship-mode body>:not(#ship-layer):not(#companion-bubble):not(script){visibility:hidden}</style>
+    <script>
+      // Arrivée sur le vaisseau, sauf lien direct vers le site ou retour de connexion Discord
+      (function () {
+        var direct = /^#\/esgi-bot/.test(location.hash) || /[?&]ascenseur=/.test(location.search);
+        document.documentElement.classList.add(direct ? 'site-mode' : 'ship-mode');
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-ZywB2a1h.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/site-control-CybYh2kR.js">
+    <link rel="modulepreload" crossorigin href="/assets/destinations-BcEqVwoY.js">
+    <link rel="modulepreload" crossorigin href="/assets/preload-helper-7y9sWmk5.js">
+    <link rel="stylesheet" crossorigin href="/assets/site-control-CZbPq28e.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-DkjstKw5.css">
   </head>
   <body>
     <canvas id="bg"></canvas>
@@ -30,11 +40,13 @@
     <!-- Écran de chargement (pendant le téléchargement du modèle 3D) -->
     <div id="loader" role="status" aria-live="polite">
       <div class="loader-box">
+        <img class="loader-logo" src="/logo.png" alt="" width="128" height="128" />
         <div class="loader-title">ESGI-BOT</div>
         <div class="loader-track"><div id="loader-fill"></div></div>
         <div id="loader-text">CHARGEMENT DE LA TOUR… 0 %</div>
       </div>
     </div>
+
 
     <!-- Lien vers le code source -->
     <a id="github-link" href="https://github.com/JMG-LEGENDARY/Bot_discord_ESGI" target="_blank" rel="noopener noreferrer">
@@ -156,6 +168,6 @@
       </div>
     </section>
 
-    <main class="scroll-container"></main>
+    <main class="scroll-container"></main>
   </body>
 </html>
