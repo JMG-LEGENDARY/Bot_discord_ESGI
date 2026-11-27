@@ -109,12 +109,11 @@ class EventsCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Gère les messages reçus"""
-        bot_id = config.bot_id
 
         if message.author.bot:
             return
 
-        logger.info(f"Message reçu: {message.author} dans {message.channel}: {message.content}\n {message.author.id} - {message.channel.id}")
+        #logger.info(f"Message reçu: {message.author} dans {message.channel}: {message.content}\n {message.author.id} - {message.channel.id}")
 
         if message.content.startswith('/'):
             logger.info(f"Commande reçue: {message.author} dans {message.channel}: {message.content}\n {message.author.id} - {message.channel.id}")
