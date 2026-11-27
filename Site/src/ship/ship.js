@@ -176,25 +176,6 @@ export async function createShip({ onCommand }) {
       'J’ai compté 412 étoiles par ce hublot. Puis j’ai perdu le fil 😅'
     ]
   });
-  // Code secret (↑ ↑ ↓ ↓ ← → ← → B A) : NOVA dorée et couronnée
-  const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
-  let konami = 0;
-  window.addEventListener('keydown', (e) => {
-    if (!visible || current === 'jeu') return;
-    konami = e.key.toLowerCase() === KONAMI[konami].toLowerCase() ? konami + 1 : e.key === KONAMI[0] ? 1 : 0;
-    if (konami < KONAMI.length) return;
-    konami = 0;
-    [cockpit.nova, ...Object.values(places).map((p) => p.nova).filter(Boolean)].forEach((n) => {
-      n.setGolden();
-      n.setCrown();
-    });
-    cockpit.glowBoost.value = 2.4;
-    gsap.to(cockpit.glowBoost, { value: 1, duration: 1.6 });
-    sfx.confirm();
-    const n = place?.nova || cockpit.nova;
-    n.setMood('wow', 4);
-    n.say('Code secret accepté ! NOVA DORÉE 👑✨ Je me sens… royale.', 5000);
-  });
   // Très rare : NOVA dorée dès l'arrivée (0,5 %)
   if (Math.random() < 0.005) cockpit.nova.setGolden();
 
