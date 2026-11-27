@@ -1,6 +1,8 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from discord.types import embed
+
 from LOGS import logger
 
 
@@ -99,6 +101,19 @@ class Roles_Pagination(discord.ui.View):
 
 
 
+class ConfigSelect(discord.ui.Select):
+    def __init__(self, options):
+        super().__init__(placeholder="Choisissez une option...", options=options)
+        self.options = [
+            discord.SelectOption(label="Configurer les classes", value="configurer_les_classes"),
+            discord.SelectOption(label="Ajouter un rôle", value="ajouter_un_role"),
+            discord.SelectOption(label="Supprimer un rôle", value="supprimer_un_role"),
+        ]
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"Vous avez choisi : {self.values[0]}", ephemeral=True)
+
+
 
 class ConfigSQL(commands.Cog):
     def __init__(self, bot):
@@ -111,6 +126,7 @@ class ConfigSQL(commands.Cog):
 
         except Exception as e:
             logger.error(e)
+
 
     @app_commands.command(name="admin_permission", description='Donne des permissions admins à une personne')
     @app_commands.default_permissions(administrator=True)
@@ -137,7 +153,14 @@ class ConfigSQL(commands.Cog):
         except Exception as e:
             logger.error(f"[configSQL - configurer_les_classes] {e}")
 
-
+    @app_commands.command(name="config", description="Permet de configurer le bot")
+    async def config(self, interaction: discord.Interaction):
+        logger.info(f"Commande 'config' reçue dans le salon {interaction.channel.name} de la guild {interaction.guild.name} par {interaction.user.name}")
+        try :
+            embed = discord.Embed(title="Configurer les classes", color=discord.Color.from_rgb(0, 162, 246))
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.error(f"[configSQL - config] {e}")
 
 async def setup(bot):
     """Fonction requise par discord.py pour charger le cog."""

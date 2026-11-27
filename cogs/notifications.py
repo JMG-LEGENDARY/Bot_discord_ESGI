@@ -3,9 +3,6 @@ import discord
 from datetime import timedelta, date, datetime, time
 from discord.ext import commands, tasks
 import zoneinfo
-
-from discord.ext.commands import bot
-
 from LOGS import logger
 
 
