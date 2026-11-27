@@ -629,7 +629,7 @@ export function createCockpit(ship) {
     icon.position.y = 0.019;
     // Étiquette posée devant le bouton (côté pilote)
     const label = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.3, 0.075),
+      new THREE.PlaneGeometry(0.17, 0.0425),
       new THREE.MeshBasicMaterial({
         map: createLabelTexture(d.command, { color: d.color, size: 54, width: 512, height: 128, sub: d.name }),
         transparent: true,
@@ -641,7 +641,7 @@ export function createCockpit(ship) {
     label.rotation.z = Math.PI;
     label.position.set(0, 0.035, -(size * 1.4 + 0.07));
     group.add(label);
-    const hit = new THREE.Mesh(new THREE.CylinderGeometry(size * 1.9, size * 1.9, 0.2, 16), new THREE.MeshBasicMaterial({ visible: false }));
+    const hit = new THREE.Mesh(new THREE.CylinderGeometry(size * 1.5, size * 1.5, 0.14, 16), new THREE.MeshBasicMaterial({ visible: false }));
     hit.position.y = 0.06;
     hit.userData.command = id;
     group.add(hit);
@@ -649,12 +649,110 @@ export function createCockpit(ship) {
     glows.add(ring, new THREE.Vector3(0, 0, 0), d.hdr.map((v) => v * 0.8), 0.06);
     buttons[id] = { group, cap, capMat, ringMat, ring, hover: 0, press: 0, base: new THREE.Color(...d.hdr) };
   }
-  // Sur les côtés, loin des leviers : destinations à gauche et à droite,
-  // et le bouton ENGAGER (autopilote) à droite
-  addButton('esgi-bot', Math.PI + 0.52, 0.98, 0.062);
-  addButton('qg', Math.PI + 0.82, 0.98, 0.058);
-  addButton('labo', Math.PI - 0.52, 0.98, 0.062);
-  addButton('engage', Math.PI - 0.82, 0.98, 0.058);
+  // Les trois destinations à gauche (l'autopilote, c'est NOVA : on clique
+  // sur elle). À droite : musique et son.
+  addButton('esgi-bot', Math.PI + 0.57, 0.98, 0.052);
+  addButton('qg', Math.PI + 0.77, 0.98, 0.052);
+  addButton('labo', Math.PI + 0.97, 0.98, 0.052);
+
+  // ---- Petits boutons ronds du tableau de bord : MUSIQUE et MODE LÉGER ----
+  // Placés dans les espaces entre les gros boutons (rien devant, rien
+  // derrière) : allumés = actif, éteints = coupé. L'étiquette est derrière.
+  const toggles = {};
+  function addToggle(id, phi, r, icon, text, color, rgb) {
+    const size = 0.045;
+    const group = new THREE.Group();
+    group.position.copy(polar(r, phi, DESK_Y));
+    group.rotation.y = phi;
+    room.add(group);
+    const bezel = new THREE.Mesh(new THREE.CylinderGeometry(size * 1.32, size * 1.45, 0.024, 32), gunmetal);
+    bezel.position.y = 0.012;
+    group.add(bezel);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(size * 1.16, size * 0.08, 8, 40), ringMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.026;
+    group.add(ring);
+    const capMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).multiplyScalar(0.3), emissive: new THREE.Color(color), emissiveIntensity: 0.5, metalness: 0.2, roughness: 0.25 });
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(size, size * 1.04, 0.03, 32), capMat);
+    cap.position.y = 0.04;
+    group.add(cap);
+    const iconMesh = new THREE.Mesh(
+      new THREE.CircleGeometry(size * 0.85, 28),
+      new THREE.MeshBasicMaterial({ map: createLabelTexture(icon, { color: '#ffffff', size: 84, width: 128, height: 128 }), transparent: true, toneMapped: false })
+    );
+    iconMesh.rotation.x = -Math.PI / 2;
+    iconMesh.rotation.z = Math.PI;
+    iconMesh.position.y = 0.0155;
+    cap.add(iconMesh);
+    // Petit panneau debout derrière le bouton, tourné vers le pilote : son nom
+    const sign = new THREE.Group();
+    sign.position.set(0, 0, size * 1.45 + 0.025);
+    sign.rotation.y = Math.PI;
+    group.add(sign);
+    const board = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.06, 0.008), gunmetal);
+    board.position.set(0, 0.055, 0.006);
+    board.rotation.x = -0.35;
+    sign.add(board);
+    // Nom + état (ACTIVÉE / COUPÉE) : deux textures, échangées au clic
+    const texOn = createLabelTexture(text, { color, size: 62, width: 512, height: 180, sub: 'ACTIVÉ' });
+    const texOff = createLabelTexture(text, { color: '#8a93b0', size: 62, width: 512, height: 180, sub: 'COUPÉ' });
+    const labelMat = new THREE.MeshBasicMaterial({ map: texOff, transparent: true, depthWrite: false, toneMapped: false });
+    const label = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.0563), labelMat);
+    label.position.set(0, 0.0565, 0.0115);
+    label.rotation.x = -0.35;
+    sign.add(label);
+    const hit = new THREE.Mesh(new THREE.CylinderGeometry(size * 1.6, size * 1.6, 0.12, 16), new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.y = 0.05;
+    hit.userData.command = `tool:${id}`;
+    group.add(hit);
+    hitTargets.push(hit);
+    toggles[id] = { cap, capMat, ringMat, labelMat, texOn, texOff, on: false, hover: 0, press: 0, rgb: new THREE.Color(...rgb) };
+  }
+  // À droite, en miroir des destinations (loin des leviers)
+  // MUSIQUE coupe la musique (jamais les bruitages), SUIVANTE change de
+  // morceau, la barre de volume est juste devant MUSIQUE
+  addToggle('sound', Math.PI - 0.6, 0.98, '♪', 'MUSIQUE', '#ff8ad8', [1.4, 0.3, 1.0]);
+  addToggle('next', Math.PI - 0.8, 0.98, '⏭', 'SUIVANTE', '#c4b5fd', [0.8, 0.5, 1.5]);
+  addToggle('lite', Math.PI - 1.0, 0.98, '⚡', 'MODE LÉGER', '#ffd166', [1.5, 1.0, 0.2]);
+  toggles.next.on = true; // toujours allumé (c'est une action, pas un réglage)
+  toggles.next.labelMat.map = toggles.next.texOn;
+
+  // ---- Barre de volume (sous le bouton MUSIQUE) ----
+  // 12 segments qui s'allument selon le volume ; on clique ou on glisse.
+  const VOL_SEGS = 12;
+  const volGroup = new THREE.Group();
+  volGroup.position.copy(polar(0.85, Math.PI - 0.6, DESK_Y));
+  volGroup.rotation.y = Math.PI - 0.6;
+  room.add(volGroup);
+  const volBase = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.008, 0.032), gunmetal);
+  volBase.position.y = 0.004;
+  volGroup.add(volBase);
+  const volSegs = [];
+  for (let i = 0; i < VOL_SEGS; i++) {
+    const mat = new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false });
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.0105, 0.006, 0.016 + i * 0.0009), mat);
+    // De gauche à droite vu du siège du pilote (l'axe x local est inversé)
+    seg.position.set(0.0715 - i * 0.013, 0.011, 0);
+    volGroup.add(seg);
+    volSegs.push(mat);
+  }
+  const volLabel = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.1, 0.025),
+    new THREE.MeshBasicMaterial({ map: createLabelTexture('VOLUME', { color: '#ff8ad8', size: 60, width: 512, height: 128 }), transparent: true, depthWrite: false, toneMapped: false })
+  );
+  volLabel.rotation.x = -Math.PI / 2 - 0.5;
+  volLabel.rotation.z = Math.PI;
+  volLabel.position.set(0, 0.012, -0.032);
+  volGroup.add(volLabel);
+  const volHit = new THREE.Mesh(new THREE.PlaneGeometry(0.19, 0.07), new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }));
+  volHit.rotation.x = -Math.PI / 2;
+  volHit.position.y = 0.015;
+  volHit.userData.command = 'vol';
+  volGroup.add(volHit);
+  hitTargets.push(volHit);
+  let volume = 1;
+  let volMuted = false;
 
   // ---- Console centrale (radar) et leviers de pilotage ----
   // Un bloc avance vers le pilote, avec un radar rond. De chaque côté, un
@@ -923,6 +1021,11 @@ export function createCockpit(ship) {
     raycaster.setFromCamera(pointer, camera);
     const hit = raycaster.intersectObjects([...hitTargets, navFace], false)[0];
     if (!hit) return null;
+    if (hit.object.userData.command === 'vol' && hit.uv) {
+      // Côté gauche (vu du pilote) = 0, côté droit = 1 ; un peu de marge aux bouts
+      const v = Math.min(1, Math.max(0, (1 - hit.uv.x - 0.06) / 0.88));
+      return `vol:${v.toFixed(3)}`;
+    }
     if (hit.object === navFace && hit.uv) {
       // Même placement que le dessin de la carte (canvas 512 × 288)
       const cw = 512;
@@ -963,18 +1066,25 @@ export function createCockpit(ship) {
       look.ty = THREE.MathUtils.clamp(drag.ly - (e.clientY - drag.y) / (window.innerHeight * 0.5), -1, 1);
     }
     const id = pick(e.clientX, e.clientY);
-    setHover(id);
+    if (drag && drag.vol && id && id.startsWith('vol:')) onCommand(id);
+    setHover(id && id.startsWith('vol:') ? 'vol' : id);
     canvas.style.cursor = id ? 'pointer' : 'default';
   });
   canvas.addEventListener('pointerdown', (e) => {
     if (!enabled) return;
     drag = { x: e.clientX, y: e.clientY, lx: look.tx, ly: look.ty, moved: false };
+    const id = pick(e.clientX, e.clientY);
+    if (id && id.startsWith('vol:')) {
+      drag.vol = true;
+      onCommand(id);
+    }
   });
   canvas.addEventListener('pointerup', (e) => {
     if (!enabled) return;
     const moved = drag && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 8;
+    const wasVol = drag && drag.vol;
     drag = null;
-    if (moved) return;
+    if (moved || wasVol) return;
     const id = pick(e.clientX, e.clientY);
     if (id) onCommand(id);
   });
@@ -1062,6 +1172,24 @@ export function createCockpit(ship) {
       }
     });
 
+    // Interrupteurs : bascule douce, voyant allumé quand actif
+    Object.entries(toggles).forEach(([id, tg]) => {
+      tg.hover += ((hovered === `tool:${id}` ? 1 : 0) - tg.hover) * (1 - Math.exp(-delta * 10));
+      tg.press = Math.max(0, tg.press - delta * 2.5);
+      tg.cap.position.y = 0.04 + tg.hover * 0.004 - tg.press * 0.016;
+      // Allumé = actif ; éteint (presque noir) = coupé
+      tg.capMat.emissiveIntensity = ((tg.on ? 0.55 : 0.04) + tg.hover * 0.5) * status.power;
+      tg.ringMat.color.copy(tg.rgb).multiplyScalar(((tg.on ? 0.55 : 0.05) + tg.hover * 0.4) * status.power);
+    });
+
+    // Barre de volume : segments du rose au violet, éteints au-delà du niveau
+    const lit = volMuted ? 0 : Math.round(volume * VOL_SEGS);
+    const vh = hovered === 'vol' ? 0.35 : 0;
+    volSegs.forEach((m, i) => {
+      if (i < lit) m.color.setRGB(1.3 - i * 0.05, 0.25 + i * 0.02, 0.9 + i * 0.05).multiplyScalar((0.55 + vh) * status.power);
+      else m.color.setRGB(0.06, 0.07, 0.12).multiplyScalar(status.power + vh);
+    });
+
     // Petits boutons latéraux qui clignotent
     blinkAcc += delta;
     if (blinkAcc > 0.18) {
@@ -1112,6 +1240,23 @@ export function createCockpit(ship) {
     setHover,
     press(id) {
       if (buttons[id]) buttons[id].press = 1;
+    },
+    /** Barre de volume : niveau (0 à 1), éteinte si la musique est coupée */
+    setVolume(v, muted = false) {
+      volume = v;
+      volMuted = muted;
+    },
+    /** Appui visuel sur un petit bouton (SUIVANTE) */
+    pressToggle(id) {
+      if (toggles[id]) toggles[id].press = 1;
+    },
+    /** Interrupteur du tableau de bord : music, sound, lite */
+    setToggle(id, on) {
+      if (!toggles[id]) return;
+      const tg = toggles[id];
+      if (tg.on !== on) tg.press = 1;
+      tg.on = on;
+      tg.labelMat.map = on ? tg.texOn : tg.texOff;
     },
     set onCommand(fn) {
       onCommand = fn;

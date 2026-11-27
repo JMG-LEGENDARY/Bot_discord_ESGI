@@ -1,4 +1,5 @@
 import './arcade.css';
+import { createHoloNova } from './nova-holo.js';
 import { createSprites } from './sprites.js';
 import { createGame, SECTORS, PORTAL_INFO } from './game.js';
 import { sfx } from '../audio.js';
@@ -40,8 +41,11 @@ export function createArcade({ root, onExit, onPortal }) {
     </div>
     <div class="ah-boss" hidden><span>MÉGA-NOVA</span><div class="ah-bar boss"><span class="ah-boss-hp"></span></div></div>
     <div class="ah-banner" aria-live="polite"></div>
+    <div class="ah-comm" title="NOVA">
+      <canvas class="ah-holo" width="256" height="224" aria-hidden="true"></canvas>
+      <span class="ah-comm-label">NOVA · CANAL 01</span>
+    </div>
     <div class="ah-nova">
-      <canvas class="ah-nova-face" width="13" height="12" aria-hidden="true"></canvas>
       <p class="ah-nova-text"></p>
     </div>
     <div class="arcade-menu" data-screen="title">
@@ -80,7 +84,9 @@ export function createArcade({ root, onExit, onPortal }) {
   const banner = el.querySelector('.ah-banner');
   const novaText = el.querySelector('.ah-nova-text');
   const novaBox = el.querySelector('.ah-nova');
-  el.querySelector('.ah-nova-face').getContext('2d').drawImage(sprites.goodNova, 0, 0);
+  // NOVA en hologramme dans l'écran radio : elle réagit à la partie
+  const holo = createHoloNova(el.querySelector('.ah-holo'));
+  if (import.meta.env.DEV) window.__holo = holo;
   const $ = (s) => el.querySelector(s);
 
   // ---- Événements du jeu -> HUD ----
@@ -89,6 +95,7 @@ export function createArcade({ root, onExit, onPortal }) {
     clearTimeout(novaTimer);
     novaText.textContent = text;
     novaBox.classList.add('on');
+    holo.talk(Math.min(ms / 1000, text.length / 18));
     novaTimer = setTimeout(() => novaBox.classList.remove('on'), ms);
   }
   let bannerTimer = null;
@@ -106,8 +113,30 @@ export function createArcade({ root, onExit, onPortal }) {
   }
   let lastShield = -1;
   let lastSpecial = -1;
+  // Séries de destructions : NOVA s'emballe
+  let lastScore = 0;
+  let streak = [];
+  let bossOn = false;
+  let lastCombo = 0;
+  function updateBase() {
+    holo.setBase(lastShield >= 0 && lastShield <= 30 ? 'worried' : bossOn ? 'focus' : 'idle');
+  }
   const events = {
-    score: (s) => ($('.ah-score').textContent = s.toLocaleString('fr-FR')),
+    score: (s) => {
+      $('.ah-score').textContent = s.toLocaleString('fr-FR');
+      const now = performance.now();
+      if (s > lastScore && running) {
+        streak = streak.filter((x) => now - x < 2000);
+        streak.push(now);
+        if (streak.length >= 6 && now - lastCombo > 6000) {
+          lastCombo = now;
+          streak = [];
+          holo.setMood('laugh', 2);
+          say(['COMBO ! Ils tombent comme des mouches 🔥', 'Wouhou ! Tu es en feu ! 🔥', 'Personne ne t’arrête 😎'][Math.floor(Math.random() * 3)], 2200);
+        } else if (Math.random() < 0.15) holo.setMood('happy', 0.8);
+      }
+      lastScore = s;
+    },
     lives: renderLives,
     shield: (v, sp) => {
       const sv = Math.round(v);
@@ -115,6 +144,7 @@ export function createArcade({ root, onExit, onPortal }) {
         lastShield = sv;
         $('.ah-shield').style.width = `${sv}%`;
         $('.ah-shield').classList.toggle('low', sv <= 30);
+        updateBase();
       }
       const spv = Math.round(sp * 50);
       if (spv !== lastSpecial) {
@@ -136,15 +166,31 @@ export function createArcade({ root, onExit, onPortal }) {
       $('.ah-boss').hidden = !on;
       if (name) $('.ah-boss > span').textContent = name;
       $('.ah-boss-hp').style.width = `${Math.round(hp * 100)}%`;
-      if (on && name) showBanner('ALERTE', name, '#ff3dbb', 2600);
+      if (on && name) {
+        showBanner('ALERTE', name, '#ff3dbb', 2600);
+        holo.setMood('surprised', 1.8);
+        holo.glitch(0.8);
+      }
+      if (bossOn && !on) holo.setMood('wow', 3.5);
+      bossOn = on;
+      updateBase();
     },
     say,
+    hurt: () => {
+      holo.setMood('hurt', 0.7);
+    },
+    died: (lives) => {
+      holo.setMood('sad', 2.4);
+      if (lives > 0) say(lives === 1 ? 'Aïe ! Plus qu’une vie, fais attention 😟' : 'Aïe ! Tu as perdu un vaisseau… je t’en renvoie un 💫', 2600);
+    },
     pickup: (k) => {
+      holo.setMood('love', 1.4);
       const t = { shield: 'BOUCLIER +40', triple: 'TIR TRIPLE', rapid: 'TIR RAPIDE' }[k];
       showBanner('BONUS', t, k === 'shield' ? '#22e4ff' : k === 'triple' ? '#ffd166' : '#ff3dbb', 1200);
     },
     cleared: (sector, arrived, target) => {
       const info = PORTAL_INFO[target];
+      holo.setMood(arrived ? 'wow' : 'happy', 3);
       if (arrived) {
         showBanner('DESTINATION EN VUE', target === 'esgi-bot' ? 'LA TOUR · ATTERRISSAGE' : `${info.label} · AMARRAGE`, info.color, 3200);
         say(target === 'esgi-bot' ? 'La planète de la Tour ! Vole dessus pour atterrir 🪐' : 'La station est là : vole jusqu’au sas pour t’amarrer 🛰️', 5000);
@@ -153,7 +199,10 @@ export function createArcade({ root, onExit, onPortal }) {
         say(`Encore un effort, ${info.label} est plus loin ✨`, 4500);
       }
     },
-    gameOver: (score, best) => openMenu('over', { score, best }),
+    gameOver: (score, best) => {
+      holo.setMood('sad', 5);
+      openMenu('over', { score, best });
+    },
     portal: (id, score) => {
       running = false;
       onPortal(id, score);
@@ -162,6 +211,24 @@ export function createArcade({ root, onExit, onPortal }) {
 
   const game = createGame({ sprites, events });
   const input = game.input;
+
+  // Easter egg : tapoter l'écran radio. NOVA rigole, puis au 10e tapotement
+  // elle répare discrètement le bouclier.
+  let taps = 0;
+  const TAP_LINES = ['Hé, c’est mon écran ça ! 😄', 'Arrête, je vais buguer… 📺', 'Bzzt… bzzzt… 🤖', 'Concentre-toi sur la route 😅'];
+  $('.ah-comm').addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    taps++;
+    holo.glitch(0.7);
+    if (taps % 10 === 0 && running) {
+      game.g.shield = 100;
+      holo.setMood('love', 2.5);
+      say('Chut… je t’ai rechargé le bouclier en douce 🤫🛡️', 3200);
+      return;
+    }
+    holo.setMood(taps % 4 === 3 ? 'angry' : 'laugh', 1.2);
+    say(TAP_LINES[taps % TAP_LINES.length], 1800);
+  });
   if (import.meta.env.DEV) window.__arcade = game;
 
   // ---- Taille de l'image : petite, agrandie en pixels nets ----
@@ -389,6 +456,9 @@ export function createArcade({ root, onExit, onPortal }) {
   let visible = false;
   function frame(delta) {
     if (!visible) return;
+    const pl = game.player;
+    if (pl && game.g.W) holo.look((pl.x / game.g.W) * 2 - 1);
+    holo.update(delta);
     if (running && !paused) game.update(delta);
     else game.update(0.016 * 0.3); // fond étoilé qui défile doucement dans les menus
     // État de dessin remis à zéro à chaque image : une erreur de dessin ne

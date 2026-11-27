@@ -211,6 +211,31 @@ html.ship-mode #companion-bubble {
   outline: none;
 }
 
+/* Morceau en cours (lien vers SoundCloud) */
+.sh-track {
+  align-self: center;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: rgba(159, 244, 255, 0.75);
+  text-decoration: none;
+  pointer-events: auto;
+}
+
+.sh-track:hover {
+  color: var(--cyan);
+}
+
+.sh-tool[data-tool='music'][aria-pressed='false'],
+.sh-tool[data-tool='sound'][aria-pressed='false'] {
+  color: rgba(255, 255, 255, 0.45);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
 .sh-tool[data-tool='lite'][aria-pressed='true'] {
   background: rgba(255, 209, 102, 0.18);
   border-color: #ffd166;
@@ -381,7 +406,6 @@ html.ship-mode #companion-bubble {
   outline: none;
 }
 
-.ship-hud.has-target .sh-hint,
 .ship-hud.locked .sh-go {
   display: none;
 }
@@ -534,7 +558,8 @@ html.ship-mode #companion-bubble {
   .sh-name {
     font-size: 0.7rem;
   }
-  .sh-tool span {
+  .sh-tool span,
+  .sh-track {
     display: none;
   }
   .sh-cmd-name {
@@ -553,4 +578,20 @@ html.ship-mode #companion-bubble {
   .sh-reticle {
     display: none;
   }
+}
+
+/* Boutons HTML du cockpit : remplacés par les boutons 3D du tableau de bord.
+   Gardés invisibles pour les lecteurs d'écran (et le clavier : 1 2 3 M Entrée). */
+.ship-hud .sh-nav,
+.ship-hud .sh-go,
+.ship-hud .sh-tool {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }

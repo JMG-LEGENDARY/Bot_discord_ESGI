@@ -72,6 +72,7 @@ export function createTravel({ ship, cockpit, hud, flash }) {
                 : 'En route pour le labo ! J’adore les échantillons 🧪',
             3500
           );
+          cockpit.nova.setMood('wow', 3);
         });
         tl.to(cockpit.glowBoost, { value: 2.4, duration: 0.25, yoyo: true, repeat: 3, ease: 'power1.inOut' }, 0.2);
         tl.to(cockpit.alertLight, { intensity: 3.5, duration: 0.4 }, 0.2);

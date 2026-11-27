@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { api } from './api.js';
-import { createElevatorMusic } from './elevator-music.js';
+import { sharedMusic } from './elevator-music.js';
 
 // =========================================================================
 // L'ASCENSEUR EN 3D
@@ -407,7 +407,7 @@ function plateBackground() {
 
 // ---------------------------------------------------------------------------
 export function createElevator3D(scene, { say, onExit, renderer }) {
-  const music = createElevatorMusic();
+  const music = sharedMusic();
 
   // « En ce moment » : titre du morceau SoundCloud, avec un lien vers l'artiste
   const nowPlaying = document.createElement('a');
