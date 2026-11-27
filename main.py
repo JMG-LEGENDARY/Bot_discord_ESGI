@@ -62,7 +62,7 @@ class ESGIbot(commands.Bot):
     # Définir le statut
     activity = discord.Activity(
       type=discord.ActivityType.watching,
-      name="v0.100"
+      name="v1.0.0 - alpha | ESGI Bot"
     )
 
     await self.change_presence(activity=activity)

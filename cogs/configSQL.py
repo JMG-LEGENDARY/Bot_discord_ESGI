@@ -1,12 +1,13 @@
+from asyncio import exceptions
+
 import discord
 from discord import app_commands
 from discord.ext import commands
-from discord.types import embed
-from docutils.nodes import title
+import asyncio
+
+from .view.buttons import EmbedButtonAccepterAnnuler
 
 from LOGS import logger
-
-
 
 class Roles_Pagination(discord.ui.View):
     def __init__(self, interaction: discord.Interaction):
@@ -103,7 +104,12 @@ class Roles_Pagination(discord.ui.View):
 
 
 class ConfigSelect(discord.ui.Select):
-    def __init__(self, options):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="Configurer les classes", value="configurer_les_classes"),
+            discord.SelectOption(label="Ajouter un rôle", value="ajouter_un_role"),
+            discord.SelectOption(label="Supprimer un rôle", value="supprimer_un_role"),
+        ]
         super().__init__(placeholder="Choisissez une option...", options=options)
 
 
@@ -149,6 +155,97 @@ class ConfigSQL(commands.Cog):
                 await interaction.response.send_message("Vous n'êtes pas admin", ephemeral=True)
         except Exception as e:
             logger.error(f"[configSQL - configurer_les_classes] {e}")
+
+    @app_commands.command(name="configurer_les_salons", description="Permet de définir les salons pour les notifications")
+    async def configurer_les_salons(self, interaction: discord.Interaction):
+        logger.info(f"Commande 'configurer les salons' reçue dans le salon {interaction.channel.name} de la guild {interaction.guild.name} par {interaction.user.name}")
+        try :
+            if interaction.user.guild_permissions.administrator or self.sql_cog.get_rang(interaction.user.id) == "admin":
+                view = EmbedButtonAccepterAnnuler()
+                embed = discord.Embed(title="Entrez le nom du salon", color=discord.Color.from_rgb(0, 162, 246))
+                await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+                try:
+                    salons_list = []
+                    salons_list_name = []
+                    #IA Cette partie
+                    def check(m: discord.Message):
+                        if m.author.id == interaction.user.id and m.channel.id == interaction.channel.id:
+                            return True
+                        return False
+
+                    async def collecter_msg():
+                        while not view.is_finished():
+                            try :
+                                msg = await self.bot.wait_for("message", check=check)
+                                logger.info(f"message : {msg.content}")
+                                # Nettoie le message : supprime les espaces aux extrémités, enlève '#' ou '<#...>' si l'utilisateur
+                                # a tapé un nom avec '#' ou une mention de salon, puis met en minuscules pour comparer sans casse.
+                                raw = msg.content.strip().lstrip("#").removeprefix("<").removesuffix(">").lower()
+                                if '#' in raw:
+                                    raw = raw.replace("#", "")
+                                logger.info(f"raw : {raw}")
+                                # Cherche dans tous les salons textuels du serveur le premier salon dont le nom (en minuscules)
+                                # ou l'ID correspond à la valeur nettoyée ; renvoie None si aucun salon ne correspond.
+                                salon = discord.utils.find(
+                                    lambda c: c.name.lower() == raw or str(c.id) == raw,
+                                    interaction.guild.text_channels,
+                                )
+
+                                # Vérifie si un salon a bien été trouvé
+                                if salon is not None:
+                                    # Le salon existe sur le serveur (ex. : récupérer salon.id, salon.name ou salon.mention)
+                                    try :
+                                        salon_name = self.bot.get_channel(salon.id).name
+                                        salons_list_name.append(salon_name)
+                                        salons_list.append(raw)
+                                        await msg.delete()
+                                    except ValueError:
+                                        logger.error(f"[configSQL - configurer_les_salons] raw : {raw}")
+                                    except Exception as e:
+                                        logger.error(f"[configSQL - configurer_les_salons] {e}")
+                                else:
+                                    # Aucun salon textuel correspondant trouvé sur le serveur
+                                    pass
+
+                            except asyncio.CancelledError:
+                                break
+
+                    listen_task = asyncio.create_task(collecter_msg())
+                    view_task = asyncio.create_task(view.wait())
+                    await asyncio.wait([view_task], return_when=asyncio.FIRST_COMPLETED)
+                    listen_task.cancel()
+                    await asyncio.gather(listen_task, return_exceptions=True)
+
+                    if view.confirmed:
+                        await interaction.edit_original_response(
+                            content=f"Salons enregistrés : {', '.join(salons_list_name) if salons_list else 'aucun'}",
+                            embed=None,
+                            view=None,
+                        )
+                    elif view.annul:
+                        await interaction.edit_original_response(
+                            content="Configuration annulée.",
+                            embed=None,
+                            view=None,
+                        )
+                    else:
+                        await interaction.edit_original_response(
+                            content="Temps écoulé.",
+                            embed=None,
+                            view=None,
+                        )
+                    #fin de partie IA
+                    sql_cog = self.bot.get_cog("SqlCog")
+                    sql_cog.set_notif_channel(interaction.guild.id, salons_list)
+                    logger.info(f"Salons enregistrés pour les notifications dans le serveur {interaction.guild.name} : {', '.join(salons_list_name) if salons_list else 'aucun'}")
+                except Exception as e:
+                    logger.error(f"[configSQL - configurer_les_salons] {e}")
+
+            else :
+                logger.warning(f"{interaction.user.name} n'est pas admin")
+                await interaction.response.send_message("Vous n'êtes pas admin", ephemeral=True)
+        except Exception as e:
+            logger.error(f"[configSQL - configurer_les_salons] {e}")
 
     """@app_commands.command(name="config", description="Permet de configurer le bot")
     async def config(self, interaction: discord.Interaction):

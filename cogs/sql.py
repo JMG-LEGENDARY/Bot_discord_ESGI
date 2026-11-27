@@ -121,11 +121,7 @@ class SqlCog(commands.Cog):
             salon_logs_id INTEGER,
             salon_commandes_id INTEGER,
             salon_devs_id INTEGER,
-            salon_1ere_annee_id INTEGER,
-            salon_2eme_annee_id INTEGER,
-            salon_3eme_annee_id INTEGER,
-            salon_4eme_annee_id INTEGER,
-            salon_5eme_annee_id INTEGER
+            notifications_id TEXT NOT NULL DEFAULT '[]'
         )""")
 
         # 2. Config Rôles par Guild
@@ -724,7 +720,25 @@ class SqlCog(commands.Cog):
             logger.info(f"SQL : ajouter_classes_roles : {guild_id}, {roles_id}")
 
 
+    def set_notif_channel(self, guild_id, channel_id:list):
+        with self.connexion() as conn:
+            cursor = conn.execute(
+                "INSERT OR REPLACE INTO config_salons (guild_id, notifications_id) VALUES (?, ?)",
+                (guild_id, json.dumps(list(channel_id))),
+            )
+        conn.commit()
+        conn.close()
+        logger.info(f"SQL : set_notif_channel : {guild_id}, {channel_id}")
 
+    def get_notif_channel(self, guild_id):
+        with self.connexion() as conn:
+            rows = conn.execute(
+                "SELECT notifications_id FROM config_salons WHERE guild_id = ?",
+                (guild_id,),
+            ).fetchall()
+            notif_channels = [row[0] for row in rows]
+            logger.info(f"SQL : get_notif_channel : {guild_id}, {notif_channels}")
+            return notif_channels
 
 
     def recup_tous_classes_roles(self, guild:int ):

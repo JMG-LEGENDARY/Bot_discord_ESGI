@@ -6,6 +6,7 @@ from datetime import datetime
 from LOGS import logger
 from cogs.events import EventsCog
 from utils import cours
+from .view.buttons import EmbedButtonAccepterRefuser
 
 
 
@@ -70,12 +71,12 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
 
                     if not autres_devoirs:
                         if is_devoir:
-                            print(f"Ajout du devoir : {self.topic['date']} - {self.topic['sujet']} - {self.topic['matiere']} pour la classe {class_id} par {interaction.user.name}")
+                            logger.info(f"Ajout du devoir : {self.topic['date']} - {self.topic['sujet']} - {self.topic['matiere']} pour la classe {class_id} par {interaction.user.name}")
                             sql_cog.ajouter_devoir(guild_id=interaction.guild_id,user_id=interaction.user.id,devoir=self.topic,classe_name=class_id)
                             embed = discord.Embed(title="Devoir enregistré",color=discord.Color.blue(),description=f"Devoir enregistré : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !")
 
                         if not is_devoir:
-                            print(f"Ajout de l'évaluation : {self.topic['date']} - {self.topic['sujet']} - {self.topic['matiere']} pour la classe {class_id} par {interaction.user.name}")
+                            logger.info(f"Ajout de l'évaluation : {self.topic['date']} - {self.topic['sujet']} - {self.topic['matiere']} pour la classe {class_id} par {interaction.user.name}")
                             sql_cog.ajouter_eval(guild_id=interaction.guild_id,user_id=interaction.user.id,eval=self.topic,classe_name=class_id)
                             embed = discord.Embed(title="Évaluation enregistrée",color=discord.Color.blue(),description=f"Évaluation enregistrée : \n**Le {self.topic['date']}**\n**en {self.topic['matiere']}**\n**{self.topic['sujet']}** !")
 
@@ -136,25 +137,6 @@ class DateModal(discord.ui.Modal, title=f"Entrez le sujet"):
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return None
 
-
-class EmbedButtonAccepterRefuser(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=180)
-        self.confirmed = False
-
-    @discord.ui.button(label="Accepter", style=discord.ButtonStyle.green, custom_id="Bouton_Accepter")
-    async def bouton_accepter(self, interaction: discord.Interaction, button: discord.ui.Button):
-        logger.info(f"Bouton Accepter pressé par {interaction.user.name}")
-        self.confirmed = True
-        await interaction.response.defer()  # Indique à Discord que le clic est pris en compte
-        self.stop()
-
-    @discord.ui.button(label="Refuser", style=discord.ButtonStyle.red, custom_id="Bouton_Refuser")
-    async def bouton_refuser(self, interaction: discord.Interaction, button: discord.ui.Button):
-        logger.info(f"Bouton Refuser pressé par {interaction.user.name}")
-        self.confirmed = True
-        await interaction.response.defer()  # Indique à Discord que le clic est pris en compte
-        self.stop()
 
 class SelectMatiere(discord.ui.Select):
     def __init__(self, cours: dict, dico: dict):
@@ -360,7 +342,7 @@ class CommandsCog(commands.Cog):
 
     @app_commands.command(name="nouvelle_identité", description="Supprime tous les messages que tu as envoyés")
     async def nouvelle_identite(self, interaction: discord.Interaction):
-        embed = discord.Embed(
+        """embed = discord.Embed(
             title="Porté de la suppresion",
             color=discord.Color.red(),
         )
@@ -370,8 +352,14 @@ class CommandsCog(commands.Cog):
             embed = discord.Embed(
                 title="Suppression annulée",
                 color=discord.Color.green(),
-            )
-            await interaction.response.send_message(embed=embed)
+            )"""
+        embed = discord.Embed(
+            title="Fonctionnalité en cours de development",
+            description="Envoyez un nom de salon par message, puis cliquez sur **Accepter**.",
+            color=discord.Color.from_rgb(0, 162, 246),
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 async def setup(bot):
     """Fonction requise par discord.py pour charger le cog."""
