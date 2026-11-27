@@ -263,6 +263,7 @@ export function createGame({ sprites, events }) {
     g.shake = Math.max(g.shake, 4);
     g.flash = 0.25;
     sfx.hurt();
+    events.hurt?.(g.shield);
     player.inv = 0.6;
     if (g.shield <= 25 && g.shield > 0) events.say('Bouclier faible ! Cherche un bonus bleu 🛡️');
     if (g.shield <= 0) {
@@ -272,6 +273,7 @@ export function createGame({ sprites, events }) {
       g.lives--;
       g.shake = 8;
       events.lives(g.lives);
+      events.died?.(g.lives);
       if (g.lives <= 0) {
         g.state = 'over';
         if (g.score > g.best) {

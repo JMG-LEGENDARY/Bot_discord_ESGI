@@ -1,0 +1,61 @@
+import{n as e}from"./gsap-BZVPcu9T.js";import{B as t,G as n,K as r,P as i,Q as a,S as o,V as s,X as c,_ as l,b as u,bt as d,ct as f,dt as ee,ht as p,j as m,m as h,ot as g,vt as _,w as v}from"./three-BzoxXuON.js";import{a as y,i as b,n as x,r as S,t as C}from"./api-config-Ddldtp4W.js";import{n as w}from"./api-CBo1b3_v.js";var T=[`Lundi`,`Mardi`,`Mercredi`,`Jeudi`,`Vendredi`];function E(e=new Date){let t=new Date(e),n=(t.getDay()+6)%7;return t.setDate(t.getDate()-n),t.toISOString().slice(0,10)}var D=[[{start:`09:00`,end:`12:00`,title:`Module A — Cours`,place:`Salle A`,kind:`cours`},{start:`13:30`,end:`16:30`,title:`Module B — TP`,place:`Labo 1`,kind:`tp`}],[{start:`09:00`,end:`12:00`,title:`Module C — Cours`,place:`Salle B`,kind:`cours`},{start:`13:30`,end:`15:30`,title:`Projet tutoré`,place:`Salle projet`,kind:`projet`}],[{start:`09:00`,end:`12:00`,title:`Module D — TD`,place:`Salle C`,kind:`td`}],[{start:`09:00`,end:`12:00`,title:`Module B — Cours`,place:`Salle A`,kind:`cours`},{start:`13:30`,end:`16:30`,title:`Module A — TP`,place:`Labo 2`,kind:`tp`}],[{start:`09:00`,end:`11:00`,title:`Évaluation — Module C`,place:`Amphi`,kind:`exam`}]],O=e=>{let t=new Date;return t.setDate(t.getDate()+e),t.toISOString().slice(0,10)},k=[{id:`m1`,title:`Rendu du TP — Module B`,due:O(2),priority:`haute`,module:`Module B`},{id:`m2`,title:`Exercices du chapitre 3`,due:O(5),priority:`moyenne`,module:`Module A`},{id:`m3`,title:`Préparer la présentation du projet`,due:O(9),priority:`moyenne`,module:`Projet`},{id:`m4`,title:`Réviser l’évaluation`,due:O(4),priority:`haute`,module:`Module C`}],A=[{id:`t1`,label:`Relire le cours de la semaine`,done:!0},{id:`t2`,label:`Installer les outils du TP`,done:!1},{id:`t3`,label:`Répartir le travail du projet`,done:!1},{id:`t4`,label:`Vérifier les devoirs sur ESGI-Bot`,done:!1}],j=[{id:`i1`,level:`info`,title:`Canal du QG ouvert`,text:`Cette interface recevra l’emploi du temps et les missions dès que l’API sera branchée.`},{id:`i2`,level:`alerte`,title:`Évaluation vendredi`,text:`Exemple d’alerte importante : elle s’affiche en rose.`},{id:`i3`,level:`info`,title:`Rappels automatiques`,text:`Le bot ESGI-Bot envoie déjà les rappels des devoirs sur Discord.`}];function M(){try{let e=JSON.parse(localStorage.getItem(`esgi-qg-demo-tasks`)||`{}`);return A.map(t=>({...t,done:e[t.id]??t.done}))}catch{return A}}async function te(e=E()){return b()?{demo:!1,items:await x(C.schedule,{semaine:e})}:{demo:!0,items:T.map((e,t)=>({day:e,slots:D[t]}))}}async function ne(){return b()?{demo:!1,items:await x(C.missions)}:{demo:!0,items:[...k].sort((e,t)=>e.due.localeCompare(t.due))}}async function re(){return b()?{demo:!1,items:await x(C.tasks)}:{demo:!0,items:M()}}async function N(e,t){if(b())return S(`PATCH`,`${C.tasks}/${encodeURIComponent(e)}`,{done:t});try{let n=JSON.parse(localStorage.getItem(`esgi-qg-demo-tasks`)||`{}`);n[e]=t,localStorage.setItem(`esgi-qg-demo-tasks`,JSON.stringify(n))}catch{}return{ok:!0}}async function P(){return b()?{demo:!1,items:await x(C.announcements)}:{demo:!0,items:j}}var F={cours:`COURS`,td:`TD`,tp:`TP`,projet:`PROJET`,exam:`ÉVALUATION`};function I(e,t){let n=document.createElement(`canvas`);n.width=256,n.height=140;let r=n.getContext(`2d`),i=t,a=()=>(i=(i*9301+49297)%233280)/233280;r.strokeStyle=e,r.fillStyle=e,r.globalAlpha=.9,r.lineWidth=2,r.strokeRect(3,3,250,134),r.globalAlpha=.25;for(let e=16;e<250;e+=20)r.fillRect(e,10,1,120);r.globalAlpha=.9,r.beginPath();for(let e=12;e<150;e+=6){let n=70+Math.sin(e*.08+t)*22+(a()-.5)*10;e===12?r.moveTo(e,n):r.lineTo(e,n)}r.stroke();for(let e=0;e<6;e++){let t=15+a()*55;r.fillRect(166+e*13,120-t,8,t)}r.globalAlpha=.6;for(let e=0;e<3;e++)r.fillRect(12,104+e*10,40+a()*90,4);let o=new l(n);return o.colorSpace=g,o}function L(e,t=1){return new r({color:new o(e).multiplyScalar(1.6),transparent:!0,opacity:t,blending:2,depthWrite:!1,toneMapped:!1})}function R({ship:l,root:g,onBack:b}){let x=y({renderer:l.renderer,accent:`#a78bfa`,accentHdr:[1,.55,2.2],layout:`hq`,camPos:new _(0,3.1,7.6),camTarget:new _(0,2,0),novaAnchor:{x:.95,y:-.6,z:-2.6,scale:.28}}),{scene:S,group:C}=x,T=new m;C.add(T);let D=new n(new v(2.1,2.5,1,64),x.metal);D.position.y=.5,T.add(D);let O=new n(new v(2.25,2.1,.12,64),x.dark);O.position.y=1.06,T.add(O);let k=new n(new p(2.24,.03,8,128),new r({color:new o(.5,.28,1.1),toneMapped:!1}));k.rotation.x=Math.PI/2,k.position.y=1.12,T.add(k);let A=new n(new u(1.9,64),L(`#8b5cf6`,.25));A.rotation.x=-Math.PI/2,A.position.y=1.13,T.add(A);let j=new m;j.position.y=2.55,T.add(j);let M=new s(new d(new i(1,3)),new t({color:new o(.5,.35,1.4),transparent:!0,opacity:.55,blending:2,depthWrite:!1,toneMapped:!1}));j.add(M);let R=new n(new ee(.97,48,24),new f({transparent:!0,depthWrite:!1,blending:2,uniforms:{uTime:{value:0}},vertexShader:`
+        varying vec3 vN; varying vec3 vV; varying vec3 vP;
+        void main() {
+          vN = normalize(normalMatrix * normal);
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          vV = normalize(-mv.xyz); vP = position;
+          gl_Position = projectionMatrix * mv;
+        }
+      `,fragmentShader:`
+        uniform float uTime;
+        varying vec3 vN; varying vec3 vV; varying vec3 vP;
+        void main() {
+          float fres = pow(1.0 - abs(dot(vN, vV)), 2.5);
+          // Continents en points lumineux
+          float lat = asin(clamp(vP.y, -1.0, 1.0));
+          float lon = atan(vP.z, vP.x) + uTime * 0.15;
+          vec2 g = vec2(lon * 18.0, lat * 18.0);
+          float dots = smoothstep(0.32, 0.0, length(fract(g) - 0.5));
+          float land = step(0.15, sin(lon * 3.0) * cos(lat * 4.0 + 1.0) + sin(lon * 5.0 + lat * 2.0) * 0.5);
+          vec3 col = vec3(0.35, 0.25, 1.1) * fres * 1.4 + vec3(0.3, 0.9, 1.3) * dots * land * 0.6;
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `}));j.add(R);let z=[];[[1.45,.4,`#22e4ff`],[1.75,-.6,`#ff3dbb`],[2.05,1.1,`#a78bfa`]].forEach(([e,t,r],i)=>{let a=new m;a.rotation.x=Math.PI/2+t*.4,a.rotation.z=t,j.add(a);let o=new n(new p(e,.008,4,160),L(r,.7));a.add(o);let s=new n(new c(.09),L(r));a.add(s),z.push({pivot:a,marker:s,r:e,speed:.35+i*.18,phase:i*2})});let B=new n(new v(1,1.7,1.4,48,1,!0),new f({transparent:!0,depthWrite:!1,side:2,blending:2,vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,fragmentShader:`varying vec2 vUv; void main(){ gl_FragColor = vec4(vec3(0.45,0.3,1.2) * (1.0 - vUv.y) * 0.12, 1.0); }`}));B.position.y=1.85,T.add(B),x.glows.add(j,new _(0,0,0),[.6,.4,1.6],1.2);for(let e=0;e<6;e++){let t=e/6*Math.PI*2+Math.PI/6,r=new m;r.position.set(Math.sin(t)*5.4,0,Math.cos(t)*5.4),r.lookAt(0,0,0),C.add(r);let i=new n(new h(1.5,.9,.6),x.metal);i.position.y=.45,r.add(i);let o=L(`#ffffff`,.55);o.map=I(e%2?`#22e4ff`:`#a78bfa`,e*7+3);let s=new n(new a(1.3,.71),o);s.position.set(0,1.45,.05),s.rotation.x=-.25,r.add(s);let c=new n(new h(1.3,.02,.02),x.led);c.position.set(0,.92,.31),r.add(c)}let V=document.createElement(`section`);V.className=`place place-hq`,V.setAttribute(`aria-label`,`Quartier général`),V.innerHTML=`
+    <header class="place-head">
+      <button type="button" class="place-back">↩ <span>RETOUR AU COCKPIT</span></button>
+      <div class="place-title">
+        <span class="place-kicker">DESTINATION // MISSIONS</span>
+        <h1>QUARTIER GÉNÉRAL</h1>
+      </div>
+      <span class="place-badge" hidden>DONNÉES DE DÉMONSTRATION · API NON CONNECTÉE</span>
+    </header>
+    <div class="place-grid hq-grid">
+      <article class="holo-panel hq-schedule">
+        <h2><span>01</span> EMPLOI DU TEMPS</h2>
+        <div class="hq-week" role="tablist" aria-label="Jours de la semaine"></div>
+        <ol class="hq-slots" aria-live="polite"></ol>
+      </article>
+      <article class="holo-panel hq-missions">
+        <h2><span>02</span> MISSIONS</h2>
+        <ul class="hq-mission-list"></ul>
+        <h2 class="hq-sub"><span>03</span> TÂCHES</h2>
+        <ul class="hq-task-list"></ul>
+      </article>
+      <article class="holo-panel hq-infos">
+        <h2><span>04</span> INFORMATIONS IMPORTANTES</h2>
+        <div class="hq-info-list"></div>
+      </article>
+    </div>`,g.appendChild(V),V.querySelector(`.place-back`).addEventListener(`click`,b);let H=V.querySelector(`.place-badge`),U=V.querySelector(`.hq-week`),W=V.querySelector(`.hq-slots`),G=V.querySelector(`.hq-mission-list`),K=V.querySelector(`.hq-task-list`),q=V.querySelector(`.hq-info-list`),J=[],Y=Math.min(4,Math.max(0,(new Date().getDay()+6)%7)),X=e=>{let t=new Date(`${e}T12:00:00`),n=Math.round((t-new Date)/864e5);return{label:t.toLocaleDateString(`fr-FR`,{weekday:`short`,day:`numeric`,month:`short`}),days:n}};function Z(){U.innerHTML=J.map((e,t)=>`<button type="button" role="tab" aria-selected="${t===Y}" data-i="${t}">${w(e.day.slice(0,3).toUpperCase())}</button>`).join(``);let e=J[Y]?.slots||[];W.innerHTML=e.length?e.map(e=>`
+        <li class="hq-slot kind-${w(e.kind)}">
+          <span class="hq-time">${w(e.start)}<i>${w(e.end)}</i></span>
+          <span class="hq-slot-body"><b>${w(e.title)}</b><small>${w(e.place||``)}</small></span>
+          <span class="hq-kind">${w(F[e.kind]||e.kind||``)}</span>
+        </li>`).join(``):`<li class="hq-empty">Aucun créneau ce jour-là.</li>`}U.addEventListener(`click`,e=>{let t=e.target.closest(`button[data-i]`);if(!t)return;Y=Number(t.dataset.i),Z();let n=J[Y]?.slots?.length||0,r=J[Y]?.day||`ce jour`;n===0?$(`${r} : rien de prévu ! Repos ? 😴`,`happy`):n>=4?$(`${r} chargé : ${n} créneaux. Courage 💪`,`surprised`):$(`${r} : ${n} créneau${n>1?`x`:``}, tranquille 😌`,`happy`)});function ie(e){K.innerHTML=e.map(e=>`
+      <li><label class="hq-task ${e.done?`done`:``}">
+        <input type="checkbox" data-id="${w(e.id)}" ${e.done?`checked`:``} />
+        <span class="hq-check" aria-hidden="true"></span>${w(e.label)}
+      </label></li>`).join(``)}K.addEventListener(`change`,async e=>{let t=e.target.closest(`input[data-id]`);if(t){if(t.closest(`.hq-task`).classList.toggle(`done`,t.checked),t.checked){let e=K.querySelectorAll(`input[data-id]:not(:checked)`).length;$(e===0?`TOUT est fait ! Tu es une machine 🤩`:`Bien joué ✅ Plus que ${e} !`,e===0?`wow`:`love`)}else $(`Oups, pas encore finie celle-là ? 😅`,`sad`);try{await N(t.dataset.id,t.checked)}catch{t.checked=!t.checked,t.closest(`.hq-task`).classList.toggle(`done`,t.checked)}}});let Q=0;function $(e,t,n=3500){x.nova.setMood(t,2.4),performance.now()-Q<1500||(Q=performance.now(),x.nova.say(e,n))}async function ae(){W.innerHTML=`<li class="hq-empty">Réception des données…</li>`;try{let[e,t,n,r]=await Promise.all([te(E()),ne(),re(),P()]);H.hidden=!(e.demo||t.demo||n.demo||r.demo),J=e.items,Z(),G.innerHTML=t.items.map(e=>{let t=X(e.due),n=t.days<=2;return`<li class="hq-mission prio-${w(e.priority)} ${n?`urgent`:``}">
+            <span class="hq-mission-dot" aria-hidden="true"></span>
+            <span class="hq-mission-body"><b>${w(e.title)}</b><small>${w(e.module||``)}</small></span>
+            <span class="hq-due">${w(t.label)}<i>${t.days<=0?`aujourd’hui`:`J-${t.days}`}</i></span>
+          </li>`}).join(``),ie(n.items);let i=t.items.filter(e=>X(e.due).days<=2).length;i&&setTimeout(()=>$(`Attention : ${i} mission${i>1?`s`:``} à rendre dans moins de 2 jours ⚠️`,`surprised`,5e3),7e3),q.innerHTML=r.items.map(e=>`<div class="hq-info level-${w(e.level)}"><b>${w(e.title)}</b><p>${w(e.text)}</p></div>`).join(``)}catch{W.innerHTML=`<li class="hq-empty">Liaison avec le QG impossible. Réessaie plus tard.</li>`}}function oe(e,t){j.rotation.y=t*.25,R.material.uniforms.uTime.value=t,j.position.y=2.55+Math.sin(t*1.2)*.05,z.forEach(e=>{let n=t*e.speed+e.phase;e.marker.position.set(Math.cos(n)*e.r,Math.sin(n)*e.r,0),e.marker.rotation.y=t*2}),x.update(e,t)}function se(){V.classList.add(`open`),ae(),x.playEntry(),e.fromTo(V.querySelectorAll(`.holo-panel`),{opacity:0,y:30,scale:.96},{opacity:1,y:0,scale:1,duration:.7,stagger:.12,delay:.5,ease:`power3.out`}),setTimeout(()=>{x.nova.say(`Bienvenue au QG ! Ici on suivra l’emploi du temps et les missions 🛰️`,5e3),x.nova.setMood(`happy`,3)},1400)}function ce(){V.classList.remove(`open`)}return{scene:S,camera:x.camera,nova:x.nova,update:oe,enter:se,leave:ce,resize:x.fitCamera}}export{R as createHQ};

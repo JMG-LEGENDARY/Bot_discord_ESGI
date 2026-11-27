@@ -154,6 +154,66 @@ function createFace() {
         ctx.stroke();
       });
     },
+    heart() {
+      // yeux en cœur (amoureuse)
+      ctx.fillStyle = '#ff7ad0';
+      EX.forEach((x) => {
+        const y = EY - 8;
+        ctx.beginPath();
+        ctx.moveTo(x, y + 40);
+        ctx.bezierCurveTo(x - 58, y + 2, x - 30, y - 42, x, y - 12);
+        ctx.bezierCurveTo(x + 30, y - 42, x + 58, y + 2, x, y + 40);
+        ctx.fill();
+      });
+    },
+    star() {
+      // yeux étoiles (émerveillée)
+      ctx.fillStyle = '#ffe17a';
+      EX.forEach((x) => {
+        ctx.beginPath();
+        for (let i = 0; i < 10; i++) {
+          const a = -Math.PI / 2 + (i * Math.PI) / 5;
+          const r = i % 2 ? 18 : 44;
+          ctx.lineTo(x + Math.cos(a) * r, EY + Math.sin(a) * r);
+        }
+        ctx.closePath();
+        ctx.fill();
+      });
+    },
+    wide() {
+      // grands yeux ronds (surprise)
+      ctx.fillStyle = CYAN;
+      EX.forEach((x) => {
+        ctx.beginPath();
+        ctx.arc(x, EY, 46, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(x, EY, 16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.beginPath();
+        ctx.arc(x - 16, EY - 18, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = CYAN;
+      });
+    },
+    sad() {
+      // yeux tristes, sourcils qui tombent
+      ctx.fillStyle = CYAN;
+      EX.forEach((x) => {
+        ctx.beginPath();
+        ctx.ellipse(x, EY + 10, 28, 36, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      stroke(10);
+      [[EX[0], 1], [EX[1], -1]].forEach(([x, d]) => {
+        ctx.beginPath();
+        ctx.moveTo(x - 32 * d, EY - 44);
+        ctx.lineTo(x + 28 * d, EY - 60);
+        ctx.stroke();
+      });
+    },
     angry() {
       // « > < »
       stroke(18);
@@ -221,7 +281,7 @@ function createFace() {
     }
   };
 
-  /** eye : open | sleepy | blink | happy | sleep | dizzy | angry ; mouth : smile | open | grin | o | flat | wavy */
+  /** eye : open | sleepy | blink | happy | sleep | dizzy | angry | heart | star | wide | sad ; mouth : smile | open | grin | o | flat | wavy */
   function set(eye, mouth, zzz = false) {
     const key = `${eye}/${mouth}/${zzz}`;
     if (key === current) return;
@@ -474,7 +534,7 @@ function buildShip() {
   while (ship.children.length) rig.add(ship.children[0]);
   ship.add(rig);
 
-  return { ship, nozzles, face, antenna, wings, heart, rig, mats: { hullMat, pastelMat } };
+  return { ship, nozzles, face, antenna, wings, heart, rig, mats: { hullMat, pastelMat, visorMat } };
 }
 
 export function createCompanion(scene, camera, glows) {
@@ -810,6 +870,7 @@ export function createCompanion(scene, camera, glows) {
     blinkT = Math.min(1, blinkT + delta * 7);
     const blink = 1 - Math.sin(blinkT * Math.PI) * 0.9;
     const now = performance.now();
+    holoTime.value = elapsed;
     const sleeping = now < sleepUntil;
     if (wasSleeping && !sleeping) say('Ah ! Bien dormi 😊 On reprend ?', 3500);
     wasSleeping = sleeping;
@@ -821,6 +882,10 @@ export function createCompanion(scene, camera, glows) {
     if (sleeping) face.set('sleep', 'o', true);
     else if (spinning) face.set('dizzy', 'wavy');
     else if (mood === 'angry') face.set('angry', 'flat');
+    else if (mood === 'love') face.set('heart', 'grin');
+    else if (mood === 'wow') face.set('star', mouthOpen ? 'open' : 'grin');
+    else if (mood === 'surprised') face.set('wide', 'o');
+    else if (mood === 'sad') face.set('sad', 'wavy');
     else if (dancing) face.set('happy', 'grin');
     else if (mood === 'happy') face.set('happy', mouthOpen ? 'open' : 'grin');
     else if (blink < 0.5) face.set('blink', mouthOpen ? 'open' : 'smile');
@@ -923,7 +988,69 @@ export function createCompanion(scene, camera, glows) {
     mats.pastelMat.emissiveIntensity = 0.6;
   }
 
-  /** Expression temporaire : 'happy' ou 'angry' */
+  /** NOVA en hologramme : silhouette bleutée transparente, lignes de
+   * balayage et petit scintillement ; le visage reste allumé */
+  const holoTime = { value: 0 };
+  let holoMats = null;
+  let hologram = false;
+  function makeHoloMat(map) {
+    return new THREE.ShaderMaterial({
+      uniforms: { uTime: holoTime, uMap: { value: map || null }, uUseMap: { value: map ? 1 : 0 } },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+      vertexShader: `
+        varying vec3 vN;
+        varying vec3 vView;
+        varying float vY;
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vY = wp.y;
+          vec4 mv = viewMatrix * wp;
+          vView = -mv.xyz;
+          vN = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform sampler2D uMap;
+        uniform float uUseMap;
+        varying vec3 vN;
+        varying vec3 vView;
+        varying float vY;
+        varying vec2 vUv;
+        void main() {
+          float fres = pow(1.0 - abs(dot(normalize(vN), normalize(vView))), 2.0);
+          float scan = 0.55 + 0.45 * sin(vY * 260.0 - uTime * 8.0);
+          float band = smoothstep(0.0, 0.05, fract(vY * 3.0 - uTime * 0.6)) * 0.3 + 0.7;
+          float flick = 0.9 + 0.1 * sin(uTime * 37.0) * sin(uTime * 11.0);
+          vec3 col = vec3(0.25, 0.85, 1.2) * (0.12 + fres * 0.9) * scan * band * flick;
+          if (uUseMap > 0.5) col += texture2D(uMap, vUv).rgb * vec3(0.7, 1.0, 1.1) * 0.9 * flick;
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+  }
+  function setHologram(on) {
+    if (on === hologram) return;
+    hologram = on;
+    if (!holoMats) holoMats = { body: makeHoloMat(null), face: makeHoloMat(face.texture) };
+    ship.traverse((o) => {
+      if (!o.isMesh) return;
+      if (on) {
+        o.userData.realMat = o.material;
+        o.material = o.material === mats.visorMat ? holoMats.face : holoMats.body;
+      } else if (o.userData.realMat) {
+        o.material = o.userData.realMat;
+      }
+    });
+  }
+
+  /** Expression temporaire : happy, angry, love, wow, surprised, sad */
   function setMood(name, seconds = 2.5) {
     moodName = name;
     moodUntil = performance.now() + seconds * 1000;
@@ -971,7 +1098,10 @@ export function createCompanion(scene, camera, glows) {
 
   return {
     update, say, hide, resize, isHit, ship, setCollision,
-    setGolden, spin, sleep, setSleepy, setCrown, setMood,
+    setGolden, spin, sleep, setSleepy, setCrown, setMood, setHologram,
+    get hologram() {
+      return hologram;
+    },
     get sleeping() {
       return performance.now() < sleepUntil;
     }

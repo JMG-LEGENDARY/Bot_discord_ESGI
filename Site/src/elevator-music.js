@@ -4,6 +4,8 @@
 // le lecteur officiel de SoundCloud (intégration autorisée par l'artiste).
 // Si SoundCloud ne répond pas, l'ascenseur reste simplement silencieux.
 // Le « ding » d'arrivée à l'étage est un petit bruitage fait avec Web Audio.
+// Un seul lecteur pour tout le site : l'ascenseur et le vaisseau (cockpit,
+// QG, labo, mini-jeu) partagent la même musique (sharedMusic).
 // =========================================================================
 
 const PLAYLISTS = [
@@ -12,6 +14,7 @@ const PLAYLISTS = [
 ];
 const SC_VOLUME = 55; // volume normal (0 à 100)
 const STORAGE_KEY = 'esgi-ascenseur-muet';
+const LEVEL_KEY = 'esgi-musique-volume';
 
 const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
 
@@ -43,6 +46,13 @@ function playerUrl(playlist) {
   return `https://w.soundcloud.com/player/?${params}`;
 }
 
+let shared = null;
+/** Le lecteur unique du site (créé au premier appel) */
+export function sharedMusic() {
+  if (!shared) shared = createElevatorMusic();
+  return shared;
+}
+
 export function createElevatorMusic() {
   let muted = false;
   try {
@@ -50,6 +60,16 @@ export function createElevatorMusic() {
   } catch (e) {
     /* stockage indisponible : son activé par défaut */
   }
+
+  // Niveau choisi par l'utilisateur (0 à 1), appliqué au volume normal
+  let level = 1;
+  try {
+    const v = parseFloat(localStorage.getItem(LEVEL_KEY));
+    if (!Number.isNaN(v)) level = Math.min(1, Math.max(0, v));
+  } catch (e) {
+    /* volume normal */
+  }
+  const target = () => SC_VOLUME * level;
 
   // ---------- « Ding » d'arrivée (Web Audio) ----------
   let ctx = null;
@@ -74,14 +94,17 @@ export function createElevatorMusic() {
   let volume = 0;
   let fadeTimer = null;
   let watchdog = null;
-  let onTrack = null;
-  let onFallback = null;
-  let onPlayingChange = null;
+  // Plusieurs écouteurs possibles (ascenseur et vaisseau)
+  const onTrack = [];
+  const onFallback = [];
+  const onPlayingChange = [];
+  const onMuteChange = [];
+  let currentTrack = null;
 
   function setPlaying(value) {
     if (playing === value) return;
     playing = value;
-    if (onPlayingChange) onPlayingChange(value);
+    onPlayingChange.forEach((cb) => cb(value));
   }
 
   function fadeVolume(target, ms, then) {
@@ -119,7 +142,7 @@ export function createElevatorMusic() {
     failed = true;
     setPlaying(false);
     if (widget) widget.pause();
-    if (onFallback) onFallback();
+    onFallback.forEach((cb) => cb());
   }
 
   function play() {
@@ -131,7 +154,7 @@ export function createElevatorMusic() {
     } else {
       widget.play();
     }
-    fadeVolume(SC_VOLUME, 1200);
+    fadeVolume(target(), 1200);
     // Si SoundCloud n'a toujours pas démarré au bout de 8 s (navigateur qui
     // bloque la lecture, réseau…), on abandonne : l'ascenseur reste silencieux.
     clearTimeout(watchdog);
@@ -142,6 +165,21 @@ export function createElevatorMusic() {
         giveUp();
       });
     }, 8000);
+  }
+
+  // Morceau suivant : un album au hasard, puis un morceau au hasard
+  function advance() {
+    const next = Math.floor(Math.random() * PLAYLISTS.length);
+    if (next === playlist) {
+      playRandomTrack();
+      return;
+    }
+    playlist = next;
+    widget.load(PLAYLISTS[playlist], {
+      auto_play: false,
+      visual: false, show_artwork: false, show_comments: false, sharing: false, buying: false, download: false,
+      callback: () => playRandomTrack()
+    });
   }
 
   function create() {
@@ -174,13 +212,13 @@ export function createElevatorMusic() {
         widget.bind(E.PLAY, () => {
           setPlaying(true);
           widget.getCurrentSound((sound) => {
-            if (sound && onTrack) {
-              onTrack({
-                title: sound.title,
-                artist: sound.user ? sound.user.username : '',
-                url: sound.permalink_url
-              });
-            }
+            if (!sound) return;
+            currentTrack = {
+              title: sound.title,
+              artist: sound.user ? sound.user.username : '',
+              url: sound.permalink_url
+            };
+            onTrack.forEach((cb) => cb(currentTrack));
           });
         });
         widget.bind(E.PAUSE, () => setPlaying(false));
@@ -188,17 +226,7 @@ export function createElevatorMusic() {
         widget.bind(E.FINISH, () => {
           setPlaying(false);
           if (!wanted || muted) return;
-          const next = Math.floor(Math.random() * PLAYLISTS.length);
-          if (next === playlist) {
-            playRandomTrack();
-            return;
-          }
-          playlist = next;
-          widget.load(PLAYLISTS[playlist], {
-            auto_play: false,
-            visual: false, show_artwork: false, show_comments: false, sharing: false, buying: false, download: false,
-            callback: () => playRandomTrack()
-          });
+          advance();
         });
         // Morceau illisible : on passe au suivant
         widget.bind(E.ERROR, () => widget.next());
@@ -235,17 +263,51 @@ export function createElevatorMusic() {
     debug() {
       return { muted, playing, wanted, volume: Math.round(volume), source: failed ? 'indisponible' : ready ? 'soundcloud' : 'chargement' };
     },
+    /** Niveau du volume choisi (0 à 1) */
+    get level() {
+      return level;
+    },
+    /** Règle le volume (0 à 1), retenu pour la prochaine visite */
+    setLevel(v) {
+      level = Math.min(1, Math.max(0, v));
+      try {
+        localStorage.setItem(LEVEL_KEY, String(level));
+      } catch (e) {
+        /* sans importance */
+      }
+      if (widget && ready && playing) {
+        clearInterval(fadeTimer);
+        volume = target();
+        widget.setVolume(Math.round(volume));
+      }
+    },
+    /** Passe au morceau suivant (au hasard) */
+    next() {
+      if (!widget || !ready || failed || muted) return false;
+      wanted = true;
+      shuffled = true;
+      advance();
+      return true;
+    },
+    /** Morceau en cours : { title, artist, url } ou null */
+    get track() {
+      return currentTrack;
+    },
     /** Appelé à chaque nouveau morceau : { title, artist, url } */
     set onTrack(cb) {
-      onTrack = cb;
+      onTrack.push(cb);
     },
     /** Appelé si SoundCloud ne peut pas jouer */
     set onFallback(cb) {
-      onFallback = cb;
+      onFallback.push(cb);
     },
     /** Appelé quand la musique démarre ou s'arrête (pour faire danser NOVA) */
     set onPlayingChange(cb) {
-      onPlayingChange = cb;
+      onPlayingChange.push(cb);
+    },
+    /** Appelé quand on coupe ou remet la musique (boutons synchronisés) */
+    set onMuteChange(cb) {
+      onMuteChange.push(cb);
     },
     /** À appeler pendant un clic (règle des navigateurs pour le son) */
     unlock() {
@@ -254,6 +316,7 @@ export function createElevatorMusic() {
     },
     setMuted(value) {
       muted = value;
+      onMuteChange.forEach((cb) => cb(value));
       try {
         localStorage.setItem(STORAGE_KEY, value ? '1' : '0');
       } catch (e) {

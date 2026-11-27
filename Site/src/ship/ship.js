@@ -7,12 +7,16 @@ import { createTravel } from './travel.js';
 import { sfx } from './audio.js';
 import { waitForFonts, REDUCED_MOTION } from './util.js';
 import { DESTINATIONS } from './destinations.js';
+import { createNovaReactions } from './nova-react.js';
+import { sharedMusic } from '../elevator-music.js';
 
 // =========================================================================
 // LE VAISSEAU : cockpit, sauts spatiaux et destinations embarquées
 // (QG, laboratoire, mini-jeu). Une seule boucle d'animation, qui ne
 // calcule que la vue affichée.
 // =========================================================================
+
+const pickOne = (list) => list[Math.floor(Math.random() * list.length)];
 
 export async function createShip({ onCommand }) {
   await waitForFonts();
@@ -44,6 +48,37 @@ export async function createShip({ onCommand }) {
   }
   function command(id) {
     sfx.unlock();
+    // Barre de volume de la musique
+    if (id.startsWith('vol:')) {
+      const v = Number(id.slice(4));
+      music.setLevel(v);
+      if (music.muted && v > 0.02) hud.tools.sound(); // on remonte le volume : la musique revient
+      cockpit.setVolume(v, music.muted);
+      return;
+    }
+    // Morceau suivant
+    if (id === 'tool:next') {
+      cockpit.pressToggle('next');
+      sfx.click();
+      music.unlock();
+      if (music.muted) hud.tools.sound();
+      if (!music.next()) music.start();
+      novaCockpit.react(pickOne(['Morceau suivant ! 🎶', 'Oh, j’adore celui-là 💃', 'Allez, on change d’ambiance 🎧']), 'love', { key: 'next', duration: 2200 });
+      return;
+    }
+    // Interrupteurs du tableau de bord (musique, son, mode léger)
+    if (id.startsWith('tool:')) {
+      const tool = id.slice(5);
+      hud.tools[tool]?.();
+      sfx.click();
+      const LINES = {
+        sound: () => (music.muted ? ['Musique coupée. Silence radio 🤫', 'sad'] : ['♪ Musique ! Je danse dans ma tête 💃', 'love']),
+        lite: () => (ship.lite ? ['Mode léger : moins d’effets, plus fluide ⚡', 'happy'] : ['Tous les effets à fond ✨', 'wow'])
+      };
+      const line = LINES[tool]?.();
+      if (line) novaCockpit.react(line[0], line[1], { key: `tool-${tool}`, duration: 2500 });
+      return;
+    }
     if (id === 'engage') {
       if (target) {
         sfx.click();
@@ -56,6 +91,7 @@ export async function createShip({ onCommand }) {
         sfx.countdown();
         hud.show('PILOTAGE MANUEL', 'CHOISIS UNE DESTINATION', 'La Tour · Missions · Laboratoire, puis les leviers', '#ffd166', 2800);
         cockpit.nova.say('Choisis d’abord où on va avec les boutons, puis prends les leviers 🕹️', 4000);
+        cockpit.nova.setMood('surprised', 2);
         return;
       }
       sfx.click();
@@ -71,25 +107,81 @@ export async function createShip({ onCommand }) {
     setTarget(id);
     cockpit.press(id);
     sfx.confirm();
-    cockpit.nova.say(`Cap sur ${DESTINATIONS[id].name} ! Autopilote ou leviers, à toi de voir 🚀`, 4200);
+    // L'autopilote, c'est NOVA : on clique sur elle
+    cockpit.nova.say(`Cap sur ${DESTINATIONS[id].name} ! 🚀 Appuie sur moi si tu veux l’autopilote 😊👉 … ou prends les leviers 🕹️`, 9000);
+    cockpit.nova.setMood('wow', 2.5);
   }
 
+  // ---- Musique (la même que l'ascenseur) ----
+  // Elle démarre au premier clic ou à la première touche (règle des
+  // navigateurs), joue partout dans le vaisseau et s'arrête sur le site.
+  const music = sharedMusic();
+  const startMusic = () => {
+    if (!visible) return;
+    music.unlock();
+    music.start();
+  };
+  layer.addEventListener('pointerdown', startMusic);
+  window.addEventListener('keydown', startMusic);
+  // NOVA aime la musique : elle réagit au nouveau morceau (de temps en temps)
+  music.onTrack = (tr) => {
+    if (!visible || current !== 'cockpit') return;
+    novaCockpit.react(`♪ « ${tr.title} » ! J’adore ce morceau 🎶`, 'love', { key: 'track', cooldown: 90000, duration: 4000 });
+  };
+
   const hud = createHud(ui, {
+    music,
     onCommand: command,
     onHover: (id) => cockpit.setHover(id),
     onLite: (on) => ship.setLite(on),
     liteOn: ship.lite
   });
   cockpit.onCommand = command;
+  hud.onTools = (s) => {
+    Object.entries(s).forEach(([k, v]) => cockpit.setToggle(k, v));
+    cockpit.setVolume(music.level, music.muted);
+  };
   cockpit.onHover = (id) => {
     hud.highlight(id);
     if (id) sfx.hover();
+    const line = id && HOVER_LINES[id];
+    if (line && Math.random() < 0.6) novaCockpit.react(line[0], line[1], { key: `hover-${id}`, cooldown: 25000, duration: 3200 });
   };
   const travel = createTravel({ ship, cockpit, hud, flash });
 
+  // ---- NOVA réagit à tout ce qu'on fait dans le cockpit ----
+  const HOVER_LINES = {
+    'esgi-bot': ['La Tour ! C’est chez moi là-bas 🏙️', 'love'],
+    qg: ['Le QG : emploi du temps, missions… le sérieux 📋', 'happy'],
+    labo: ['Le labo ! Ça sent le café et les cours ☕', 'wow'],
+    jeu: ['Les leviers ? Tu sais piloter au moins ? 😏', 'surprised']
+  };
+  const novaCockpit = createNovaReactions(cockpit.nova, {
+    camera: cockpit.camera,
+    canvas,
+    isActive: () => visible && current === 'cockpit',
+    // Clic sur NOVA avec une destination choisie : elle prend les commandes
+    onClick: () => {
+      if (!target || !cockpit.enabled) return false;
+      cockpit.nova.setMood('love', 2);
+      command('engage');
+      return true;
+    },
+    hoverLines: ['Coucou 👋 Tu me cherchais ?', 'Je suis là ! Prête à décoller 🚀', 'Clique-moi pas trop fort hein 😄'],
+    idleLines: [
+      'Tu savais que la lumière met 8 minutes à venir du Soleil ? ☀️',
+      'On attend quoi ? La Tour, les missions ou le labo ? 🤔',
+      'Psst… essaie de taper « holo » 🤫',
+      'Les leviers, c’est le mode arcade. Mes cousins maléfiques t’attendent 😈',
+      'J’ai compté 412 étoiles par ce hublot. Puis j’ai perdu le fil 😅'
+    ]
+  });
+  // Très rare : NOVA dorée dès l'arrivée (0,5 %)
+  if (Math.random() < 0.005) cockpit.nova.setGolden();
+
   // ---- Destinations embarquées (chargées au premier voyage) ----
   const places = {};
-  if (import.meta.env.DEV) window.__ship = { ship, cockpit, hud, travel, places };
+  if (import.meta.env.DEV) window.__ship = { ship, cockpit, hud, travel, places, music };
   async function getPlace(id) {
     if (places[id]) return places[id];
     if (id === 'qg') {
@@ -104,6 +196,18 @@ export async function createShip({ onCommand }) {
         root: layer,
         onExit: () => onCommand('cockpit'),
         onPortal: (dest) => window.dispatchEvent(new CustomEvent('esgi-portal', { detail: dest }))
+      });
+    }
+    if ((id === 'qg' || id === 'labo') && !places[id].reactions) {
+      places[id].reactions = createNovaReactions(places[id].nova, {
+        camera: places[id].camera,
+        canvas,
+        isActive: () => visible && current === id,
+        hoverLines: id === 'qg' ? ['Besoin d’aide pour les missions ? 🛰️'] : ['Tu cherches un cours ? Je connais la bibliothèque par cœur 📚'],
+        idleLines:
+          id === 'qg'
+            ? ['Une mission par jour et le semestre est plié 💪', 'Coche tes tâches, ça fait du bien ✅', 'Le globe tourne, et nous on bosse 🌍']
+            : ['Les cristaux brillent plus fort quand on révise 🔮', 'Utilise la recherche, ça va plus vite 🔎', 'Pas touche aux cuves sans blouse 🥼']
       });
     }
     return places[id];
@@ -224,18 +328,22 @@ export async function createShip({ onCommand }) {
       await places.jeu.hide();
       showView('cockpit');
       hud.show('PILOTAGE MANUEL', 'RETOUR AU COCKPIT', 'Commandes rendues à l’ordinateur de bord', '#ffd166', 2400);
+      novaCockpit.react('Ouf, on est rentrés entiers ! Joli pilotage 🕹️', 'happy', { duration: 3500 });
       return;
     }
     // Saut retour : éclair, puis le vaisseau sort du trou de ver
     sfx.whoosh(0.8);
     await gsap.to(flash, { opacity: 1, duration: 0.45, ease: 'power2.in' });
+    const from = current;
     place?.leave();
     showView('cockpit');
     await travel.arriveInCockpit();
+    novaCockpit.react(from === 'qg' ? 'Retour à bord ! Les missions attendront un peu 😄' : 'Re ! Le labo était cool, non ? 🧪', 'happy', { duration: 3500 });
   }
 
   async function returnToCockpit() {
     visible = true;
+    startMusic();
     layer.classList.remove('away');
     gsap.set(flash, { opacity: 1 });
     // Vaisseau créé à la volée (arrivée directe sur le site) : il n'a jamais
@@ -243,6 +351,7 @@ export async function createShip({ onCommand }) {
     cockpit.status.power = 1;
     showView('cockpit');
     await travel.arriveInCockpit();
+    novaCockpit.react(pickOne(['Re-bienvenue à bord ! 🚀', 'Tu m’as manqué ! On va où maintenant ? 💫', 'La Tour était belle vue d’en haut 🏙️']), 'love', { duration: 3800 });
   }
 
   async function startGame() {
@@ -293,6 +402,7 @@ export async function createShip({ onCommand }) {
     hide() {
       visible = false;
       layer.classList.add('away');
+      music.stop(0.6); // sur le site, c'est l'ascenseur qui a la musique
     }
   };
 }

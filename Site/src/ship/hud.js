@@ -10,7 +10,7 @@ import { saveLiteMode } from './util.js';
 // (clavier : 1, 2, 3 et M).
 // =========================================================================
 
-export function createHud(root, { onCommand, onHover, onLite, liteOn }) {
+export function createHud(root, { music, onCommand, onHover, onLite, liteOn }) {
   const el = document.createElement('div');
   el.className = 'ship-hud';
   const items = [...DESTINATION_ORDER.map((id) => DESTINATIONS[id]), MANUAL];
@@ -33,7 +33,8 @@ export function createHud(root, { onCommand, onHover, onLite, liteOn }) {
         <span class="sh-clock">--:--</span>
       </div>
       <div class="sh-tools">
-        <button type="button" class="sh-tool" data-tool="sound" aria-pressed="${!sfx.muted}" title="Son">${sfx.muted ? '🔇' : '🔊'}</button>
+        <a class="sh-track" target="_blank" rel="noopener noreferrer" hidden></a>
+        <button type="button" class="sh-tool" data-tool="sound" aria-pressed="${!music.muted}" title="Couper ou remettre la musique">${music.muted ? '✕' : '♪'}<span> MUSIQUE</span></button>
         <button type="button" class="sh-tool" data-tool="lite" aria-pressed="${liteOn}" title="Moins d'effets, plus de fluidité">⚡<span> LÉGER</span></button>
       </div>
     </header>
@@ -43,10 +44,10 @@ export function createHud(root, { onCommand, onHover, onLite, liteOn }) {
       <div class="sh-announce-title"></div>
       <div class="sh-announce-sub"></div>
     </div>
-    <div class="sh-hint">Choisis une destination, puis engage l’autopilote ou prends les leviers</div>
+    <div class="sh-hint">Choisis une destination à gauche, puis clique sur NOVA pour l’autopilote ou prends les leviers</div>
     <div class="sh-go" hidden>
       <span class="sh-go-target"></span>
-      <button type="button" class="sh-go-btn" data-cmd="engage"><kbd>ENTRÉE</kbd> ENGAGER L’AUTOPILOTE</button>
+      <button type="button" class="sh-go-btn" data-cmd="engage"><kbd>ENTRÉE</kbd> AUTOPILOTE (NOVA)</button>
       <button type="button" class="sh-go-btn manual" data-cmd="jeu"><kbd>M</kbd> PRENDRE LES LEVIERS</button>
     </div>
     <nav class="sh-nav" aria-label="Destinations du vaisseau">
@@ -73,6 +74,7 @@ export function createHud(root, { onCommand, onHover, onLite, liteOn }) {
   const clockEl = el.querySelector('.sh-clock');
   const cmdButtons = [...el.querySelectorAll('.sh-cmd')];
   const go = el.querySelector('.sh-go');
+  const hintEl = el.querySelector('.sh-hint');
   const goTarget = el.querySelector('.sh-go-target');
   go.querySelectorAll('.sh-go-btn').forEach((b) => b.addEventListener('click', () => !locked && onCommand(b.dataset.cmd)));
   let locked = false;
@@ -89,20 +91,46 @@ export function createHud(root, { onCommand, onHover, onLite, liteOn }) {
     b.addEventListener('blur', () => !locked && onHover(null));
   });
 
+  // Bouton MUSIQUE : coupe ou remet la musique. Les bruitages (bips du cockpit,
+  // tirs du mini-jeu) ne se coupent jamais.
+  if (sfx.muted) sfx.setMuted(false); // ancien réglage : on remet les bruitages
   const soundBtn = el.querySelector('[data-tool="sound"]');
+  const trackEl = el.querySelector('.sh-track');
+  function syncSound() {
+    soundBtn.innerHTML = `${music.muted ? '✕' : '♪'}<span> MUSIQUE</span>`;
+    soundBtn.setAttribute('aria-pressed', String(!music.muted));
+    trackEl.hidden = music.muted || !music.track;
+    toolsChanged();
+  }
   soundBtn.addEventListener('click', () => {
-    sfx.setMuted(!sfx.muted);
-    soundBtn.textContent = sfx.muted ? '🔇' : '🔊';
-    soundBtn.setAttribute('aria-pressed', String(!sfx.muted));
-    if (!sfx.muted) sfx.click();
+    music.unlock();
+    music.setMuted(!music.muted);
+    if (!music.muted) music.start();
+    syncSound();
   });
+  // Titre du morceau en cours (lien vers SoundCloud, crédit de l'artiste)
+  music.onTrack = (tr) => {
+    trackEl.textContent = `♪ ${tr.title}${tr.artist ? ` · ${tr.artist}` : ''}`;
+    trackEl.href = tr.url;
+    syncSound();
+  };
+  music.onMuteChange = () => syncSound();
+  music.onFallback = () => {
+    trackEl.hidden = true;
+  };
   const liteBtn = el.querySelector('[data-tool="lite"]');
   liteBtn.addEventListener('click', () => {
     const on = liteBtn.getAttribute('aria-pressed') !== 'true';
     liteBtn.setAttribute('aria-pressed', String(on));
     saveLiteMode(on);
     onLite(on);
+    toolsChanged();
   });
+  // Les interrupteurs 3D du tableau de bord pilotent ces mêmes réglages
+  let onTools = null;
+  function toolsChanged() {
+    if (onTools) onTools({ sound: !music.muted, lite: liteBtn.getAttribute('aria-pressed') === 'true' });
+  }
 
   function onKey(e) {
     if (locked || !el.isConnected || el.classList.contains('hidden')) return;
@@ -136,6 +164,15 @@ export function createHud(root, { onCommand, onHover, onLite, liteOn }) {
   }
 
   return {
+    /** Interrupteurs 3D : mêmes actions que les boutons de la barre */
+    tools: {
+      sound: () => soundBtn.click(),
+      lite: () => liteBtn.click()
+    },
+    set onTools(fn) {
+      onTools = fn;
+      toolsChanged();
+    },
     el,
     show,
     hideAnnounce: () => announce.classList.remove('on'),
@@ -147,6 +184,10 @@ export function createHud(root, { onCommand, onHover, onLite, liteOn }) {
     setTarget(dest) {
       go.hidden = !dest;
       el.classList.toggle('has-target', Boolean(dest));
+      // Consigne sous le tableau de bord : la cible, puis quoi faire
+      hintEl.innerHTML = dest
+        ? `CAP SUR <b style="color:${dest.color}">${dest.name}</b> · clique sur NOVA pour l’autopilote, ou prends les leviers`
+        : 'Choisis une destination à gauche, puis clique sur NOVA pour l’autopilote ou prends les leviers';
       if (dest) {
         goTarget.innerHTML = `CAP SUR <b style="color:${dest.color}">${dest.name}</b>`;
         go.style.setProperty('--c', dest.color);

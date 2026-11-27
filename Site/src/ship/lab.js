@@ -231,11 +231,35 @@ export function createLab({ ship, root, onBack }) {
     category = b.dataset.cat;
     tabs.querySelectorAll('button').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
     loadResources();
+    const TAB_LINES = {
+      tout: ['Toute la bibliothèque, rien que ça 📚', 'happy'],
+      cours: ['Les cours ! Mon rayon préféré 🤓', 'love'],
+      documents: ['Les documents officiels, rangés au millimètre 🗂️', 'happy'],
+      supports: ['Les supports de TD : on met les mains dans le cambouis 🔧', 'surprised'],
+      outils: ['La caisse à outils du parfait étudiant 🧰', 'wow']
+    };
+    const line = TAB_LINES[category] || [`Rayon ${b.textContent.trim().toLowerCase()} 👀`, 'happy'];
+    novaSay(line[0], line[1]);
   });
   search.addEventListener('input', () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(loadResources, 220);
+    searchTimer = setTimeout(async () => {
+      await loadResources();
+      const found = list.querySelectorAll('.lab-card').length;
+      if (search.value.trim().length >= 3) {
+        if (found) novaSay(`J’ai trouvé ${found} résultat${found > 1 ? 's' : ''} 🔎`, 'wow', 2500);
+        else novaSay('Rien trouvé… essaie un autre mot ? 🤔', 'sad', 2800);
+      }
+    }, 220);
   });
+  // NOVA commente (sans parler à chaque frappe)
+  let lastSay = 0;
+  function novaSay(text, mood, duration = 3500) {
+    room.nova.setMood(mood, 2.4);
+    if (performance.now() - lastSay < 2500) return;
+    lastSay = performance.now();
+    room.nova.say(text, duration);
+  }
 
   async function showSamples() {
     const open = samplesPanel.hidden;
@@ -244,6 +268,7 @@ export function createLab({ ship, root, onBack }) {
     // Les cuves s'illuminent quand on consulte les échantillons
     gsap.to(boost, { v: open ? 1 : 0, duration: 0.8 });
     if (!open) return;
+    room.nova.setMood('wow', 2);
     gsap.fromTo(samplesPanel, { opacity: 0, x: 30 }, { opacity: 1, x: 0, duration: 0.5, ease: 'power3.out' });
     samplesBody.innerHTML = '<div class="hq-empty">Analyse des cuves…</div>';
     const s = await getSamples().catch(() => ({ connected: false, items: [] }));
@@ -256,6 +281,7 @@ export function createLab({ ship, root, onBack }) {
           <div class="lab-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
         </div>`;
       room.nova.say('Les cuves sont prêtes, il manque juste le câble vers les notes 🔌', 4500);
+      room.nova.setMood('sad', 3);
       return;
     }
     samplesBody.innerHTML = s.items.length
@@ -294,5 +320,5 @@ export function createLab({ ship, root, onBack }) {
     ui.classList.remove('open');
   }
 
-  return { scene, camera: room.camera, update, enter, leave, resize: room.fitCamera };
+  return { scene, camera: room.camera, nova: room.nova, update, enter, leave, resize: room.fitCamera };
 }

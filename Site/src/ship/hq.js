@@ -256,6 +256,11 @@ export function createHQ({ ship, root, onBack }) {
     if (!b) return;
     dayIndex = Number(b.dataset.i);
     renderDay();
+    const n = schedule[dayIndex]?.slots?.length || 0;
+    const day = schedule[dayIndex]?.day || 'ce jour';
+    if (n === 0) novaSay(`${day} : rien de prévu ! Repos ? 😴`, 'happy');
+    else if (n >= 4) novaSay(`${day} chargé : ${n} créneaux. Courage 💪`, 'surprised');
+    else novaSay(`${day} : ${n} créneau${n > 1 ? 'x' : ''}, tranquille 😌`, 'happy');
   });
 
   function renderTasks(tasks) {
@@ -273,6 +278,10 @@ export function createHQ({ ship, root, onBack }) {
     const box = e.target.closest('input[data-id]');
     if (!box) return;
     box.closest('.hq-task').classList.toggle('done', box.checked);
+    if (box.checked) {
+      const left = tasksEl.querySelectorAll('input[data-id]:not(:checked)').length;
+      novaSay(left === 0 ? 'TOUT est fait ! Tu es une machine 🤩' : `Bien joué ✅ Plus que ${left} !`, left === 0 ? 'wow' : 'love');
+    } else novaSay('Oups, pas encore finie celle-là ? 😅', 'sad');
     try {
       await setTaskDone(box.dataset.id, box.checked);
     } catch {
@@ -280,6 +289,15 @@ export function createHQ({ ship, root, onBack }) {
       box.closest('.hq-task').classList.toggle('done', box.checked);
     }
   });
+
+  // NOVA commente (sans parler à chaque clic)
+  let lastSay = 0;
+  function novaSay(text, mood, duration = 3500) {
+    room.nova.setMood(mood, 2.4);
+    if (performance.now() - lastSay < 1500) return;
+    lastSay = performance.now();
+    room.nova.say(text, duration);
+  }
 
   async function load() {
     slotsEl.innerHTML = '<li class="hq-empty">Réception des données…</li>';
@@ -300,6 +318,8 @@ export function createHQ({ ship, root, onBack }) {
         })
         .join('');
       renderTasks(t.items);
+      const urgent = m.items.filter((x) => fmtDue(x.due).days <= 2).length;
+      if (urgent) setTimeout(() => novaSay(`Attention : ${urgent} mission${urgent > 1 ? 's' : ''} à rendre dans moins de 2 jours ⚠️`, 'surprised', 5000), 7000);
       infosEl.innerHTML = a.items
         .map((x) => `<div class="hq-info level-${esc(x.level)}"><b>${esc(x.title)}</b><p>${esc(x.text)}</p></div>`)
         .join('');
@@ -328,12 +348,15 @@ export function createHQ({ ship, root, onBack }) {
     load();
     room.playEntry();
     gsap.fromTo(ui.querySelectorAll('.holo-panel'), { opacity: 0, y: 30, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.7, stagger: 0.12, delay: 0.5, ease: 'power3.out' });
-    setTimeout(() => room.nova.say('Bienvenue au QG ! Ici on suivra l’emploi du temps et les missions 🛰️', 5000), 1400);
+    setTimeout(() => {
+      room.nova.say('Bienvenue au QG ! Ici on suivra l’emploi du temps et les missions 🛰️', 5000);
+      room.nova.setMood('happy', 3);
+    }, 1400);
   }
 
   function leave() {
     ui.classList.remove('open');
   }
 
-  return { scene, camera: room.camera, update, enter, leave, resize: room.fitCamera };
+  return { scene, camera: room.camera, nova: room.nova, update, enter, leave, resize: room.fitCamera };
 }
